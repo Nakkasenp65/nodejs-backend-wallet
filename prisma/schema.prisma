@@ -1,0 +1,159 @@
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+enum TransactionType {
+  OUTCOME  
+  INCOME 
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  CANCELLED
+  REJECTED
+}
+
+enum GoalStatus {
+  ACTIVE    
+  COMPLETED 
+  CANCELLED 
+}
+
+enum Choice {
+  DAILY 
+  WEEKLY
+  HALF_MONTH 
+  MONTHLY 
+}
+
+enum NotificationType {
+  RECEIVE
+  SENT
+  REWARD
+  SYSTEM
+}
+
+model Notification {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+
+  title     String            
+  body      String?           
+  type      NotificationType  
+  
+  isRead    Boolean  @default(false)
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transactionId String?      @db.ObjectId
+
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String  @id @map("_id") @default(auto()) @db.ObjectId
+  userId    String  @unique
+  username  String
+  firstTime Boolean @default(true)
+  userProfilePicUrl String? 
+
+  goal Goal?
+  wallet Wallet?
+  notifications     Notification[] 
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//User -> Transaction
+model Wallet {
+  id       String   @id @map("_id") @default(auto()) @db.ObjectId
+  balance  Float    @default(0)
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @db.ObjectId
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//Wallet -> Transaction 
+model Transaction {
+  id          String          @id @map("_id") @default(auto()) @db.ObjectId
+  name        String
+  amount      Float
+  type        TransactionType
+  status      TransactionStatus @default(PENDING)
+  from        String
+  to          String
+  description String?
+  createdAt   DateTime        @default(now())
+  wallet      Wallet          @relation(fields: [walletId], references: [id])
+  walletId    String          @db.ObjectId
+  notifications Notification[]
+}
+
+// User -> Goal
+model Goal {
+  id     String     @id @map("_id") @default(auto()) @db.ObjectId
+  status GoalStatus @default(ACTIVE)
+  
+  plan Plan @relation(fields: [planId], references: [id])
+  planId String @unique  @db.ObjectId
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @db.ObjectId
+
+  mobileModel   MobileModel @relation(fields: [mobileModelId], references: [id])
+  mobileModelId String      @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Goal -> Plan
+model Plan {
+  id String @id @map("_id") @default(auto()) @db.ObjectId
+  name Choice
+  displayName String
+  goal Goal?
+}
+
+// Start::Brand 
+model Brand {
+  id        String        @id @map("_id") @default(auto()) @db.ObjectId
+  name      String        @unique
+  models    MobileModel[] 
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+// Brand -> Model
+model MobileModel {
+  id        String @id @map("_id") @default(auto()) @db.ObjectId
+  name      String 
+  price     Float
+
+  brand   Brand  @relation(fields: [brandId], references: [id])
+  brandId String @db.ObjectId
+
+  
+  targetedByGoals Goal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
