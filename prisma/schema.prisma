@@ -99,6 +99,7 @@ model Transaction {
   from        String
   to          String
   description String?
+  bank String?
   createdAt   DateTime        @default(now())
   wallet      Wallet          @relation(fields: [walletId], references: [id])
   walletId    String          @db.ObjectId

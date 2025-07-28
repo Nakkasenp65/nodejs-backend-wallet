@@ -4,7 +4,7 @@ import validate from '../middlewares/validate.js';
 
 const transactionRouter = Router();
 
-transactionRouter.post('/:userId', transactionController.createTransaction);
-transactionRouter.get('/:userId', transactionController.getTransactions);
+transactionRouter.post('/:walletId', transactionController.createTransaction);
+transactionRouter.get('/:walletId', transactionController.getTransactions);
 
 export default transactionRouter;

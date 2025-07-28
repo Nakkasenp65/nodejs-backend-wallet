@@ -3,6 +3,7 @@ import userRouter from './user.route.js';
 import goalRouter from './goal.route.js';
 import transactionRouter from './transaction.route.js';
 import planRouter from './plan.route.js';
+import notificationRouter from './notification.route.js';
 
 const router = express.Router();
 
@@ -24,6 +25,10 @@ const defaultRoutes = [
   {
     path: '/plan',
     route: planRouter,
+  },
+  {
+    path: '/notification',
+    route: notificationRouter,
   },
 ];
 

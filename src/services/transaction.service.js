@@ -2,26 +2,11 @@ import prisma from '../libs/prisma.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 
-const createTransaction = async (userId, transactionData) => {
-  const user = await prisma.user.findUnique({
-    where: {
-      userId: userId,
-    },
-    include: {
-      wallet: true,
-    },
-  });
-
-  if (!user.wallet) {
-    throw new ApiErrorError(httpStatus.NOT_FOUND, 'Wallet not found for the user.');
-  }
-
+const createTransaction = async (walletId, transactionData) => {
   const dataToCreate = {
     ...transactionData,
-    walletId: user.wallet.id,
+    walletId: walletId,
   };
-
-  console.log(dataToCreate);
 
   const newTransaction = await prisma.transaction.create({
     data: dataToCreate,
@@ -30,18 +15,9 @@ const createTransaction = async (userId, transactionData) => {
   return newTransaction;
 };
 
-const getTransactions = async (userId, options = {}) => {
-  const user = await prisma.user.findUnique({
-    where: { userId: userId },
-    include: { wallet: true },
-  });
-
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Wallet not found for the user.');
-  }
-
+const getTransactions = async (walletId, options = {}) => {
   const whereClause = {
-    walletId: user.wallet.id,
+    walletId: walletId,
   };
 
   if (options.year && options.month !== undefined) {
@@ -56,6 +32,7 @@ const getTransactions = async (userId, options = {}) => {
       lt: endDate,
     };
   }
+
   const transactions = await prisma.transaction.findMany({
     where: whereClause,
     orderBy: {
