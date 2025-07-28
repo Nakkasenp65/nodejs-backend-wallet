@@ -7,6 +7,28 @@ import httpStatus from 'http-status';
 
 const prisma = new PrismaClient();
 
+const checkUserStatus = async (userId) => {
+  if (!userId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'LIFF ID is required');
+  }
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    // Only select the fields we absolutely need for this check
+    select: {
+      id: true,
+      firstTime: true,
+    },
+  });
+
+  if (!user) {
+    // If the user doesn't exist in our DB, they are a "new user"
+    return { isNewUser: true, firstTime: true };
+  }
+
+  // If they exist, return their status
+  return { isNewUser: false, firstTime: user.firstTime };
+};
+
 const getUserByLiffId = async (userId) => {
   return await prisma.user.findUnique({
     where: { userId },
@@ -37,7 +59,7 @@ const createUser = async (payload) => {
   try {
     const newUser = await prisma.user.create({
       data: {
-        liffId,
+        userId: liffId,
         username,
         userProfilePicUrl,
         wallet: {
@@ -70,4 +92,4 @@ const updateUserProfile = async (liffId, payload) => {
   });
 };
 
-export default { createUser, getUserByLiffId, updateUserProfile };
+export default { createUser, getUserByLiffId, updateUserProfile, checkUserStatus };

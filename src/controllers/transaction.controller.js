@@ -3,7 +3,10 @@ import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
 
 const createTransaction = catchAsync(async (req, res) => {
-  const newTransaction = await transactionService.createTransaction(req.params.walletId, req.body);
+  const transactionData = req.body;
+  console.log('Uploaded file info:', req.file);
+  transactionData.amount = parseFloat(transactionData.amount);
+  const newTransaction = await transactionService.createTransaction(req.params.walletId, transactionData);
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 

@@ -3,19 +3,19 @@ import prisma from '../libs/prisma.js';
 async function createGoalForUser(userId, data) {
   const newGoal = await prisma.goal.create({
     data: {
-      user: { connect: { userId: userId } },
-      targetModel: { connect: { id: data.mobileId } },
+      user: { connect: { id: userId } },
+      mobileModel: { connect: { id: data.mobileId } },
       plan: { connect: { id: data.planId } },
       status: 'ACTIVE',
     },
     include: {
-      targetModel: true,
+      mobileModel: true,
       plan: true,
     },
   });
 
   await prisma.user.update({
-    where: { liff: userId },
+    where: { id: userId },
     data: { firstTime: false },
   });
 

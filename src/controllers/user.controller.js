@@ -13,7 +13,14 @@ const getCurrentUser = catchAsync(async (req, res, next) => {
   return res.status(httpStatus.OK).json(user);
 });
 
+const checkStatus = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const status = await userService.checkUserStatus(userId);
+  res.status(httpStatus.OK).json({ success: true, data: status });
+});
+
 export default {
   createUser,
   getCurrentUser,
+  checkStatus,
 };

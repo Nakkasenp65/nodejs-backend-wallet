@@ -80,7 +80,7 @@ model Wallet {
   id       String   @id @map("_id") @default(auto()) @db.ObjectId
   balance  Float    @default(0)
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
 
   transactions Transaction[]
@@ -101,7 +101,7 @@ model Transaction {
   description String?
   bank String?
   createdAt   DateTime        @default(now())
-  wallet      Wallet          @relation(fields: [walletId], references: [id])
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
   walletId    String          @db.ObjectId
   notifications Notification[]
 }
@@ -114,7 +114,7 @@ model Goal {
   plan Plan @relation(fields: [planId], references: [id])
   planId String @unique  @db.ObjectId
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id],onDelete: Cascade)
   userId String @unique @db.ObjectId
 
   mobileModel   MobileModel @relation(fields: [mobileModelId], references: [id])

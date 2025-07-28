@@ -3,6 +3,7 @@ import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 
 const createTransaction = async (walletId, transactionData) => {
+  console.log(transactionData);
   const dataToCreate = {
     ...transactionData,
     walletId: walletId,
