@@ -13,7 +13,6 @@ const checkUserStatus = async (userId) => {
   }
   const user = await prisma.user.findUnique({
     where: { userId },
-    // Only select the fields we absolutely need for this check
     select: {
       id: true,
       firstTime: true,
@@ -21,11 +20,9 @@ const checkUserStatus = async (userId) => {
   });
 
   if (!user) {
-    // If the user doesn't exist in our DB, they are a "new user"
     return { isNewUser: true, firstTime: true };
   }
 
-  // If they exist, return their status
   return { isNewUser: false, firstTime: user.firstTime };
 };
 
@@ -55,31 +52,35 @@ const getUserByLiffId = async (userId) => {
 
 const createUser = async (payload) => {
   const { liffId, username, userProfilePicUrl } = payload;
+
   if (!liffId || !username) throw new ApiError(httpStatus.BAD_REQUEST, 'liffId and username is required');
-  try {
-    const newUser = await prisma.user.create({
-      data: {
-        userId: liffId,
-        username,
-        userProfilePicUrl,
-        wallet: {
-          create: {
-            balance: 0,
-          },
+
+  // 🔍 ตรวจสอบก่อนว่า user มีอยู่แล้วหรือยัง
+  const existingUser = await prisma.user.findUnique({
+    where: { userId: liffId },
+  });
+
+  if (existingUser) {
+    return existingUser; // หรือ throw error ก็ได้ตาม logic ที่ต้องการ
+  }
+
+  const newUser = await prisma.user.create({
+    data: {
+      userId: liffId,
+      username,
+      userProfilePicUrl,
+      wallet: {
+        create: {
+          balance: 0,
         },
       },
-      include: {
-        wallet: true,
-      },
-    });
+    },
+    include: {
+      wallet: true,
+    },
+  });
 
-    return newUser;
-  } catch (error) {
-    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new Error(`LIFF ID '${liffId}' นี้ถูกลงทะเบียนแล้วในระบบ`);
-    }
-    throw error;
-  }
+  return newUser;
 };
 
 const updateUserProfile = async (liffId, payload) => {
