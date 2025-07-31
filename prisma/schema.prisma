@@ -42,6 +42,12 @@ enum NotificationType {
   SYSTEM
 }
 
+enum UserMissionStatus {
+  ENROLLED
+  COMPLETED
+  EXPIRED
+}
+
 model Notification {
   id        String   @id @map("_id") @default(auto()) @db.ObjectId
 
@@ -70,12 +76,12 @@ model User {
   goal Goal?
   wallet Wallet?
   notifications     Notification[] 
+  userMissions      UserMission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-//User -> Transaction
 model Wallet {
   id       String   @id @map("_id") @default(auto()) @db.ObjectId
   balance  Float    @default(0)
@@ -89,42 +95,70 @@ model Wallet {
   updatedAt DateTime @updatedAt
 }
 
-//Wallet -> Transaction 
 model Transaction {
-  id          String          @id @map("_id") @default(auto()) @db.ObjectId
-  name        String
-  amount      Float
-  type        TransactionType
-  status      TransactionStatus @default(PENDING)
-  from        String
-  to          String
-  description String?
-  bank String?
-  createdAt   DateTime        @default(now())
-  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  walletId    String          @db.ObjectId
+  id            String          @id @map("_id") @default(auto()) @db.ObjectId
+  name          String
+  amount        Float?
+  type          TransactionType
+  status        TransactionStatus @default(PENDING)
+  from          String
+  to            String
+  description   String?
+  bank          String?
+  createdAt     DateTime        @default(now())
+  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId      String          @db.ObjectId
   notifications Notification[]
+  userMission   UserMission?    @relation(fields: [userMissionId], references: [id], onDelete: SetNull) // Link to the completed mission
+  userMissionId String?         @unique @db.ObjectId
 }
 
-// User -> Goal
+model Mission {
+  id              String        @id @map("_id") @default(auto()) @db.ObjectId
+  title           String
+  description     String
+  rewardAmount    Float
+  webExpiresAt    DateTime // Expiration date for the mission on the website
+  enrolledBy      UserMission[] // Relation to users who have enrolled
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model UserMission {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String @db.ObjectId
+
+  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  missionId String  @db.ObjectId
+
+  status          UserMissionStatus @default(ENROLLED)
+  enrolledAt      DateTime          @default(now())
+  userExpiresAt   DateTime // Expiration for the user to complete the mission
+  completedAt     DateTime?
+  rewardTransaction Transaction? // The transaction that gave the reward
+
+  @@unique([userId, missionId]) // Ensures a user can only enroll in a mission once
+}
+
 model Goal {
   id     String     @id @map("_id") @default(auto()) @db.ObjectId
   status GoalStatus @default(ACTIVE)
-  
-  plan Plan @relation(fields: [planId], references: [id])
-  planId String @unique  @db.ObjectId
 
-  user   User   @relation(fields: [userId], references: [id],onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+  planId String @unique @db.ObjectId
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
 
-  mobileModel   MobileModel @relation(fields: [mobileModelId], references: [id])
-  mobileModelId String      @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Goal -> Plan
 model Plan {
   id String @id @map("_id") @default(auto()) @db.ObjectId
   name Choice
@@ -132,29 +166,49 @@ model Plan {
   goal Goal?
 }
 
-// Start::Brand 
 model Brand {
   id        String        @id @map("_id") @default(auto()) @db.ObjectId
   name      String        @unique
-  models    MobileModel[] 
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
 
 // Brand -> Model
-model MobileModel {
-  id        String @id @map("_id") @default(auto()) @db.ObjectId
-  name      String 
-  price     Float
+// model MobileModel {
+//   id        String @id @map("_id") @default(auto()) @db.ObjectId
+//   name      String 
+//   price     Float
 
-  brand   Brand  @relation(fields: [brandId], references: [id])
-  brandId String @db.ObjectId
+//   brand   Brand  @relation(fields: [brandId], references: [id])
+//   brandId String @db.ObjectId
 
   
-  targetedByGoals Goal[]
+//   targetedByGoals Goal[]
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+// }
+
+model Product {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  uniqueId String @unique
+
+  brand    String
+  model    String
+  capacity String
+  color    String
+  price    Int
+  imageUrl String
+
+  downPaymentAmount   Int
+  downPaymentPercent  Int
+  installment6Months  Int
+  installment10Months Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  targetedByGoals Goal[]
 }
 
 

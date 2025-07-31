@@ -4,7 +4,7 @@ import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
 
 const createUser = catchAsync(async (req, res, next) => {
-  const newUser = await userService.createUser(req.body);
+  const newUser = await userService.createUserWithGoal(req.body);
   return res.status(201).json(newUser);
 });
 

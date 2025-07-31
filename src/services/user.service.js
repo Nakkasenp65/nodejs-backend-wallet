@@ -30,14 +30,10 @@ const getUserByLiffId = async (userId) => {
   return await prisma.user.findUnique({
     where: { userId },
     include: {
-      wallet: {},
+      wallet: true,
       goal: {
         include: {
-          mobileModel: {
-            include: {
-              brand: true,
-            },
-          },
+          product: true,
           plan: true,
         },
       },
@@ -53,15 +49,17 @@ const getUserByLiffId = async (userId) => {
 const createUser = async (payload) => {
   const { liffId, username, userProfilePicUrl } = payload;
 
-  if (!liffId || !username) throw new ApiError(httpStatus.BAD_REQUEST, 'liffId and username is required');
-
-  // 🔍 ตรวจสอบก่อนว่า user มีอยู่แล้วหรือยัง
   const existingUser = await prisma.user.findUnique({
     where: { userId: liffId },
+    include: {
+      goal: true,
+      wallet: true,
+      notifications: true,
+    },
   });
 
   if (existingUser) {
-    return existingUser; // หรือ throw error ก็ได้ตาม logic ที่ต้องการ
+    throw new ApiError(httpStatus.CONFLICT, 'User already exist');
   }
 
   const newUser = await prisma.user.create({
@@ -83,6 +81,40 @@ const createUser = async (payload) => {
   return newUser;
 };
 
+const createUserWithGoal = async (userData) => {
+  const { mobileId, planId, liffId, displayName, pictureUrl } = userData;
+
+  const existingUser = await prisma.user.findUnique({
+    where: { userId: liffId },
+  });
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  const newUser = await prisma.user.create({
+    data: {
+      userId: liffId,
+      username: displayName,
+      userProfilePicUrl: pictureUrl,
+      wallet: {
+        create: {
+          balance: 0,
+        },
+      },
+      goal: {
+        create: {
+          product: { connect: { id: mobileId } },
+          plan: { connect: { id: planId } },
+        },
+      },
+    },
+    include: {
+      wallet: true,
+    },
+  });
+};
+
 const updateUserProfile = async (liffId, payload) => {
   return prisma.user.update({
     where: { liffId },
@@ -93,4 +125,4 @@ const updateUserProfile = async (liffId, payload) => {
   });
 };
 
-export default { createUser, getUserByLiffId, updateUserProfile, checkUserStatus };
+export default { createUser, getUserByLiffId, updateUserProfile, checkUserStatus, createUserWithGoal };

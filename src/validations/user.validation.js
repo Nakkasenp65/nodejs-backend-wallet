@@ -6,14 +6,16 @@ const createUser = Joi.object().keys({
       'any.required': 'กรุณาระบุ liffId',
       'string.empty': 'liffId ห้ามเป็นค่าว่าง',
     }),
-    username: Joi.string().required().min(2).messages({
+    displayName: Joi.string().required().min(2).messages({
       'any.required': 'กรุณาระบุ username',
       'string.empty': 'username ห้ามเป็นค่าว่าง',
       'string.min': 'username ต้องมีอย่างน้อย 2 ตัวอักษร',
     }),
-    userProfilePicUrl: Joi.string().uri().allow('').optional().messages({
+    pictureUrl: Joi.string().uri().allow('').optional().messages({
       'string.uri': 'userProfilePicUrl ต้องเป็น URL ที่ถูกต้อง',
     }),
+    mobileId: Joi.string().required(),
+    planId: Joi.string().required(),
   }),
 });
 

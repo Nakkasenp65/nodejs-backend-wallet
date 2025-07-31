@@ -4,6 +4,7 @@ import bodyParser from 'body-parser';
 import router from './routes/index.js';
 import ApiError from './utils/ApiError.js';
 import httpStatus from 'http-status';
+import error from './middlewares/error.js';
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.get('/', (req, res) => {
 
 // URL/v1
 app.use('/v1', router);
+
+app.use(error.errorConverter);
+app.use(error.errorHandler);
 
 app.use((req, res, next) => {
   next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));

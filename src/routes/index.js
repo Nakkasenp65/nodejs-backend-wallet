@@ -4,6 +4,7 @@ import goalRouter from './goal.route.js';
 import transactionRouter from './transaction.route.js';
 import planRouter from './plan.route.js';
 import notificationRouter from './notification.route.js';
+import productRouter from './product.route.js';
 
 const router = express.Router();
 
@@ -30,6 +31,7 @@ const defaultRoutes = [
     path: '/notification',
     route: notificationRouter,
   },
+  { path: '/product', route: productRouter },
 ];
 
 defaultRoutes.forEach((route) => {
