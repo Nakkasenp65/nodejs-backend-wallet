@@ -8,8 +8,9 @@
 // });
 
 // VERSION: SERVERLESS
-import serverless from 'serverless-http';
+// import serverless from 'serverless-http';
 import app from './app.js';
 
 // Export the handler function wrapped by serverless-http
-export const handler = serverless(app);
+// export const handler = serverless(app);
+export default app;
