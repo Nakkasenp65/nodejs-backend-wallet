@@ -80,6 +80,7 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
 }
 
 model Wallet {
@@ -104,13 +105,17 @@ model Transaction {
   from          String
   to            String
   description   String?
+  slipImageUrl  String
   bank          String?
   createdAt     DateTime        @default(now())
+  
   wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  walletId      String          @unique @db.ObjectId
+  walletId      String          @db.ObjectId 
+
   notifications Notification[]
-  userMission   UserMission?    @relation(fields: [userMissionId], references: [id], onDelete: SetNull) // Link to the completed mission
-  userMissionId String?         @unique @db.ObjectId
+  
+  
+  userMission   UserMission?    
 
   @@index([walletId, status, createdAt(sort: Desc)])
 }
@@ -137,11 +142,12 @@ model UserMission {
 
   status          UserMissionStatus @default(ENROLLED)
   enrolledAt      DateTime          @default(now())
-  userExpiresAt   DateTime // Expiration for the user to complete the mission
+  userExpiresAt   DateTime 
   completedAt     DateTime?
-  rewardTransaction Transaction? // The transaction that gave the reward
+  rewardTransaction   Transaction? @relation(fields: [rewardTransactionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  rewardTransactionId String?      @unique @db.ObjectId 
 
-  @@unique([userId, missionId]) // Ensures a user can only enroll in a mission once
+  @@unique([userId, missionId]) 
 }
 
 model Goal {

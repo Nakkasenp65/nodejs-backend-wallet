@@ -2,11 +2,14 @@ import transactionService from '../services/transaction.service.js';
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
 
-const createTransaction = catchAsync(async (req, res) => {
+const createSavingTransaction = catchAsync(async (req, res) => {
   const transactionData = req.body;
-  console.log('Uploaded file info:', req.file);
   transactionData.amount = parseFloat(transactionData.amount);
-  const newTransaction = await transactionService.createTransaction(req.params.walletId, transactionData);
+  const newTransaction = await transactionService.createSavingTransaction(
+    req.params.walletId,
+    transactionData,
+    req.file,
+  );
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 
@@ -20,8 +23,15 @@ const getSuccessTransactions = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(transactions);
 });
 
+const getThaiTransactions = catchAsync(async (req, res) => {
+  console.log(req.params.walletId);
+  const transactions = await transactionService.getTransactionsWithThaiStatus(req.params.walletId);
+  res.status(httpStatus.OK).json(transactions);
+});
+
 export default {
-  createTransaction,
+  createSavingTransaction,
   getTransactions,
   getSuccessTransactions,
+  getThaiTransactions,
 };
