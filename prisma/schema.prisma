@@ -107,10 +107,12 @@ model Transaction {
   bank          String?
   createdAt     DateTime        @default(now())
   wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  walletId      String          @db.ObjectId
+  walletId      String          @unique @db.ObjectId
   notifications Notification[]
   userMission   UserMission?    @relation(fields: [userMissionId], references: [id], onDelete: SetNull) // Link to the completed mission
   userMissionId String?         @unique @db.ObjectId
+
+  @@index([walletId, status, createdAt(sort: Desc)])
 }
 
 model Mission {

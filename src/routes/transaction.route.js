@@ -7,5 +7,6 @@ const transactionRouter = Router();
 
 transactionRouter.post('/:walletId', upload.single('slipImage'), transactionController.createTransaction);
 transactionRouter.get('/:walletId', transactionController.getTransactions);
+transactionRouter.get('/success/:walletId', transactionController.getSuccessTransactions);
 
 export default transactionRouter;

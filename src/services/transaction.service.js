@@ -19,10 +19,10 @@ const createTransaction = async (walletId, transactionData) => {
   //   parents: [process.env.GOOGLE_DRIVE_FOLDER_ID], // The ID of the folder you shared
   // };
 
-  // const dataToCreate = {
-  //   ...transactionData,
-  //   walletId: walletId,
-  // };
+  const dataToCreate = {
+    ...transactionData,
+    walletId: walletId,
+  };
 
   // const media = {
   //   mimeType: fileFromRequest.mimetype,
@@ -83,5 +83,34 @@ const getTransactions = async (walletId, options = {}) => {
   });
 
   return transactions;
+};
+
+const getSuccessTransaction = async (walletId, options = {}) => {
+  const whereClause = {
+    walletId: walletId,
+    status: 'SUCCESS',
+  };
+
+  if (options.year && options.month !== undefined) {
+    const year = parseInt(options.year, 10);
+    const month = parseInt(options.month, 10); // month จาก JS คือ 0-11
+
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 1);
+
+    whereClause.createdAt = {
+      gte: startDate,
+      lt: endDate,
+    };
+
+    const transactions = await prisma.transaction.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return transactions;
+  }
 };
 export default { createTransaction, getTransactions };

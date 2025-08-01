@@ -15,7 +15,13 @@ const getTransactions = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(transactions);
 });
 
+const getSuccessTransactions = catchAsync(async (req, res) => {
+  const transactions = await transactionService.getSuccessTransaction(req.params.walletId, req.query);
+  res.status(httpStatus.OK).json(transactions);
+});
+
 export default {
   createTransaction,
   getTransactions,
+  getSuccessTransactions,
 };
