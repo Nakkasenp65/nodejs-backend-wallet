@@ -14,7 +14,22 @@
     {
       "src": "/v1/transaction/",
       "dest": "src/routes/transaction.route.js",
-      "methods": ["POST"]
+      "methods": ["POST", "GET"]
+    },
+    {
+      "src": "/v1/user/",
+      "dest": "src/routes/user.route.js",
+      "methods": ["POST", "GET"]
+    },
+    {
+      "src": "/v1/wallet/",
+      "dest": "src/routes/wallet.route.js",
+      "methods": ["POST", "GET"]
+    },
+    {
+      "src": "/v1/goal/",
+      "dest": "src/routes/goal.route.js",
+      "methods": ["POST", "GET"]
     }
   ]
 }
