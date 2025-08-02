@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+const cors = require('cors');
 import bodyParser from 'body-parser';
 import router from './routes/index.js';
 import ApiError from './utils/ApiError.js';
