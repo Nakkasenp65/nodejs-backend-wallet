@@ -14,6 +14,8 @@ const createUser = Joi.object().keys({
     pictureUrl: Joi.string().uri().allow('').optional().messages({
       'string.uri': 'userProfilePicUrl ต้องเป็น URL ที่ถูกต้อง',
     }),
+    occupation: Joi.string().required(),
+    ageRange: Joi.string().required(),
     mobileId: Joi.string().required(),
     planId: Joi.string().required(),
   }),

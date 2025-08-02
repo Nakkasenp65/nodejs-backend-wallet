@@ -47,15 +47,10 @@ const getUserByLiffId = async (userId) => {
 };
 
 const createUser = async (payload) => {
-  const { liffId, username, userProfilePicUrl } = payload;
+  const { liffId, username, userProfilePicUrl, occupation, ageRange } = payload;
 
   const existingUser = await prisma.user.findUnique({
     where: { userId: liffId },
-    include: {
-      goal: true,
-      wallet: true,
-      notifications: true,
-    },
   });
 
   if (existingUser) {
@@ -67,6 +62,8 @@ const createUser = async (payload) => {
       userId: liffId,
       username,
       userProfilePicUrl,
+      occupation,
+      ageRange,
       wallet: {
         create: {
           balance: 0,
@@ -82,10 +79,20 @@ const createUser = async (payload) => {
 };
 
 const createUserWithGoal = async (userData) => {
-  const { mobileId, planId, liffId, displayName, pictureUrl } = userData;
+  const { mobileId, planId, liffId, displayName, pictureUrl, occupation, ageRange } = userData;
 
   const existingUser = await prisma.user.findUnique({
     where: { userId: liffId },
+    // testing case include wallet and goal
+    include: {
+      wallet: true,
+      goal: {
+        include: {
+          plan: true,
+          product: true,
+        },
+      },
+    },
   });
 
   if (existingUser) {
@@ -97,6 +104,8 @@ const createUserWithGoal = async (userData) => {
       userId: liffId,
       username: displayName,
       userProfilePicUrl: pictureUrl,
+      occupation,
+      ageRange,
       wallet: {
         create: {
           balance: 0,
@@ -109,10 +118,9 @@ const createUserWithGoal = async (userData) => {
         },
       },
     },
-    include: {
-      wallet: true,
-    },
   });
+
+  return newUser;
 };
 
 const updateUserProfile = async (liffId, payload) => {

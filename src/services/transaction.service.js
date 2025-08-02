@@ -1,63 +1,96 @@
 import prisma from '../libs/prisma.js';
-import multer from 'multer';
-import google from 'googleapis';
-import fs from 'fs';
+// IMPORTANT: We now need JWT from the library
+import { google, Auth } from 'googleapis';
+import { Readable } from 'stream';
 import path from 'path';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
-import dotenv from 'dotenv';
+import { file } from 'googleapis/build/src/apis/file/index.js';
+import axios from 'axios';
 
-dotenv.config();
+// In serverless environments (like AWS Lambda, Vercel, etc.), you typically receive uploaded files as Buffers (from multipart/form-data parsing).
+// Instead of writing files to disk, you convert the Buffer directly to a Readable stream.
+// This approach is memory-efficient and works well in stateless, ephemeral environments where disk access is limited or discouraged.
+// The Readable stream is then passed to the Google Drive API for uploading the file.
+// Example usage is shown below in createSavingTransaction, where fileFromRequest.buffer is converted to a Readable stream.
+
+// const createSavingTransaction = async (walletId, transactionData, fileFromRequest) => {
+//   const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+
+//   const authClient = new Auth.JWT({
+//     email: credentials.client_email,
+//     key: credentials.private_key, // Use the key directly
+//     scopes: ['https://www.googleapis.com/auth/drive'],
+//   });
+
+//   const drive = google.drive({ version: 'v3', auth: authClient });
+
+//   const GDRIVE_FOLDER_ID = '1mgc-THu8KP3U2PFpLRFdI-KX6OOcc8P2';
+
+//   if (!fileFromRequest) {
+//     throw new ApiError(httpStatus.BAD_REQUEST, 'Slip image file is required.');
+//   }
+
+//   let driveFileId = null;
+
+//   try {
+//     const bufferStream = new Readable();
+//     bufferStream.push(fileFromRequest.buffer);
+//     bufferStream.push(null);
+
+//     const fileMetadata = {
+//       name: `${walletId}_${Date.now()}${path.extname(fileFromRequest.originalname)}`,
+//       parents: [GDRIVE_FOLDER_ID],
+//     };
+
+//     const media = {
+//       mimeType: fileFromRequest.mimetype,
+//       body: bufferStream,
+//     };
+
+//     const response = await drive.files.create({
+//       resource: fileMetadata,
+//       media: media,
+//       fields: 'id',
+//     });
+
+//     driveFileId = response.data.id;
+//     console.log('File uploaded to Google Drive. File ID:', driveFileId);
+
+//     const dataToCreate = {
+//       ...transactionData,
+//       walletId: walletId,
+//       slipImageUrl: `https://lh3.googleusercontent.com/d/${driveFileId}`,
+//     };
+
+//     const newTransaction = await prisma.transaction.create({
+//       data: dataToCreate,
+//     });
+
+//     return newTransaction;
+//   } catch (error) {
+//     console.error('Error during transaction creation:', error);
+//     if (driveFileId) {
+//       console.log(`Rolling back: Deleting file ${driveFileId} from Google Drive.`);
+//       await drive.files.delete({ fileId: driveFileId });
+//     }
+//     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create transaction.');
+//   }
+// };
 
 const createSavingTransaction = async (walletId, transactionData, fileFromRequest) => {
-  const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
-
-  console.log(credentialsJson);
-  console.log(process.env.TEST_VAR);
-  if (!credentialsJson) {
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Google credentials are not configured.');
-  }
-
-  const credentials = await JSON.parse(credentialsJson);
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-  const drive = google.drive({ version: 'v3', auth });
-  const GDRIVE_FOLDER_ID = '1mgc-THu8KP3U2PFpLRFdI-KX6OOcc8P2';
-
-  if (!fileFromRequest) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Slip image file is required.');
-  }
-
-  let driveFileId = null;
-
+  // return fileFromRequest.buffer;
   try {
-    // --- ขั้นตอนที่ 1: อัปโหลดไฟล์ไป Google Drive ---
-    const fileMetadata = {
-      name: `${walletId}_${Date.now()}_${path.extname(fileFromRequest.originalname)}`,
-      parents: [GDRIVE_FOLDER_ID],
-    };
+    // const imageUploaded = await axios.post('https://google-drive-uploader-seven-nu.vercel.app/api/upload', {
+    //   myFile: fileFromRequest.buffer.data,
+    //   userId: walletId,
+    // });
 
-    const media = {
-      mimeType: fileFromRequest.mimetype,
-      body: fs.createReadStream(fileFromRequest.path),
-    };
+    // if (!imageUploaded) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'File upload failed');
 
-    const response = await drive.files.create({
-      resource: fileMetadata,
-      media: media,
-      fields: 'id',
-    });
-    driveFileId = response.data.id;
-    console.log('File uploaded to Google Drive. File ID:', driveFileId);
-
-    // --- ขั้นตอนที่ 2: สร้างข้อมูลใน Database พร้อมกับ Drive File ID ---
     const dataToCreate = {
       ...transactionData,
       walletId: walletId,
-      slipImageUrl: `https://lh3.googleusercontent.com/d/${driveFileId}`, // สมมติว่าใน schema มี field นี้
     };
 
     const newTransaction = await prisma.transaction.create({
@@ -66,17 +99,8 @@ const createSavingTransaction = async (walletId, transactionData, fileFromReques
 
     return newTransaction;
   } catch (error) {
-    console.error('Error during transaction creation:', error);
-
-    if (driveFileId) {
-      console.log(`Rolling back: Deleting file ${driveFileId} from Google Drive.`);
-      await drive.files.delete({ fileId: driveFileId });
-    }
-
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create transaction.');
-  } finally {
-    console.log(`Cleaning up temporary file: ${fileFromRequest.path}`);
-    await fs.unlink(fileFromRequest.path);
+    console.log(error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Create saving transaction failed');
   }
 };
 
@@ -186,4 +210,4 @@ const getTransactionsWithThaiStatus = async (walletId) => {
   }
 };
 
-export default { getTransactions, getTransactionsWithThaiStatus, createSavingTransaction };
+export default { getTransactions, getTransactionsWithThaiStatus, createSavingTransaction, getSuccessTransaction };

@@ -9,19 +9,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-enum TransactionType {
-  OUTCOME  
-  INCOME 
-}
-
-enum TransactionStatus {
-  PENDING
-  SUCCESS
-  CANCELLED
-  REJECTED
-}
-
 enum GoalStatus {
   ACTIVE    
   COMPLETED 
@@ -35,28 +22,13 @@ enum Choice {
   MONTHLY 
 }
 
-enum NotificationType {
-  RECEIVE
-  SENT
-  REWARD
-  SYSTEM
-}
-
-enum UserMissionStatus {
-  ENROLLED
-  COMPLETED
-  EXPIRED
-}
-
 model Notification {
   id        String   @id @map("_id") @default(auto()) @db.ObjectId
 
   title     String            
   body      String?           
   type      NotificationType  
-  
   isRead    Boolean  @default(false)
-  
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String   @db.ObjectId
 
@@ -66,11 +38,20 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
+enum NotificationType {
+  RECEIVE
+  SENT
+  REWARD
+  SYSTEM
+}
+
 model User {
   id        String  @id @map("_id") @default(auto()) @db.ObjectId
   userId    String  @unique
   username  String
   firstTime Boolean @default(true)
+  occupation String?
+  ageRange String?
   userProfilePicUrl String? 
 
   goal Goal?
@@ -108,16 +89,30 @@ model Transaction {
   slipImageUrl  String
   bank          String?
   createdAt     DateTime        @default(now())
+
+  verified      Boolean         @default(false)
+  verifiedAmount Float?
   
-  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  walletId      String          @db.ObjectId 
+  wallet        Wallet?          @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  walletId      String?          @db.ObjectId 
 
   notifications Notification[]
-  
-  
-  userMission   UserMission?    
+  userMission   UserMission?
 
   @@index([walletId, status, createdAt(sort: Desc)])
+}
+
+enum TransactionType {
+  OUTCOME
+  INCOME
+  REWARD
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  CANCELLED
+  REJECTED
 }
 
 model Mission {
@@ -137,8 +132,8 @@ model UserMission {
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String @db.ObjectId
 
-  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  missionId String  @db.ObjectId
+  mission   Mission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  missionId String?  @db.ObjectId
 
   status          UserMissionStatus @default(ENROLLED)
   enrolledAt      DateTime          @default(now())
@@ -148,6 +143,12 @@ model UserMission {
   rewardTransactionId String?      @unique @db.ObjectId 
 
   @@unique([userId, missionId]) 
+}
+
+enum UserMissionStatus {
+  ENROLLED
+  COMPLETED
+  EXPIRED
 }
 
 model Goal {
@@ -180,22 +181,6 @@ model Brand {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
-
-// Brand -> Model
-// model MobileModel {
-//   id        String @id @map("_id") @default(auto()) @db.ObjectId
-//   name      String 
-//   price     Float
-
-//   brand   Brand  @relation(fields: [brandId], references: [id])
-//   brandId String @db.ObjectId
-
-  
-//   targetedByGoals Goal[]
-
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
 
 model Product {
   id       String @id @default(auto()) @map("_id") @db.ObjectId

@@ -5,10 +5,11 @@ import catchAsync from '../utils/catchAsync.js';
 const createSavingTransaction = catchAsync(async (req, res) => {
   const transactionData = req.body;
   transactionData.amount = parseFloat(transactionData.amount);
+
   const newTransaction = await transactionService.createSavingTransaction(
     req.params.walletId,
     transactionData,
-    req.file,
+    req.file, // Pass the entire file object from multer
   );
   res.status(httpStatus.CREATED).json(newTransaction);
 });
