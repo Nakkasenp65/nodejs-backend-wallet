@@ -34,14 +34,12 @@ const fetchProducts = async (maxPrice) => {
       orderBy: {
         downPaymentAmount: 'desc',
       },
-      take: 5,
     }),
   );
 
   const results = await Promise.all(productQueries);
   const allProducts = results.flat();
 
-  console.log(`✅ Fetched a total of ${allProducts.length} products with max down payment of ${intMaxPrice}.`);
   return allProducts;
 };
 

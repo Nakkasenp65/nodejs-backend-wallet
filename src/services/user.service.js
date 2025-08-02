@@ -42,40 +42,9 @@ const getUserByLiffId = async (userId) => {
           transaction: true,
         },
       },
+      userMissions: true,
     },
   });
-};
-
-const createUser = async (payload) => {
-  const { liffId, username, userProfilePicUrl, occupation, ageRange } = payload;
-
-  const existingUser = await prisma.user.findUnique({
-    where: { userId: liffId },
-  });
-
-  if (existingUser) {
-    throw new ApiError(httpStatus.CONFLICT, 'User already exist');
-  }
-
-  const newUser = await prisma.user.create({
-    data: {
-      userId: liffId,
-      username,
-      userProfilePicUrl,
-      occupation,
-      ageRange,
-      wallet: {
-        create: {
-          balance: 0,
-        },
-      },
-    },
-    include: {
-      wallet: true,
-    },
-  });
-
-  return newUser;
 };
 
 const createUserWithGoal = async (userData) => {
@@ -106,6 +75,7 @@ const createUserWithGoal = async (userData) => {
       userProfilePicUrl: pictureUrl,
       occupation,
       ageRange,
+      firstTime: false,
       wallet: {
         create: {
           balance: 0,
@@ -118,6 +88,17 @@ const createUserWithGoal = async (userData) => {
         },
       },
       monthlyPayment: monthlyPayment,
+    },
+    include: {
+      goal: {
+        include: {
+          product: true,
+          plan: true,
+        },
+      },
+      notifications: true,
+      wallet: true,
+      userMissions: true,
     },
   });
 
@@ -134,4 +115,4 @@ const updateUserProfile = async (liffId, payload) => {
   });
 };
 
-export default { createUser, getUserByLiffId, updateUserProfile, checkUserStatus, createUserWithGoal };
+export default { getUserByLiffId, updateUserProfile, checkUserStatus, createUserWithGoal };

@@ -1,6 +1,6 @@
 async function validateSlip(imageUrl, transactionId) {
-  // ตรวจสลิปแล้วเอา response มา
-  // return response.data
+  const verificationApiUrl = 'https://slip2-go.vercel.app/';
+
   const slipImageFetchResponse = await fetch(imageUrl, { timeout: 15000 });
   const form = new FormData();
 
@@ -28,8 +28,6 @@ async function validateSlip(imageUrl, transactionId) {
     console.error(`[Verify Slip] ${errorMessage}`);
     throw new Error(errorMessage);
   }
-
-  const verificationApiUrl = 'https://slip2-go.vercel.app/';
 
   return;
 }
