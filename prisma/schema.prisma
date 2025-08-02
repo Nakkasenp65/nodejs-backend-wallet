@@ -52,7 +52,8 @@ model User {
   firstTime Boolean @default(true)
   occupation String?
   ageRange String?
-  userProfilePicUrl String? 
+  userProfilePicUrl String?
+  monthlyPayment Float
 
   goal Goal?
   wallet Wallet?
@@ -89,6 +90,8 @@ model Transaction {
   slipImageUrl  String
   bank          String?
   createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
 
   verified      Boolean         @default(false)
   verifiedAmount Float?
@@ -202,6 +205,12 @@ model Product {
   updatedAt DateTime @updatedAt
 
   targetedByGoals Goal[]
+}
+
+model SlipDecoded {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  decodedContent String
+  createdAt DateTime @default(now())
 }
 
 

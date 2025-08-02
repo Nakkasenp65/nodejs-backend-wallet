@@ -18,6 +18,7 @@ const createUser = Joi.object().keys({
     ageRange: Joi.string().required(),
     mobileId: Joi.string().required(),
     planId: Joi.string().required(),
+    monthlyPayment: Joi.number().required(),
   }),
 });
 

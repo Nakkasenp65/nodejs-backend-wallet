@@ -79,7 +79,7 @@ const createUser = async (payload) => {
 };
 
 const createUserWithGoal = async (userData) => {
-  const { mobileId, planId, liffId, displayName, pictureUrl, occupation, ageRange } = userData;
+  const { mobileId, planId, liffId, displayName, pictureUrl, occupation, ageRange, monthlyPayment } = userData;
 
   const existingUser = await prisma.user.findUnique({
     where: { userId: liffId },
@@ -117,6 +117,7 @@ const createUserWithGoal = async (userData) => {
           plan: { connect: { id: planId } },
         },
       },
+      monthlyPayment: monthlyPayment,
     },
   });
 

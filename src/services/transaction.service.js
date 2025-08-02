@@ -78,16 +78,9 @@ import axios from 'axios';
 //   }
 // };
 
-const createSavingTransaction = async (walletId, transactionData, fileFromRequest) => {
-  // return fileFromRequest.buffer;
+async function createSavingTransaction(walletId, transactionData, fileFromRequest) {
+  // สร้าง transaction ใหม่ ใส่ imageUrl ของ slip ไว้
   try {
-    // const imageUploaded = await axios.post('https://google-drive-uploader-seven-nu.vercel.app/api/upload', {
-    //   myFile: fileFromRequest.buffer.data,
-    //   userId: walletId,
-    // });
-
-    // if (!imageUploaded) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'File upload failed');
-
     const dataToCreate = {
       ...transactionData,
       walletId: walletId,
@@ -102,7 +95,7 @@ const createSavingTransaction = async (walletId, transactionData, fileFromReques
     console.log(error);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Create saving transaction failed');
   }
-};
+}
 
 const getTransactions = async (walletId, options = {}) => {
   const whereClause = {

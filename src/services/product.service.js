@@ -34,6 +34,7 @@ const fetchProducts = async (maxPrice) => {
       orderBy: {
         downPaymentAmount: 'desc',
       },
+      take: 5,
     }),
   );
 
