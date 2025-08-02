@@ -1,5 +1,6 @@
 import express from 'express';
-const cors = require('cors');
+// import cors from 'cors';
+import { corsConfig } from './middlewares/cors.js';
 import bodyParser from 'body-parser';
 import router from './routes/index.js';
 import ApiError from './utils/ApiError.js';
@@ -9,7 +10,7 @@ import error from './middlewares/error.js';
 const app = express();
 
 app.use(bodyParser.json());
-app.use(cors());
+app.use(corsConfig());
 
 app.get('/', (req, res) => {
   res.send('Wallet API is running!');
