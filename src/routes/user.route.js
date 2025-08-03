@@ -8,6 +8,6 @@ const userRouter = Router();
 // URL/v1/user
 userRouter.post('/', validate(userValidation.createUser), userController.createUser);
 userRouter.get('/:userId', userController.getCurrentUser);
-userRouter.get('/status/:userId', userController.checkStatus);
+userRouter.get('/status/:userId', validate(userValidation.checkStatus), userController.checkStatus);
 
 export default userRouter;

@@ -31,4 +31,10 @@ const getCurrentUser = Joi.object().keys({
   }),
 });
 
-export default { createUser, getCurrentUser };
+const checkStatus = Joi.object().keys({
+  params: Joi.object().keys({
+    userId: Joi.string().required(),
+  }),
+});
+
+export default { createUser, getCurrentUser, checkStatus };

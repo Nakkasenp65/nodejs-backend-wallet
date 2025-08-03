@@ -12,18 +12,12 @@ const checkUserStatus = async (userId) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'LIFF ID is required');
   }
   const user = await prisma.user.findUnique({
-    where: { userId },
-    select: {
-      id: true,
-      firstTime: true,
-    },
+    where: { userId: userId },
   });
-
   if (!user) {
-    return { isNewUser: true, firstTime: true };
+    return { isNewUser: true };
   }
-
-  return { isNewUser: false, firstTime: user.firstTime };
+  return { isNewUser: false };
 };
 
 const getUserByLiffId = async (userId) => {

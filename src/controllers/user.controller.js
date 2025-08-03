@@ -1,4 +1,3 @@
-// สังเกตว่าเราจะ import Type จาก 'express' แทน 'next'
 import userService from '../services/user.service.js';
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
@@ -15,8 +14,10 @@ const getCurrentUser = catchAsync(async (req, res, next) => {
 
 const checkStatus = catchAsync(async (req, res) => {
   const { userId } = req.params;
+  console.log('UserID: ', userId);
   const status = await userService.checkUserStatus(userId);
-  res.status(httpStatus.OK).json({ success: true, data: status });
+  console.log(status);
+  res.status(httpStatus.OK).json(status);
 });
 
 export default {

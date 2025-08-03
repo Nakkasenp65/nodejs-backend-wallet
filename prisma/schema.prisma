@@ -122,7 +122,8 @@ model Mission {
   title           String
   description     String
   rewardAmount    Float
-  webExpiresAt    DateTime // Expiration date for the mission on the website
+  webExpiresAt    DateTime
+  durationDays    Int
   enrolledBy      UserMission[] // Relation to users who have enrolled
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

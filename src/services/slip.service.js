@@ -1,4 +1,4 @@
-async function validateSlip(imageUrl, transactionId) {
+async function checkSlip(imageUrl, transactionId) {
   const verificationApiUrl = 'https://slip2-go.vercel.app/';
 
   const slipImageFetchResponse = await fetch(imageUrl, { timeout: 15000 });
@@ -20,7 +20,6 @@ async function validateSlip(imageUrl, transactionId) {
   });
 
   const verifyResult = await verifyResponse.json();
-
   const verifiedAmount = verifyResult?.data?.amount;
 
   if (typeof verifiedAmount !== 'number' || verifiedAmount <= 0) {
@@ -29,7 +28,7 @@ async function validateSlip(imageUrl, transactionId) {
     throw new Error(errorMessage);
   }
 
-  return;
+  return verifyResponse;
 }
 
-export default { validateSlip };
+export default { checkSlip };
