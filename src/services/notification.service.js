@@ -7,10 +7,8 @@ async function getNotificationsByUserId(userId) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'User ID is required');
   }
 
-  // const user = await prisma.user.findUnique({ where: { userId } });
-
   const notifications = await prisma.notification.findMany({
-    where: { userId },
+    where: { userId: userId },
     // Include transaction data for notifications that are linked to one
     include: {
       transaction: true,

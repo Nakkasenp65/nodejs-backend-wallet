@@ -1,3 +1,4 @@
+// --- Prisma Schema - Latest Version ---
 
 generator client {
   provider = "prisma-client-js"
@@ -9,33 +10,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- Enums ---
+
+enum MissionType {
+  ONBOARDING // ภารกิจสำหรับผู้ใช้ใหม่โดยเฉพาะ
+  RECURRING  // ภารกิจทั่วไปที่เกิดขึ้นซ้ำๆ หรือเป็น Event
+  REFERRAL
+}
+
 enum GoalStatus {
-  ACTIVE    
-  COMPLETED 
-  CANCELLED 
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
 enum Choice {
-  DAILY 
+  DAILY
   WEEKLY
-  HALF_MONTH 
-  MONTHLY 
-}
-
-model Notification {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
-
-  title     String            
-  body      String?           
-  type      NotificationType  
-  isRead    Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String   @db.ObjectId
-
-  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
-  transactionId String?      @db.ObjectId
-
-  createdAt DateTime @default(now())
+  HALF_MONTH
+  MONTHLY
 }
 
 enum NotificationType {
@@ -43,65 +36,6 @@ enum NotificationType {
   SENT
   REWARD
   SYSTEM
-}
-
-model User {
-  id        String  @id @map("_id") @default(auto()) @db.ObjectId
-  userId    String  @unique
-  username  String
-  firstTime Boolean @default(true)
-  occupation String?
-  ageRange String?
-  userProfilePicUrl String?
-  monthlyPayment Float
-
-  goal Goal?
-  wallet Wallet?
-  notifications     Notification[] 
-  userMissions      UserMission[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Wallet {
-  id       String   @id @map("_id") @default(auto()) @db.ObjectId
-  balance  Float    @default(0)
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique @db.ObjectId
-
-  transactions Transaction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Transaction {
-  id            String          @id @map("_id") @default(auto()) @db.ObjectId
-  name          String
-  amount        Float?
-  type          TransactionType
-  status        TransactionStatus @default(PENDING)
-  from          String
-  to            String
-  description   String?
-  slipImageUrl  String
-  bank          String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-
-  verified      Boolean         @default(false)
-  verifiedAmount Float?
-  
-  wallet        Wallet?          @relation(fields: [walletId], references: [id], onDelete: SetNull)
-  walletId      String?          @db.ObjectId 
-
-  notifications Notification[]
-  userMission   UserMission?
-
-  @@index([walletId, status, createdAt(sort: Desc)])
 }
 
 enum TransactionType {
@@ -117,100 +51,254 @@ enum TransactionStatus {
   REJECTED
 }
 
-model Mission {
-  id              String        @id @map("_id") @default(auto()) @db.ObjectId
-  title           String
-  description     String
-  rewardAmount    Float
-  webExpiresAt    DateTime
-  durationDays    Int
-  enrolledBy      UserMission[] // Relation to users who have enrolled
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-}
-
-model UserMission {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
-  
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String @db.ObjectId
-
-  mission   Mission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
-  missionId String?  @db.ObjectId
-
-  status          UserMissionStatus @default(ENROLLED)
-  enrolledAt      DateTime          @default(now())
-  userExpiresAt   DateTime 
-  completedAt     DateTime?
-  rewardTransaction   Transaction? @relation(fields: [rewardTransactionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  rewardTransactionId String?      @unique @db.ObjectId 
-
-  @@unique([userId, missionId]) 
-}
-
 enum UserMissionStatus {
-  ENROLLED
-  COMPLETED
+  ENROLLED        // กำลังทำภารกิจ
+  AWAITING_CLAIM  // ทำเงื่อนไขสำเร็จแล้ว, รอผู้ใช้มากดรับรางวัล
+  CLAIMED         // ผู้ใช้กดรับรางวัลไปแล้ว
+  EXPIRED         // หมดเวลาในการทำภารกิจ (ทำไม่สำเร็จ)
+  CLAIM_EXPIRED   // หมดเวลาในการกดรับรางวัล (ทำสำเร็จแต่ไม่มากดรับ)
+}
+
+enum VoucherStatus {
+  ISSUED
+  REDEEMED
   EXPIRED
+  CANCELLED
+}
+
+
+// --- Core Models ---
+
+model User {
+  id                String    @id @map("_id") @default(auto()) @db.ObjectId
+  userId            String    @unique
+  username          String
+  firstTime         Boolean   @default(true)
+  occupation        String?
+  ageRange          String?
+  userProfilePicUrl String?
+  monthlyPayment    Float
+  referralCode      String?   @unique
+
+  // Saving Streaks & Insights
+  currentSavingStreak Int       @default(0)
+  longestSavingStreak Int       @default(0)
+  lastSavingActivity  DateTime?
+
+  // Relations
+  goal              Goal?
+  wallet            Wallet?
+  notifications     Notification[]
+  userMissions      UserMission[]
+  vouchers          Voucher[]
+
+  // Referral Relations
+  madeReferrals     Referral[] @relation("MadeReferrals")
+  referralRecord    Referral?  @relation("WasReferred")
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Wallet {
+  id           String @id @map("_id") @default(auto()) @db.ObjectId
+  balance      Float  @default(0) // Real, withdrawable money
+  bonusBalance Float  @default(0) // Non-withdrawable bonus money
+
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String @unique @db.ObjectId
+
+  transactions Transaction[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Transaction {
+  id             String            @id @map("_id") @default(auto()) @db.ObjectId
+  name           String
+  amount         Float?
+  type           TransactionType
+  status         TransactionStatus @default(PENDING)
+  from           String
+  to             String
+  description    String?
+  slipImageUrl   String? // Can be optional if transaction is not from slip
+  bank           String?
+  verified       Boolean           @default(false)
+  verifiedAmount Float?
+
+  wallet        Wallet?          @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  walletId      String?          @db.ObjectId
+
+  notifications Notification[]
+  userMission   UserMission?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([walletId, status, createdAt(sort: Desc)])
 }
 
 model Goal {
-  id     String     @id @map("_id") @default(auto()) @db.ObjectId
-  status GoalStatus @default(ACTIVE)
+  id        String     @id @map("_id") @default(auto()) @db.ObjectId
+  status    GoalStatus @default(ACTIVE)
 
-  plan   Plan   @relation(fields: [planId], references: [id])
-  planId String @unique @db.ObjectId
+  plan      Plan       @relation(fields: [planId], references: [id])
+  planId    String     @unique @db.ObjectId
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique @db.ObjectId
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String     @unique @db.ObjectId
 
-  product   Product @relation(fields: [productId], references: [id])
-  productId String  @db.ObjectId
+  product   Product    @relation(fields: [productId], references: [id])
+  productId String     @db.ObjectId
+  
+  voucher   Voucher?   // Relation to a generated voucher
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+
+// --- Mission System ---
+
+model Mission {
+  id               String        @id @map("_id") @default(auto()) @db.ObjectId
+  title            String
+  description      String
+  type             MissionType   @default(RECURRING) // <--- เพิ่ม field นี้
+  rewardAmount     Float
+  webExpiresAt     DateTime
+  durationDays     Int
+  completeProgress Int
+
+  enrolledBy       UserMission[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model UserMission {
+  id                String   @id @map("_id") @default(auto()) @db.ObjectId
+  currentProgress   Int      @default(0)
+  completeProgress  Int
+  status            UserMissionStatus @default(ENROLLED)
+  enrolledAt        DateTime          @default(now())
+  userExpiresAt     DateTime
+  
+  // --- Fields ที่เพิ่มเข้ามา ---
+  completedAt       DateTime? // เวลาที่ทำเงื่อนไขสำเร็จ (currentProgress >= completeProgress)
+  claimExpiresAt    DateTime? // เวลาที่สิทธิ์ในการกดรับรางวัลจะหมดอายุ (completedAt + 24 ชั่วโมง)
+  claimedAt         DateTime? // เวลาที่ผู้ใช้กดรับรางวัลจริงๆ
+  // --- สิ้นสุด Fields ที่เพิ่มเข้ามา ---
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String   @db.ObjectId
+
+  mission           Mission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  missionId         String?  @db.ObjectId
+
+  rewardTransaction   Transaction? @relation(fields: [rewardTransactionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  rewardTransactionId String?      @unique @db.ObjectId
+
+  @@unique([userId, missionId])
+}
+
+
+
+// --- Supporting Models ---
+
+model Notification {
+  id            String   @id @map("_id") @default(auto()) @db.ObjectId
+  title         String
+  body          String?
+  type          NotificationType
+  isRead        Boolean  @default(false)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String   @db.ObjectId
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transactionId String?      @db.ObjectId
+
+  createdAt     DateTime @default(now())
 }
 
 model Plan {
-  id String @id @map("_id") @default(auto()) @db.ObjectId
-  name Choice
+  id          String @id @map("_id") @default(auto()) @db.ObjectId
+  name        Choice
   displayName String
-  goal Goal?
-}
-
-model Brand {
-  id        String        @id @map("_id") @default(auto()) @db.ObjectId
-  name      String        @unique
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  goal        Goal?
 }
 
 model Product {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  uniqueId String @unique
-
-  brand    String
-  model    String
-  capacity String
-  color    String
-  price    Int
-  imageUrl String
-
+  id                  String @id @default(auto()) @map("_id") @db.ObjectId
+  uniqueId            String @unique
+  brand               String
+  model               String
+  capacity            String
+  color               String
+  price               Int
+  imageUrl            String
   downPaymentAmount   Int
   downPaymentPercent  Int
   installment6Months  Int
   installment10Months Int
 
+  targetedByGoals     Goal[]
+  vouchers            Voucher[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Brand {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  targetedByGoals Goal[]
 }
 
 model SlipDecoded {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
   decodedContent String
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
 }
 
 
+// --- New System Models ---
+
+model Voucher {
+  id          String        @id @map("_id") @default(auto()) @db.ObjectId
+  code        String        @unique
+  amount      Float
+  status      VoucherStatus @default(ISSUED)
+  issuedAt    DateTime      @default(now())
+  expiresAt   DateTime
+  redeemedAt  DateTime?
+
+  user        User          @relation(fields: [userId], references: [id])
+  userId      String        @db.ObjectId
+
+  goal        Goal          @relation(fields: [goalId], references: [id])
+  goalId      String        @unique @db.ObjectId
+
+  product     Product       @relation(fields: [productId], references: [id])
+  productId   String        @db.ObjectId
+
+  @@index([userId, status])
+}
+
+model Referral {
+  id          String   @id @map("_id") @default(auto()) @db.ObjectId
+  rewardGiven Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // The user who MADE the referral
+  referrer    User     @relation("MadeReferrals", fields: [referrerId], references: [id])
+  referrerId  String   @db.ObjectId
+
+  // The user who WAS REFERRED (the newcomer)
+  newcomer    User     @relation("WasReferred", fields: [newcomerId], references: [id])
+  newcomerId  String   @unique @db.ObjectId
+}

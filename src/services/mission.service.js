@@ -19,11 +19,6 @@ const createMission = async (missionData) => {
   return newMission;
 };
 
-/**
- * @description (Utility) สร้างข้อมูล Mission ตัวอย่างสำหรับทดสอบ
- * จะตรวจสอบก่อนว่ามีข้อมูลตัวอย่างอยู่แล้วหรือไม่ ถ้ามีจะไม่สร้างซ้ำ
- * @returns {Promise<object>} - Object ที่มีจำนวน record ที่สร้าง หรือข้อความแจ้งเตือน
- */
 const createMockMissions = async () => {
   // ตรวจสอบว่ามีภารกิจตัวอย่างแล้วหรือยัง เพื่อป้องกันการสร้างซ้ำ
   const existingMission = await prisma.mission.findFirst({
@@ -77,11 +72,6 @@ const createMockMissions = async () => {
   return result;
 };
 
-// --- ฟังก์ชันเดิม (มีการปรับปรุง) ---
-
-/**
- * @description ผูกผู้ใช้เข้ากับภารกิจ (Enroll)
- */
 const enrollUserInMission = async (userId, missionId) => {
   const mission = await prisma.mission.findUnique({
     where: { id: missionId },
@@ -91,7 +81,6 @@ const enrollUserInMission = async (userId, missionId) => {
     throw new Error('Mission not found');
   }
 
-  // **ปรับปรุง:** เช็ควันหมดเขตของภารกิจกลาง (webExpiresAt)
   if (new Date() > mission.webExpiresAt) {
     throw new Error('This mission is no longer available for enrollment.');
   }
@@ -104,7 +93,6 @@ const enrollUserInMission = async (userId, missionId) => {
     throw new Error('User is already enrolled in this mission');
   }
 
-  // **ปรับปรุง:** ใช้ durationDays จาก mission ที่ดึงมา
   const userExpiresAt = new Date();
   userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
 
@@ -114,6 +102,7 @@ const enrollUserInMission = async (userId, missionId) => {
       missionId: missionId,
       status: 'ENROLLED',
       userExpiresAt: userExpiresAt,
+      completeProgress: mission.completeProgress,
     },
     include: {
       mission: true,

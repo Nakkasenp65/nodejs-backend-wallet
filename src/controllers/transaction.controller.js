@@ -1,17 +1,18 @@
 import transactionService from '../services/transaction.service.js';
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
+import slipService from '../services/slip.service.js';
+import qstashService from '../services/qstash.service.js';
 
 const createSavingTransaction = catchAsync(async (req, res) => {
-  const transactionData = req.body;
-  transactionData.amount = parseFloat(transactionData.amount);
+  const imageInfo = await slipService.uploadSlip(req.file, req.body.walletId);
+  const newTransaction = await transactionService.createSavingTransaction(req.body, imageInfo.url);
+  const qstashJob = await qstashService.scheduleSlipVerification(newTransaction.id, imageInfo.url);
+  res.status(httpStatus.CREATED).json({ newTransaction, qstashJob });
+});
 
-  const newTransaction = await transactionService.createSavingTransaction(
-    req.params.walletId,
-    transactionData,
-    req.file, // Pass the entire file object from multer
-  );
-  res.status(httpStatus.CREATED).json(newTransaction);
+const verifyTransaction = catchAsync(async (req, res) => {
+  // เรียก verifySlip -> เอาผลไปเรียก confirmTransaction
 });
 
 const getTransactions = catchAsync(async (req, res) => {

@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '../generated/prisma/index.js';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { MissionType } from '../generated/prisma/index.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 
@@ -41,12 +42,16 @@ const getUserByLiffId = async (userId) => {
   });
 };
 
+/**
+ * สร้างผู้ใช้ใหม่พร้อมกับ Goal และผูกภารกิจ Onboarding ให้โดยอัตโนมัติ
+ * @param {object} userData - ข้อมูลของผู้ใช้ใหม่
+ * @returns {Promise<object>} - Object ของ User ที่ถูกสร้างขึ้นใหม่พร้อม relations
+ */
 const createUserWithGoal = async (userData) => {
   const { mobileId, planId, liffId, displayName, pictureUrl, occupation, ageRange, monthlyPayment } = userData;
 
   const existingUser = await prisma.user.findUnique({
     where: { userId: liffId },
-    // testing case include wallet and goal
     include: {
       wallet: true,
       goal: {
@@ -62,38 +67,72 @@ const createUserWithGoal = async (userData) => {
     return existingUser;
   }
 
-  const newUser = await prisma.user.create({
-    data: {
-      userId: liffId,
-      username: displayName,
-      userProfilePicUrl: pictureUrl,
-      occupation,
-      ageRange,
-      firstTime: false,
-      wallet: {
-        create: {
-          balance: 0,
+  const newUser = await prisma.$transaction(async (tx) => {
+    // 2.1 สร้าง User, Wallet, และ Goal พร้อมกัน (เหมือนเดิม แต่ใช้ 'tx' แทน 'prisma')
+    const createdUser = await tx.user.create({
+      data: {
+        userId: liffId,
+        username: displayName,
+        userProfilePicUrl: pictureUrl,
+        occupation,
+        ageRange,
+        firstTime: false, // ตั้งเป็น false เพราะกำลังจะผ่านขั้นตอน Onboarding
+        monthlyPayment: monthlyPayment,
+        wallet: {
+          create: {
+            balance: 0,
+            bonusBalance: 0, // เพิ่ม bonusBalance ตาม schema ล่าสุด
+          },
+        },
+        goal: {
+          create: {
+            product: { connect: { id: mobileId } },
+            plan: { connect: { id: planId } },
+          },
         },
       },
-      goal: {
-        create: {
-          product: { connect: { id: mobileId } },
-          plan: { connect: { id: planId } },
+      include: {
+        goal: {
+          include: {
+            product: true,
+            plan: true,
+          },
         },
+        notifications: true,
+        wallet: true,
+        userMissions: true,
       },
-      monthlyPayment: monthlyPayment,
-    },
-    include: {
-      goal: {
-        include: {
-          product: true,
-          plan: true,
-        },
+    });
+
+    const onboardingMissions = await tx.mission.findMany({
+      where: {
+        type: MissionType.ONBOARDING,
+        webExpiresAt: { gte: new Date() },
       },
-      notifications: true,
-      wallet: true,
-      userMissions: true,
-    },
+    });
+
+    if (onboardingMissions.length === 0) {
+      return createdUser;
+    }
+
+    const userMissionsData = onboardingMissions.map((mission) => {
+      const userExpiresAt = new Date();
+      userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
+
+      return {
+        userId: createdUser.id,
+        missionId: mission.id,
+        status: 'ENROLLED',
+        userExpiresAt: userExpiresAt,
+        completeProgress: mission.completeProgress,
+      };
+    });
+
+    await tx.userMission.createMany({
+      data: userMissionsData,
+    });
+
+    return createdUser;
   });
 
   return newUser;

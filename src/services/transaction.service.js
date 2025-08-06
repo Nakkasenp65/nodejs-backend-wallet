@@ -8,92 +8,60 @@ import httpStatus from 'http-status';
 import { file } from 'googleapis/build/src/apis/file/index.js';
 import axios from 'axios';
 
-// In serverless environments (like AWS Lambda, Vercel, etc.), you typically receive uploaded files as Buffers (from multipart/form-data parsing).
-// Instead of writing files to disk, you convert the Buffer directly to a Readable stream.
-// This approach is memory-efficient and works well in stateless, ephemeral environments where disk access is limited or discouraged.
-// The Readable stream is then passed to the Google Drive API for uploading the file.
-// Example usage is shown below in createSavingTransaction, where fileFromRequest.buffer is converted to a Readable stream.
+/**
+ * สร้าง Saving Transaction ใหม่ในฐานข้อมูลหลังจากอัปโหลดสลิปสำเร็จ
+ * @param {object} transactionBody - ข้อมูล transaction ที่ได้จาก req.body
+ * @param {string} imageUrl - URL ของรูปภาพสลิปที่ได้จากการอัปโหลด
+ * @returns {Promise<object>} - Transaction object ที่สร้างเสร็จแล้ว
+ */
+async function createSavingTransaction(transactionBody, imageUrl) {
+  // 1. ดึงข้อมูลที่จำเป็นออกมาจาก transactionBody
+  const { name, type, status, from, to, walletId } = transactionBody;
 
-// const createSavingTransaction = async (walletId, transactionData, fileFromRequest) => {
-//   const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+  // 2. ตรวจสอบว่ามี walletId ที่จำเป็นหรือไม่
+  if (!walletId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Wallet ID is required to create a transaction.');
+  }
 
-//   const authClient = new Auth.JWT({
-//     email: credentials.client_email,
-//     key: credentials.private_key, // Use the key directly
-//     scopes: ['https://www.googleapis.com/auth/drive'],
-//   });
-
-//   const drive = google.drive({ version: 'v3', auth: authClient });
-
-//   const GDRIVE_FOLDER_ID = '1mgc-THu8KP3U2PFpLRFdI-KX6OOcc8P2';
-
-//   if (!fileFromRequest) {
-//     throw new ApiError(httpStatus.BAD_REQUEST, 'Slip image file is required.');
-//   }
-
-//   let driveFileId = null;
-
-//   try {
-//     const bufferStream = new Readable();
-//     bufferStream.push(fileFromRequest.buffer);
-//     bufferStream.push(null);
-
-//     const fileMetadata = {
-//       name: `${walletId}_${Date.now()}${path.extname(fileFromRequest.originalname)}`,
-//       parents: [GDRIVE_FOLDER_ID],
-//     };
-
-//     const media = {
-//       mimeType: fileFromRequest.mimetype,
-//       body: bufferStream,
-//     };
-
-//     const response = await drive.files.create({
-//       resource: fileMetadata,
-//       media: media,
-//       fields: 'id',
-//     });
-
-//     driveFileId = response.data.id;
-//     console.log('File uploaded to Google Drive. File ID:', driveFileId);
-
-//     const dataToCreate = {
-//       ...transactionData,
-//       walletId: walletId,
-//       slipImageUrl: `https://lh3.googleusercontent.com/d/${driveFileId}`,
-//     };
-
-//     const newTransaction = await prisma.transaction.create({
-//       data: dataToCreate,
-//     });
-
-//     return newTransaction;
-//   } catch (error) {
-//     console.error('Error during transaction creation:', error);
-//     if (driveFileId) {
-//       console.log(`Rolling back: Deleting file ${driveFileId} from Google Drive.`);
-//       await drive.files.delete({ fileId: driveFileId });
-//     }
-//     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create transaction.');
-//   }
-// };
-
-async function createSavingTransaction(walletId, transactionData, fileFromRequest) {
-  // สร้าง transaction ใหม่ ใส่ imageUrl ของ slip ไว้
   try {
-    const dataToCreate = {
-      ...transactionData,
-      walletId: walletId,
+    // 3. เตรียมข้อมูลที่จะบันทึกลงฐานข้อมูลให้ตรงตาม Schema
+    const dataToSave = {
+      name: name,
+      type: type, // 'INCOME'
+      status: status, // 'PENDING'
+      from: from,
+      to: to,
+      slipImageUrl: imageUrl, // <-- ใช้ URL ที่ได้มา
+      wallet: {
+        connect: { id: walletId }, // <-- วิธีที่ถูกต้องในการเชื่อม Relation
+      },
+      // Fields ที่ Backend ควรจัดการเอง ไม่ใช่จาก Frontend:
+      amount: null, // จะถูกอัปเดตโดย Admin/System หลังการตรวจสอบ
+      verified: false,
+      verifiedAmount: null,
     };
 
+    console.log('Attempting to create transaction with data:', dataToSave);
+
+    // 4. สร้าง Transaction record ใหม่ด้วย Prisma
     const newTransaction = await prisma.transaction.create({
-      data: dataToCreate,
+      data: dataToSave,
     });
 
+    console.log('Transaction created successfully:', newTransaction.id);
+
+    // 5. คืนค่า Transaction ที่สร้างเสร็จแล้ว
     return newTransaction;
   } catch (error) {
-    console.log(error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Create saving transaction failed');
+    // จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma (เช่น walletId ไม่ถูกต้อง)
+    console.error('Prisma error creating transaction:', error);
+
+    if (error.code === 'P2025') {
+      // Prisma error code for "Record to connect not found"
+      throw new ApiError(httpStatus.NOT_FOUND, `Wallet with ID ${walletId} not found.`);
+    }
+
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create saving transaction in database.');
   }
 }
 

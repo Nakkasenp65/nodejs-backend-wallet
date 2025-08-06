@@ -7,6 +7,7 @@ import notificationRouter from './notification.route.js';
 import productRouter from './product.route.js';
 import missionRouter from './mission.route.js';
 import walletRouter from './wallet.route.js';
+import slipRouter from './slip.route.js';
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ const defaultRoutes = [
   { path: '/product', route: productRouter },
   { path: '/mission', route: missionRouter },
   { path: '/wallet', route: walletRouter },
+  { path: '/slip', route: slipRouter },
 ];
 
 defaultRoutes.forEach((route) => {
