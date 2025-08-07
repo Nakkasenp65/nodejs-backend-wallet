@@ -66,8 +66,6 @@ async function createSavingTransaction(transactionBody, imageUrl) {
   }
 }
 
-async function createRewardTransaction(transactionId, amount) {}
-
 /**
  * อัปเดตสถานะ Transaction ตามผลการตรวจสอบสลิป
  * @param {string} transactionVerificationCode - โค้ดผลการตรวจสอบ ('200000', '403001', '200001')

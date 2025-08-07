@@ -67,6 +67,8 @@ const createUserWithGoal = async (userData) => {
     return existingUser;
   }
 
+  const referralCode = await generateUniqueReferralCode();
+
   const newUser = await prisma.$transaction(async (tx) => {
     // 2.1 สร้าง User, Wallet, และ Goal พร้อมกัน (เหมือนเดิม แต่ใช้ 'tx' แทน 'prisma')
     const createdUser = await tx.user.create({
@@ -78,6 +80,7 @@ const createUserWithGoal = async (userData) => {
         ageRange,
         firstTime: false, // ตั้งเป็น false เพราะกำลังจะผ่านขั้นตอน Onboarding
         monthlyPayment: monthlyPayment,
+        referralCode: referralCode,
         wallet: {
           create: {
             balance: 0,
@@ -136,6 +139,31 @@ const createUserWithGoal = async (userData) => {
   });
 
   return newUser;
+};
+
+/**
+ * สร้าง Referral Code ที่ไม่ซ้ำกันในระบบ
+ * @returns {Promise<string>} - Referral Code ที่พร้อมใช้งาน
+ */
+const generateUniqueReferralCode = async () => {
+  let referralCode;
+  let isUnique = false;
+
+  while (!isUnique) {
+    // สร้างรหัสสุ่ม 6 ตัวอักษร (ตัวพิมพ์ใหญ่)
+    referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // ตรวจสอบว่ารหัสนี้มีอยู่ในฐานข้อมูลแล้วหรือยัง
+    const existingUser = await prisma.user.findUnique({
+      where: { referralCode: referralCode },
+    });
+
+    // ถ้าไม่พบ แสดงว่ารหัสนี้ใช้ได้
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+  return referralCode;
 };
 
 const updateUserProfile = async (liffId, payload) => {

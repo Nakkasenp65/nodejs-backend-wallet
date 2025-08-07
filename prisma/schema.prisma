@@ -72,12 +72,12 @@ enum VoucherStatus {
 model User {
   id                String    @id @map("_id") @default(auto()) @db.ObjectId
   userId            String    @unique
-  username          String
+  username          String?
   firstTime         Boolean   @default(true)
   occupation        String?
   ageRange          String?
   userProfilePicUrl String?
-  monthlyPayment    Float
+  monthlyPayment    Float?
   referralCode      String?   @unique
 
   // Saving Streaks & Insights
