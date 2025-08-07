@@ -43,102 +43,109 @@ const getUserByLiffId = async (userId) => {
 };
 
 /**
- * สร้างผู้ใช้ใหม่พร้อมกับ Goal และผูกภารกิจ Onboarding ให้โดยอัตโนมัติ
+ * สร้างหรืออัปเดตผู้ใช้, สร้าง Goal และ Wallet หากยังไม่มี
  * @param {object} userData - ข้อมูลของผู้ใช้ใหม่
- * @returns {Promise<object>} - Object ของ User ที่ถูกสร้างขึ้นใหม่พร้อม relations
+ * @returns {Promise<object>} - Object ของ User พร้อม relations
  */
 const createUserWithGoal = async (userData) => {
   const { mobileId, planId, liffId, displayName, pictureUrl, occupation, ageRange, monthlyPayment } = userData;
 
-  const existingUser = await prisma.user.findUnique({
-    where: { userId: liffId },
-    include: {
-      wallet: true,
-      goal: {
-        include: {
-          plan: true,
-          product: true,
+  // 1. สร้าง Referral Code ที่ไม่ซ้ำกันก่อน (เผื่อต้องใช้)
+  const referralCode = await generateUniqueReferralCode();
+
+  // 2. ใช้ `upsert` เพื่อสร้าง User หรือดึงข้อมูล User ที่มีอยู่แล้ว
+  const user = await prisma.user.upsert({
+    where: {
+      userId: liffId, // เงื่อนไขในการค้นหา
+    },
+    update: {
+      // ถ้าเจอ User, ให้อัปเดตข้อมูลที่อาจเปลี่ยนแปลงได้
+      username: displayName,
+      userProfilePicUrl: pictureUrl,
+    },
+    create: {
+      // ถ้าไม่เจอ User, ให้สร้างใหม่ด้วยข้อมูลทั้งหมด
+      userId: liffId,
+      username: displayName,
+      userProfilePicUrl: pictureUrl,
+      occupation,
+      ageRange,
+      firstTime: true, // ตั้งเป็น true สำหรับ user ใหม่จริงๆ
+      monthlyPayment: monthlyPayment,
+      referralCode: referralCode,
+      wallet: {
+        create: {
+          balance: 0,
+          bonusBalance: 0,
         },
       },
     },
+    include: {
+      wallet: true,
+      goal: true,
+    },
   });
 
-  if (existingUser) {
-    return existingUser;
-  }
-
-  const referralCode = await generateUniqueReferralCode();
-
-  const newUser = await prisma.$transaction(async (tx) => {
-    // 2.1 สร้าง User, Wallet, และ Goal พร้อมกัน (เหมือนเดิม แต่ใช้ 'tx' แทน 'prisma')
-    const createdUser = await tx.user.create({
+  // 3. ตรวจสอบและสร้าง Goal แยกต่างหาก (เพื่อความปลอดภัย)
+  //    วิธีนี้ป้องกันการพยายามสร้าง Goal ซ้ำซ้อนได้อย่างสมบูรณ์
+  if (!user.goal) {
+    await prisma.goal.create({
       data: {
-        userId: liffId,
-        username: displayName,
-        userProfilePicUrl: pictureUrl,
-        occupation,
-        ageRange,
-        firstTime: false, // ตั้งเป็น false เพราะกำลังจะผ่านขั้นตอน Onboarding
-        monthlyPayment: monthlyPayment,
-        referralCode: referralCode,
-        wallet: {
-          create: {
-            balance: 0,
-            bonusBalance: 0, // เพิ่ม bonusBalance ตาม schema ล่าสุด
-          },
-        },
-        goal: {
-          create: {
-            product: { connect: { id: mobileId } },
-            plan: { connect: { id: planId } },
-          },
-        },
-      },
-      include: {
-        goal: {
-          include: {
-            product: true,
-            plan: true,
-          },
-        },
-        notifications: true,
-        wallet: true,
-        userMissions: true,
+        userId: user.id,
+        productId: mobileId,
+        planId: planId,
       },
     });
+  }
 
-    const onboardingMissions = await tx.mission.findMany({
+  // 4. จัดการภารกิจ Onboarding (เฉพาะตอนที่ User ถูกสร้างขึ้นครั้งแรกจริงๆ)
+  if (user.firstTime) {
+    const onboardingMissions = await prisma.mission.findMany({
       where: {
         type: MissionType.ONBOARDING,
         webExpiresAt: { gte: new Date() },
       },
     });
 
-    if (onboardingMissions.length === 0) {
-      return createdUser;
+    if (onboardingMissions.length > 0) {
+      const userMissionsData = onboardingMissions.map((mission) => {
+        const userExpiresAt = new Date();
+        userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
+        return {
+          userId: user.id,
+          missionId: mission.id,
+          status: 'ENROLLED',
+          userExpiresAt: userExpiresAt,
+          completeProgress: mission.completeProgress,
+        };
+      });
+      await prisma.userMission.createMany({
+        data: userMissionsData,
+      });
     }
 
-    const userMissionsData = onboardingMissions.map((mission) => {
-      const userExpiresAt = new Date();
-      userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
-
-      return {
-        userId: createdUser.id,
-        missionId: mission.id,
-        status: 'ENROLLED',
-        userExpiresAt: userExpiresAt,
-        completeProgress: mission.completeProgress,
-      };
+    // อัปเดตสถานะ firstTime เป็น false หลังจากจัดการทุกอย่างเสร็จแล้ว
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { firstTime: false },
     });
+  }
 
-    await tx.userMission.createMany({
-      data: userMissionsData,
-    });
-
-    return createdUser;
+  // 5. ดึงข้อมูล User ล่าสุดทั้งหมดกลับไปให้ Frontend
+  return prisma.user.findUnique({
+    where: { id: user.id },
+    include: {
+      goal: {
+        include: {
+          product: true,
+          plan: true,
+        },
+      },
+      notifications: true,
+      wallet: true,
+      userMissions: true,
+    },
   });
-
-  return newUser;
 };
 
 /**

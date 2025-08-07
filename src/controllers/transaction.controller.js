@@ -20,8 +20,11 @@ const updateTransaction = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(updatedTransaction);
 });
 
-const verifyTransaction = catchAsync(async (req, res) => {
-  // เรียก verifySlip -> เอาผลไปเรียก confirmTransaction
+const createWithdrawTransaction = catchAsync(async (req, res) => {
+  const { amount, bank, accountNumber, accountName, userId } = req.body;
+  const withdrawalDetails = { bank, accountNumber, accountName };
+  const newTransaction = await transactionService.createWithdrawTransaction(userId, amount, withdrawalDetails);
+  res.status(httpStatus.CREATED).json(newTransaction);
 });
 
 const getTransactions = catchAsync(async (req, res) => {
@@ -46,4 +49,5 @@ export default {
   getSuccessTransactions,
   getThaiTransactions,
   updateTransaction,
+  createWithdrawTransaction,
 };

@@ -8,6 +8,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 transactionRouter.post('/', upload.single('slipImage'), transactionController.createSavingTransaction);
+transactionRouter.post('/withdraw', transactionController.createWithdrawTransaction);
 transactionRouter.post('/update/:transactionId', transactionController.updateTransaction);
 transactionRouter.get('/:walletId', transactionController.getTransactions);
 transactionRouter.get('/thai/:walletId', transactionController.getThaiTransactions);

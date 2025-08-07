@@ -25,16 +25,15 @@ async function createSavingTransaction(transactionBody, imageUrl) {
   }
 
   try {
-    // 3. เตรียมข้อมูลที่จะบันทึกลงฐานข้อมูลให้ตรงตาม Schema
     const dataToSave = {
       name: name,
-      type: type, // 'INCOME'
-      status: status, // 'PENDING'
+      type: type,
+      status: status,
       from: from,
       to: to,
-      slipImageUrl: imageUrl, // <-- ใช้ URL ที่ได้มา
+      slipImageUrl: imageUrl,
       wallet: {
-        connect: { id: walletId }, // <-- วิธีที่ถูกต้องในการเชื่อม Relation
+        connect: { id: walletId },
       },
       // Fields ที่ Backend ควรจัดการเอง ไม่ใช่จาก Frontend:
       amount: null, // จะถูกอัปเดตโดย Admin/System หลังการตรวจสอบ
@@ -44,7 +43,6 @@ async function createSavingTransaction(transactionBody, imageUrl) {
 
     console.log('Attempting to create transaction with data:', dataToSave);
 
-    // 4. สร้าง Transaction record ใหม่ด้วย Prisma
     const newTransaction = await prisma.transaction.create({
       data: dataToSave,
     });
@@ -73,7 +71,7 @@ async function createSavingTransaction(transactionBody, imageUrl) {
  * @param {number} [verifyAmount=0] - จำนวนเงินที่ตรวจสอบได้ (จำเป็นสำหรับเคส Success)
  * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
  */
-async function updateTransaction(transactionVerificationCode, transactionId, verifyAmount = 0) {
+const updateTransaction = async (transactionVerificationCode, transactionId, verifyAmount = 0) => {
   // --- 1. ค้นหา Transaction ที่ต้องการอัปเดตก่อน ---
   console.log('Updating slip', transactionVerificationCode, transactionId, verifyAmount);
   const transaction = await prisma.transaction.findUnique({
@@ -166,7 +164,91 @@ async function updateTransaction(transactionVerificationCode, transactionId, ver
       throw new ApiError(httpStatus.BAD_REQUEST, `Unknown verification code: ${transactionVerificationCode}`);
     }
   }
-}
+};
+
+/**
+ * สร้างรายการ "ถอนเงิน" ใหม่ในระบบ
+ * @param {string} userId - ID ของผู้ใช้ที่ทำการถอนเงิน
+ * @param {number} amount - จำนวนเงินที่ผู้ใช้ต้องการ "ได้รับ"
+ * @param {object} withdrawalDetails - รายละเอียดบัญชีปลายทาง
+ * @param {string} withdrawalDetails.bank - ชื่อธนาคาร
+ * @param {string} withdrawalDetails.accountNumber - เลขที่บัญชี
+ * @param {string} withdrawalDetails.accountName - ชื่อบัญชี
+ * @returns {Promise<object>} - Transaction ที่สร้างขึ้นใหม่ในสถานะ PENDING
+ */
+const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
+  // --- 1. ตรวจสอบและแปลงข้อมูลนำเข้า ---
+  const floatAmount = parseFloat(amount);
+  if (isNaN(floatAmount) || floatAmount <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'จำนวนเงินที่ต้องการถอนไม่ถูกต้อง');
+  }
+  if (
+    !withdrawalDetails ||
+    !withdrawalDetails.bank ||
+    !withdrawalDetails.accountNumber ||
+    !withdrawalDetails.accountName
+  ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'กรุณาระบุข้อมูลบัญชีธนาคารให้ครบถ้วน');
+  }
+
+  // --- 2. กำหนดค่าธรรมเนียม (ดึงจาก .env คือ Best Practice) ---
+  const WITHDRAWAL_FEE = parseFloat(process.env.WITHDRAWAL_FEE) || 15.0; // ตัวอย่าง: 15 บาท
+  const totalDeduction = floatAmount + WITHDRAWAL_FEE;
+
+  // --- 3. ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัยสูงสุด ---
+  const newWithdrawalTransaction = await prisma.$transaction(async (tx) => {
+    // 3.1 ค้นหา Wallet ของผู้ใช้
+    const wallet = await tx.wallet.findUnique({
+      where: { userId: userId },
+    });
+
+    if (!wallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบ Wallet ของผู้ใช้');
+    }
+
+    // 3.2 (สำคัญที่สุด) ตรวจสอบยอดเงินคงเหลือ
+    if (wallet.balance < totalDeduction) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `ยอดเงินคงเหลือไม่เพียงพอ (ต้องมีอย่างน้อย ${totalDeduction.toFixed(2)} บาท)`,
+      );
+    }
+
+    // 3.3 หักเงินออกจาก Wallet (ยอดเงิน + ค่าธรรมเนียม)
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        balance: {
+          decrement: totalDeduction,
+        },
+      },
+    });
+
+    // 3.4 สร้าง Transaction record ใหม่ในสถานะ PENDING
+    const createdTransaction = await tx.transaction.create({
+      data: {
+        name: 'ถอนเงิน',
+        type: 'OUTCOME',
+        status: 'PENDING', // สถานะเริ่มต้นคือ "รอเจ้าหน้าที่ดำเนินการ"
+        amount: floatAmount, // 'amount' คือยอดที่ผู้ใช้จะได้รับ
+        from: `Wallet ของ ${userId}`, // หรือชื่อผู้ใช้
+        to: `${withdrawalDetails.bank} - ${withdrawalDetails.accountNumber}`,
+        description: `ถอนเงิน ${floatAmount.toFixed(2)} บาท, ค่าธรรมเนียม ${WITHDRAWAL_FEE.toFixed(2)} บาท`,
+        bank: withdrawalDetails.bank,
+        wallet: {
+          connect: { id: wallet.id },
+        },
+      },
+    });
+
+    return createdTransaction;
+  });
+
+  // (Optional) ส่ง Notification แจ้งเตือนผู้ใช้ว่า "ได้รับคำขอถอนเงินของคุณแล้ว"
+  // await notificationService.sendWithdrawalRequestReceived(userId, floatAmount);
+
+  return newWithdrawalTransaction;
+};
 
 const getTransactions = async (walletId, options = {}) => {
   const whereClause = {
@@ -278,6 +360,7 @@ export default {
   getTransactions,
   getTransactionsWithThaiStatus,
   createSavingTransaction,
+  createWithdrawTransaction,
   getSuccessTransaction,
   updateTransaction,
 };

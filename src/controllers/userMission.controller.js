@@ -8,8 +8,7 @@ import ApiError from '../utils/ApiError.js';
  * @route POST /v1/user-missions/enroll
  */
 const enrollInMission = catchAsync(async (req, res) => {
-  const userId = req.user.id;
-  const { missionId } = req.body;
+  const { missionId, userId } = req.body;
   const newUserMission = await userMissionService.enrollInMission(userId, missionId);
   res.status(httpStatus.CREATED).json(newUserMission);
 });

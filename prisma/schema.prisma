@@ -132,7 +132,8 @@ model Transaction {
   walletId      String?          @db.ObjectId
 
   notifications Notification[]
-  userMission   UserMission?
+  userMission   UserMission? @relation(fields: [userMissionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  userMissionId String?      @unique @db.ObjectId
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -186,11 +187,9 @@ model UserMission {
   enrolledAt        DateTime          @default(now())
   userExpiresAt     DateTime
   
-  // --- Fields ที่เพิ่มเข้ามา ---
   completedAt       DateTime? // เวลาที่ทำเงื่อนไขสำเร็จ (currentProgress >= completeProgress)
   claimExpiresAt    DateTime? // เวลาที่สิทธิ์ในการกดรับรางวัลจะหมดอายุ (completedAt + 24 ชั่วโมง)
   claimedAt         DateTime? // เวลาที่ผู้ใช้กดรับรางวัลจริงๆ
-  // --- สิ้นสุด Fields ที่เพิ่มเข้ามา ---
 
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId            String   @db.ObjectId
@@ -198,8 +197,7 @@ model UserMission {
   mission           Mission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
   missionId         String?  @db.ObjectId
 
-  rewardTransaction   Transaction? @relation(fields: [rewardTransactionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  rewardTransactionId String?      @unique @db.ObjectId
+  rewardTransaction       Transaction?
 
   @@unique([userId, missionId])
 }
