@@ -11,6 +11,15 @@ const createSavingTransaction = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).json({ newTransaction, qstashJob });
 });
 
+const updateTransaction = catchAsync(async (req, res) => {
+  const updatedTransaction = await transactionService.updateTransaction(
+    req.body.code,
+    req.params.transactionId,
+    req.body.amount,
+  );
+  res.status(httpStatus.OK).json(updatedTransaction);
+});
+
 const verifyTransaction = catchAsync(async (req, res) => {
   // เรียก verifySlip -> เอาผลไปเรียก confirmTransaction
 });
@@ -36,4 +45,5 @@ export default {
   getTransactions,
   getSuccessTransactions,
   getThaiTransactions,
+  updateTransaction,
 };

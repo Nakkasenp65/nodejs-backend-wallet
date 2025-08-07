@@ -3,6 +3,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import ApiError from '../utils/ApiError.js';
 import walletService from './wallet.service.js';
+import transactionService from './transaction.service.js';
 
 /**
  * ดาวน์โหลดรูปภาพสลิปจาก URL และส่งไปตรวจสอบที่ API ภายนอก
@@ -12,6 +13,23 @@ import walletService from './wallet.service.js';
  * @throws {Error} - หากการตรวจสอบล้มเหลวหรือคืนค่าไม่ถูกต้อง
  */
 async function verfifySlip(slipImageUrl, transactionId) {
+  const mockResponse = {
+    code: '200000',
+    message: 'Slip verified successfully',
+    data: {
+      transRef: '015218185151CTF00170',
+      dateTime: '2025-08-06T18:51:51+07:00',
+      amount: 1,
+      ref1: null,
+      ref2: null,
+      ref3: null,
+      receiver: { account: [Object], bank: [Object] },
+      sender: { account: [Object], bank: [Object] },
+      decode: '0041000600000101030040220015218185151CTF001705102TH910436A7',
+      referenceId: '0fb03a9d-9427-4353-8a5a-7051a93e8025-1113',
+    },
+  };
+
   const verificationApiUrl = process.env.SLIP2_GO_VERIFY_URL;
 
   try {
@@ -40,17 +58,19 @@ async function verfifySlip(slipImageUrl, transactionId) {
     // --- 4. ประมวลผลและตรวจสอบผลลัพธ์ ---
     const verifyResult = verifyResponse.data; // <-- ข้อมูล JSON จะอยู่ใน .data
     const verifiedAmount = verifyResult?.data?.amount;
+    // const verifiedAmount = mockResponse?.data?.amount;
 
-    if (typeof verifiedAmount !== 'number' || verifiedAmount <= 0) {
-      const errorMessage = `Slip verification API returned invalid data: ${JSON.stringify(verifyResult)}`;
-      console.error(`[Verify Slip] ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
+    console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
+    // console.log('DATA: ', verifyResponse.data);
+    // console.log('RECEIVER: ', verifyResponse.data.receiver);
+    // console.log('RECEIVER NAME: ', verifyResponse.data.receiver.account.name);
+    // console.log('RECEIVER BANK ACCOUNT: ', verifyResponse.data.receiver.account.bank.account);
+    // console.log('DATA BANK: ', verifyResponse.data.bank);
+    // console.log('SENDER ACCOUNT NAME: ', verifyResponse.data.sender.account.name);
+    await transactionService.updateTransaction(verifyResult.code, transactionId, verifiedAmount);
 
-    console.log(`[Verify Slip] Successfully verified amount: ${verifiedAmount} for TxID: ${transactionId}`);
-    if (verifyResult.code === 200000) walletService.confirmWalletAmount(verifiedAmount, transactionId);
     // --- 5. คืนค่าเฉพาะจำนวนเงินที่ตรวจสอบได้ ---
-    return verifyResult;
+    return mockResponse;
   } catch (error) {
     console.error(
       `[Verify Slip] An error occurred during slip verification for TxID: ${transactionId}`,
@@ -60,6 +80,9 @@ async function verfifySlip(slipImageUrl, transactionId) {
   }
 }
 
+/**
+ * อัพโหลดรูปภาพสลิป URL
+ */
 async function uploadSlip(fileObject, identifier) {
   const uploadApiUrl = process.env.UPLOAD_IMAGE_API_URL;
 

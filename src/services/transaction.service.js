@@ -5,6 +5,7 @@ import { Readable } from 'stream';
 import path from 'path';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
+import { TransactionStatus } from '../generated/prisma/index.js';
 import { file } from 'googleapis/build/src/apis/file/index.js';
 import axios from 'axios';
 
@@ -62,6 +63,110 @@ async function createSavingTransaction(transactionBody, imageUrl) {
     }
 
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create saving transaction in database.');
+  }
+}
+
+async function createRewardTransaction(transactionId, amount) {}
+
+/**
+ * อัปเดตสถานะ Transaction ตามผลการตรวจสอบสลิป
+ * @param {string} transactionVerificationCode - โค้ดผลการตรวจสอบ ('200000', '403001', '200001')
+ * @param {string} transactionId - ID ของ Transaction ที่จะอัปเดต
+ * @param {number} [verifyAmount=0] - จำนวนเงินที่ตรวจสอบได้ (จำเป็นสำหรับเคส Success)
+ * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
+ */
+async function updateTransaction(transactionVerificationCode, transactionId, verifyAmount = 0) {
+  // --- 1. ค้นหา Transaction ที่ต้องการอัปเดตก่อน ---
+  console.log('Updating slip', transactionVerificationCode, transactionId, verifyAmount);
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Transaction not found.');
+  }
+
+  // --- 2. (สำคัญ) ป้องกันการอัปเดตซ้ำซ้อน ---
+  // ไม่ว่าผลจะเป็นอะไร, ถ้าสถานะไม่ใช่ PENDING แสดงว่าเคยถูกประมวลผลไปแล้ว
+  if (transaction.status !== 'PENDING') {
+    console.warn(
+      `Attempted to update an already processed transaction (ID: ${transactionId}, Status: ${transaction.status})`,
+    );
+    // คืนค่า transaction เดิมกลับไป เพื่อไม่ให้ QStash retry โดยไม่จำเป็น
+    return transaction;
+  }
+
+  // --- 3. จัดการตามแต่ละ Case ---
+  switch (transactionVerificationCode) {
+    // --- CASE 3: SUCCESS ---
+    case '200000': {
+      const floatAmount = parseFloat(verifyAmount);
+      if (isNaN(floatAmount) || floatAmount <= 0) {
+        throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for SUCCESS case: ${verifyAmount}`);
+      }
+
+      // ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัย (Atomicity)
+      const updatedTransaction = await prisma.$transaction(async (tx) => {
+        // 3.1 อัปเดต Wallet ของผู้ใช้
+        await tx.wallet.update({
+          where: { id: transaction.walletId },
+          data: { balance: { increment: floatAmount } },
+        });
+
+        // 3.2 อัปเดต Transaction
+        return tx.transaction.update({
+          where: { id: transactionId },
+          data: {
+            amount: floatAmount,
+            verified: true,
+            verifiedAmount: floatAmount,
+            status: 'SUCCESS',
+            description: `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`,
+          },
+        });
+      });
+
+      // (Optional) Trigger event อื่นๆ หลังสำเร็จ เช่น อัปเดต Mission
+      // await missionService.checkAndUpdateProgress(transaction.wallet.userId, floatAmount);
+
+      return updatedTransaction;
+    }
+
+    // --- CASE 1: UNAUTHORIZED ---
+    case '403001': {
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: 'รายการถูกปฏิเสธ: ไม่พบชื่อบัญชีผู้รับที่ตรงกับที่ระบุไว้',
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+      });
+    }
+
+    // --- CASE 2: DUPLICATE ---
+    case '200001': {
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: 'รายการถูกปฏิเสธ: สลิปนี้เคยถูกใช้งานในระบบแล้ว',
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+        include: true,
+      });
+    }
+
+    // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
+    default: {
+      console.error(`Unknown transaction verification code: ${transactionVerificationCode}`);
+      // อาจจะอัปเดตเป็นสถานะพิเศษ หรือแค่โยน Error
+      throw new ApiError(httpStatus.BAD_REQUEST, `Unknown verification code: ${transactionVerificationCode}`);
+    }
   }
 }
 
@@ -171,4 +276,10 @@ const getTransactionsWithThaiStatus = async (walletId) => {
   }
 };
 
-export default { getTransactions, getTransactionsWithThaiStatus, createSavingTransaction, getSuccessTransaction };
+export default {
+  getTransactions,
+  getTransactionsWithThaiStatus,
+  createSavingTransaction,
+  getSuccessTransaction,
+  updateTransaction,
+};

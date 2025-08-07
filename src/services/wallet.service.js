@@ -7,7 +7,7 @@ import prisma from '../libs/prisma.js';
  * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
  * @throws {ApiError} - หาก Transaction ไม่พบ, ไม่ได้อยู่ในสถานะที่ถูกต้อง, หรือการอัปเดตล้มเหลว
  */
-const confirmWalletAmount = async (amount, transactionId) => {
+const confirmWalletAmount = async (transactionVerification, transactionId, amount) => {
   // --- Best Practice 1: ตรวจสอบและแปลงข้อมูลนำเข้าอย่างเข้มงวด ---
   const floatAmount = parseFloat(amount);
   if (isNaN(floatAmount) || floatAmount <= 0) {
