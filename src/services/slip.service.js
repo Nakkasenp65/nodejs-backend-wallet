@@ -70,7 +70,7 @@ async function verfifySlip(slipImageUrl, transactionId) {
     await transactionService.updateTransaction(verifyResult.code, transactionId, verifiedAmount);
 
     // --- 5. คืนค่าเฉพาะจำนวนเงินที่ตรวจสอบได้ ---
-    return mockResponse;
+    return verifyResult;
   } catch (error) {
     console.error(
       `[Verify Slip] An error occurred during slip verification for TxID: ${transactionId}`,
