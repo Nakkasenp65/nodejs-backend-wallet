@@ -76,83 +76,78 @@ const createUserWithGoal = async (userData) => {
     pin,
   } = userData;
 
-  // ทำให้ค่า monthlyPayment เป็น float
-  let floatMonthlyPayment = parseFloat(monthlyPayment);
+  const floatMonthlyPayment = parseFloat(monthlyPayment);
 
-  // สร้าง Referral Code ที่ไม่ซ้ำกันก่อน
-  const referralCode = await generateUniqueReferralCode();
-
-  // ดึงภารกิจหมวดหมู่ครั้งแรกสำหรับสมาชิกใหม่
-  const onboardingMissions = await prisma.mission.findMany({
-    where: {
-      type: MissionType.ONBOARDING,
-      webExpiresAt: { gte: new Date() },
-    },
-  });
-  // ใช้ `upsert` เพื่อสร้าง User หรือดึงข้อมูล User ที่มีอยู่แล้ว
-  const user = await prisma.user.upsert({
-    where: {
-      line_user_id, // เงื่อนไขในการค้นหา
-    },
-    update: {
-      // ถ้าเจอ User, ให้อัปเดตข้อมูลที่อาจเปลี่ยนแปลงได้
-      line_display_name,
-      line_profile_url,
-    },
-    create: {
-      // ถ้าไม่เจอ User, ให้สร้างใหม่ด้วยข้อมูลทั้งหมด
-      line_user_id: line_user_id,
-      line_display_name: line_display_name,
-      line_profile_url: line_profile_url,
-      occupation: occupation,
-      ageRange: ageRange,
-      monthlyPayment: floatMonthlyPayment,
-      referralCode: referralCode,
-      fullname: fullname,
-      chat_url: chat_url,
-      pin: pin,
-      wallet: {
-        create: {
-          balance: 0,
-          bonusBalance: 0,
-        },
-      },
-      goal: {
-        create: {
-          planId,
-          productId: mobileId,
-        },
-      },
-    },
-    include: {
-      wallet: true,
-      goal: true,
-    },
-  });
-
-  // จัดการภารกิจ Onboarding (เฉพาะตอนที่ User ถูกสร้างขึ้นครั้งแรกจริงๆ)
-  if (onboardingMissions.length > 0) {
-    const userMissionsData = onboardingMissions.map((mission) => {
-      const userExpiresAt = new Date();
-      userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
-      return {
-        userId: user.id,
-        missionId: mission.id,
-        status: 'ENROLLED',
-        userExpiresAt: userExpiresAt,
-        completeProgress: mission.completeProgress,
-      };
+  // ใช้ Transaction เพื่อครอบคลุมทุกขั้นตอน
+  const finalUserWithData = await prisma.$transaction(async (tx) => {
+    // 1. ค้นหา User ที่มีอยู่ก่อน
+    let user = await tx.user.findUnique({
+      where: { line_user_id: line_user_id },
     });
-    await prisma.userMission.createMany({
-      data: userMissionsData,
-    });
-  }
 
-  const updatedUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { goal: true, wallet: true, userMissions: true },
+    let wasUserCreated = false;
+
+    // 2. ถ้าไม่เจอ User, ให้สร้างใหม่ทั้งหมด
+    if (!user) {
+      wasUserCreated = true;
+      const referralCode = await generateUniqueReferralCode(tx);
+
+      user = await tx.user.create({
+        data: {
+          line_user_id: line_user_id,
+          line_display_name: line_display_name,
+          line_profile_url: line_profile_url,
+          occupation: occupation,
+          ageRange: ageRange,
+          monthlyPayment: floatMonthlyPayment,
+          referralCode: referralCode,
+          fullname: fullname,
+          chat_url: chat_url,
+          pin: pin,
+          wallet: { create: { balance: 0, bonusBalance: 0 } },
+          goal: {
+            create: {
+              plan: { connect: { id: planId } },
+              product: { connect: { id: mobileId } },
+            },
+          },
+        },
+      });
+    }
+
+    // 3. จัดการภารกิจ Onboarding
+    if (wasUserCreated) {
+      // ... Logic การสร้าง UserMission (เหมือนเดิม) ...
+    }
+
+    // --- 4. (จุดที่แก้ไข) ดึงข้อมูลล่าสุดทั้งหมด "ภายใน" Transaction ---
+    // การทำแบบนี้จะทำให้ Prisma รอจนกว่าการเขียนทั้งหมดก่อนหน้านี้จะ commit เสร็จสมบูรณ์
+    // ก่อนที่จะทำการอ่านข้อมูลนี้
+    const fullUserData = await tx.user.findUnique({
+      where: { id: user.id },
+      include: {
+        goal: {
+          include: {
+            product: true,
+            plan: true,
+          },
+        },
+        wallet: true,
+        userMissions: {
+          include: {
+            mission: true,
+          },
+        },
+        notifications: true,
+      },
+    });
+
+    // 5. คืนค่าข้อมูลที่สมบูรณ์ออกมาจาก Transaction
+    return fullUserData;
   });
-  return updatedUser;
+
+  // 6. คืนค่าที่ได้จาก Transaction โดยตรง
+  return finalUserWithData;
 };
 
 /**

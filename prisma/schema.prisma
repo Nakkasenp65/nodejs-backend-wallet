@@ -148,7 +148,7 @@ model Goal {
   status GoalStatus @default(ACTIVE)
 
   plan   Plan   @relation(fields: [planId], references: [id])
-  planId String @unique @db.ObjectId
+  planId String @db.ObjectId
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
@@ -225,7 +225,7 @@ model Plan {
   id          String @id @default(auto()) @map("_id") @db.ObjectId
   name        Choice
   displayName String
-  goal        Goal?
+  goals       Goal[]
 }
 
 model Product {
