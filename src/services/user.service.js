@@ -73,81 +73,117 @@ const createUserWithGoal = async (userData) => {
     monthlyPayment,
     fullname,
     chat_url,
+    phone,
     pin,
   } = userData;
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
 
-  // ใช้ Transaction เพื่อครอบคลุมทุกขั้นตอน
-  const finalUserWithData = await prisma.$transaction(async (tx) => {
-    // 1. ค้นหา User ที่มีอยู่ก่อน
-    let user = await tx.user.findUnique({
-      where: { line_user_id: line_user_id },
-    });
+  // 1. ค้นหา User ที่มีอยู่ก่อนด้วย line_user_id
+  const existingUser = await prisma.user.findUnique({
+    where: { line_user_id: line_user_id },
+  });
 
-    let wasUserCreated = false;
-
-    // 2. ถ้าไม่เจอ User, ให้สร้างใหม่ทั้งหมด
-    if (!user) {
-      wasUserCreated = true;
-      const referralCode = await generateUniqueReferralCode(tx);
-
-      user = await tx.user.create({
-        data: {
-          line_user_id: line_user_id,
-          line_display_name: line_display_name,
-          line_profile_url: line_profile_url,
-          occupation: occupation,
-          ageRange: ageRange,
-          monthlyPayment: floatMonthlyPayment,
-          referralCode: referralCode,
-          fullname: fullname,
-          chat_url: chat_url,
-          pin: pin,
-          wallet: { create: { balance: 0, bonusBalance: 0 } },
-          goal: {
-            create: {
-              plan: { connect: { id: planId } },
-              product: { connect: { id: mobileId } },
-            },
-          },
-        },
-      });
-    }
-
-    // 3. จัดการภารกิจ Onboarding
-    if (wasUserCreated) {
-      // ... Logic การสร้าง UserMission (เหมือนเดิม) ...
-    }
-
-    // --- 4. (จุดที่แก้ไข) ดึงข้อมูลล่าสุดทั้งหมด "ภายใน" Transaction ---
-    // การทำแบบนี้จะทำให้ Prisma รอจนกว่าการเขียนทั้งหมดก่อนหน้านี้จะ commit เสร็จสมบูรณ์
-    // ก่อนที่จะทำการอ่านข้อมูลนี้
-    const fullUserData = await tx.user.findUnique({
-      where: { id: user.id },
+  // --- กรณีเป็น User ที่มีอยู่แล้ว ---
+  if (existingUser) {
+    console.log(`User ${line_user_id} already exists. Fetching latest data.`);
+    // ดึงข้อมูลล่าสุดทั้งหมดของ User คนนั้นแล้วคืนค่ากลับไปทันที
+    // ส่วนนี้เหมือนเดิม แต่ใช้ prisma ตรงๆ แทน tx
+    return prisma.user.findUnique({
+      where: { id: existingUser.id },
       include: {
-        goal: {
-          include: {
-            product: true,
-            plan: true,
-          },
-        },
+        goal: { include: { product: true, plan: true } },
         wallet: true,
-        userMissions: {
-          include: {
-            mission: true,
-          },
-        },
+        userMissions: { include: { mission: true } },
         notifications: true,
       },
     });
+  }
 
-    // 5. คืนค่าข้อมูลที่สมบูรณ์ออกมาจาก Transaction
-    return fullUserData;
+  // --- กรณีเป็น User ใหม่ (ทำงานแบบเรียงลำดับ) ---
+  console.log(`Creating new user for ${line_user_id}.`);
+
+  // 2. สร้าง Referral Code ที่ไม่ซ้ำกัน
+  // สังเกตว่าเราต้องส่ง `prisma` client เข้าไปแทน `tx`
+  const referralCode = await generateUniqueReferralCode(prisma);
+
+  // 3. สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
+  // ใช้ prisma.user.create() โดยตรง
+  const newUser = await prisma.user.create({
+    data: {
+      line_user_id: line_user_id,
+      line_display_name: line_display_name,
+      line_profile_url: line_profile_url,
+      occupation: occupation,
+      ageRange: ageRange,
+      monthlyPayment: floatMonthlyPayment,
+      referralCode: referralCode,
+      fullname: fullname,
+      chat_url: chat_url,
+      pin: pin,
+      phone: phone,
+      wallet: {
+        create: {
+          balance: 0,
+          bonusBalance: 0,
+        },
+      },
+      goal: {
+        create: {
+          plan: { connect: { id: planId } },
+          product: { connect: { id: mobileId } },
+        },
+      },
+    },
   });
 
-  // 6. คืนค่าที่ได้จาก Transaction โดยตรง
-  return finalUserWithData;
+  // 4. จัดการภารกิจ Onboarding สำหรับ User ใหม่
+  const onboardingMissions = await prisma.mission.findMany({
+    where: {
+      type: MissionType.ONBOARDING,
+      webExpiresAt: { gte: new Date() },
+    },
+  });
+
+  if (onboardingMissions.length > 0) {
+    console.log(`Found ${onboardingMissions.length} onboarding missions.`);
+
+    // Map missions ที่เจอเพื่อเตรียมสร้าง UserMission
+    const userMissionsData = onboardingMissions.map((mission) => ({
+      userId: newUser.id,
+      missionId: mission.id,
+      status: 'ENROLLED',
+      userExpiresAt: new Date(Date.now() + mission.durationDays * 24 * 60 * 60 * 1000),
+      completeProgress: mission.completeProgress,
+    }));
+
+    // สร้าง UserMission ทั้งหมดในครั้งเดียว
+    await prisma.userMission.createMany({
+      data: userMissionsData,
+    });
+    console.log(`Created ${userMissionsData.length} user missions.`);
+  }
+
+  // 5. ดึงข้อมูลล่าสุดทั้งหมดของ "User ใหม่" ที่เพิ่งสร้างเสร็จ กลับไป
+  // เราต้องดึงข้อมูลอีกครั้งเพื่อให้ได้ข้อมูล nested relations ที่สร้างขึ้นมาทั้งหมด
+  return prisma.user.findUnique({
+    where: { id: newUser.id },
+    include: {
+      goal: {
+        include: {
+          product: true,
+          plan: true,
+        },
+      },
+      wallet: true,
+      userMissions: {
+        include: {
+          mission: true,
+        },
+      },
+      notifications: true,
+    },
+  });
 };
 
 /**
