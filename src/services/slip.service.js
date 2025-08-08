@@ -61,12 +61,7 @@ async function verfifySlip(slipImageUrl, transactionId) {
     // const verifiedAmount = mockResponse?.data?.amount;
 
     console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
-    // console.log('DATA: ', verifyResponse.data);
-    // console.log('RECEIVER: ', verifyResponse.data.receiver);
-    // console.log('RECEIVER NAME: ', verifyResponse.data.receiver.account.name);
-    // console.log('RECEIVER BANK ACCOUNT: ', verifyResponse.data.receiver.account.bank.account);
-    // console.log('DATA BANK: ', verifyResponse.data.bank);
-    // console.log('SENDER ACCOUNT NAME: ', verifyResponse.data.sender.account.name);
+
     await transactionService.updateTransaction(verifyResult.code, transactionId, verifiedAmount);
 
     // --- 5. คืนค่าเฉพาะจำนวนเงินที่ตรวจสอบได้ ---
