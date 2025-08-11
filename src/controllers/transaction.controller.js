@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
 import slipService from '../services/slip.service.js';
 import qstashService from '../services/qstash.service.js';
+import notificationService from '../services/notification.service.js';
 
 const createSavingTransaction = catchAsync(async (req, res) => {
   const imageInfo = await slipService.uploadSlip(req.file, req.body.walletId);
@@ -28,8 +29,13 @@ const createWithdrawTransaction = catchAsync(async (req, res) => {
 });
 
 const createInternalTransfer = catchAsync(async (req, res) => {
-  const { userId, recipientUserId, amount, pin } = req.body;
-  const newTransaction = await transactionService.createInternalTransfer(userId, { recipientUserId, amount, pin });
+  const { userId, recipientUserId, amount, pin, line_user_id } = req.body;
+  const newTransaction = await transactionService.createInternalTransfer(userId, {
+    line_user_id,
+    recipientUserId,
+    amount,
+    pin,
+  });
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 

@@ -21,15 +21,10 @@ const getNotificationsByUserId = async (userId) => {
   return notifications;
 };
 
-const markNotificationAsRead = async (notificationId, userId) => {
+const markNotificationAsRead = async (notificationId) => {
   const notification = await prisma.notification.findUnique({
     where: { id: notificationId },
   });
-
-  // ตรวจสอบความปลอดภัย: Notification ต้องมีอยู่ และต้องเป็นของ user คนนี้เท่านั้น
-  if (!notification || notification.userId !== userId) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Notification not found');
-  }
 
   // ไม่ต้องอัปเดตซ้ำถ้าอ่านแล้ว
   if (notification.isRead) {
@@ -45,22 +40,10 @@ const markNotificationAsRead = async (notificationId, userId) => {
 };
 
 const clearNotificationsByType = async (userId, type) => {
-  let typesToDelete;
-
-  if (type === 'transactions') {
-    typesToDelete = ['RECEIVE', 'SENT'];
-  } else if (type === 'promos') {
-    typesToDelete = ['REWARD', 'SYSTEM'];
-  } else {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid notification type specified.');
-  }
-
   const deleteResult = await prisma.notification.deleteMany({
     where: {
       userId: userId,
-      type: {
-        in: typesToDelete,
-      },
+      type: type,
     },
   });
 
@@ -101,6 +84,7 @@ const createNotification = async (userId, payload) => {
         }),
       },
     });
+    console.log(`Create notification success!: ${title} - ${body}`);
     return notification;
   } catch (error) {
     console.error(`Failed to create notification for user ${userId}:`, error);

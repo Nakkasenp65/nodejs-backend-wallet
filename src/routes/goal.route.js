@@ -6,5 +6,6 @@ import goalValidation from '../validations/goal.validation.js';
 const goalRouter = Router();
 
 goalRouter.post('/:userId', validate(goalValidation.createGoal), goalController.createGoal);
+goalRouter.patch('/:userId', goalController.updateGoal);
 
 export default goalRouter;

@@ -11,47 +11,83 @@ import ApiError from '../utils/ApiError.js';
 
 /**
  * ให้ผู้ใช้เข้าร่วมภารกิจ (Enroll)
- * @param {string} userId - ID ของผู้ใช้
- * @param {string} missionId - ID ของ Mission ที่จะเข้าร่วม
- * @returns {Promise<object>} Object ของ UserMission ที่สร้างใหม่
+ * Rule: ห้ามมีภารกิจ "ชนิดเดียวกัน" ค้างอยู่พร้อมกัน (ENROLLED | AWAITING_CLAIM)
+ * @param {string} userId
+ * @param {string} missionId
+ * @returns {Promise<object>} UserMission ที่สร้างใหม่ (include mission)
  */
 const enrollInMission = async (userId, missionId) => {
-  const mission = await prisma.mission.findUnique({
-    where: { id: missionId },
+  const BLOCKING_STATUSES = ['ENROLLED', 'AWAITING_CLAIM'];
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // 1) โหลด mission ที่จะสมัคร (ต้องการ type/duration/config)
+    const mission = await tx.mission.findUnique({
+      where: { id: missionId },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        webExpiresAt: true,
+        durationDays: true,
+        completeProgress: true,
+      },
+    });
+
+    if (!mission) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Mission not found');
+    }
+
+    // ยังสมัครได้ ถ้าไม่มีวันหมดอายุ หรือยังไม่หมด
+    if (mission.webExpiresAt && now > mission.webExpiresAt) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'This mission is no longer available for enrollment.');
+    }
+
+    // 2) กันรับซ้ำภารกิจเดียวกัน
+    const existingSameMission = await tx.userMission.findUnique({
+      where: { userId_missionId: { userId, missionId } },
+      select: { id: true },
+    });
+    if (existingSameMission) {
+      throw new ApiError(httpStatus.CONFLICT, 'User is already enrolled in this mission');
+    }
+
+    // 3) กันชนประเภทเดียวกันที่กำลังทำ/รอเคลมอยู่
+    const activeSameType = await tx.userMission.findFirst({
+      where: {
+        userId,
+        status: { in: BLOCKING_STATUSES },
+        mission: { type: mission.type },
+      },
+      select: { id: true, status: true, missionId: true },
+    });
+    if (activeSameType) {
+      throw new ApiError(httpStatus.CONFLICT, 'You already have an active mission of this type.');
+    }
+
+    // 4) คำนวณ config ที่ต้องมี (กันค่า null)
+    const durationDays = Number.isFinite(mission.durationDays) ? mission.durationDays : 7; // fallback หรือโยน error ถ้าอยาก strict
+    const completeProgress =
+      Number.isFinite(mission.completeProgress) && mission.completeProgress > 0 ? mission.completeProgress : 1;
+
+    const userExpiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // 5) สร้าง UserMission
+    const newUserMission = await tx.userMission.create({
+      data: {
+        userId,
+        missionId,
+        status: 'ENROLLED',
+        userExpiresAt,
+        completeProgress,
+      },
+      include: {
+        mission: true,
+      },
+    });
+
+    return newUserMission;
   });
-
-  if (!mission) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Mission not found');
-  }
-  if (new Date() > mission.webExpiresAt) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'This mission is no longer available for enrollment.');
-  }
-
-  const existingEnrollment = await prisma.userMission.findUnique({
-    where: { userId_missionId: { userId, missionId } },
-  });
-
-  if (existingEnrollment) {
-    throw new ApiError(httpStatus.CONFLICT, 'User is already enrolled in this mission');
-  }
-
-  const userExpiresAt = new Date();
-  userExpiresAt.setDate(userExpiresAt.getDate() + mission.durationDays);
-
-  const newUserMission = await prisma.userMission.create({
-    data: {
-      userId: userId,
-      missionId: missionId,
-      status: 'ENROLLED',
-      userExpiresAt: userExpiresAt,
-      completeProgress: mission.completeProgress,
-    },
-    include: {
-      mission: true, // ส่งข้อมูล mission กลับไปด้วยเสมอ
-    },
-  });
-
-  return newUserMission;
 };
 
 /**
@@ -91,9 +127,14 @@ const updateMissionProgress = async (userId, eventType, eventData) => {
  * @returns {Promise<object>} Object ของ UserMission ที่อัปเดตแล้ว
  */
 const claimMissionReward = async (userId, userMissionId) => {
+  const now = new Date();
+
   const missionToClaim = await prisma.userMission.findUnique({
     where: { id: userMissionId },
-    include: { mission: true },
+    include: {
+      mission: true,
+      user: { include: { wallet: true } }, // get user's wallet
+    },
   });
 
   if (!missionToClaim || missionToClaim.userId !== userId) {
@@ -102,7 +143,9 @@ const claimMissionReward = async (userId, userMissionId) => {
   if (missionToClaim.status !== 'AWAITING_CLAIM') {
     throw new ApiError(httpStatus.BAD_REQUEST, 'This mission is not available for claiming.');
   }
-  if (new Date() > missionToClaim.claimExpiresAt) {
+
+  const { claimExpiresAt } = missionToClaim;
+  if (!claimExpiresAt || now > claimExpiresAt) {
     await prisma.userMission.update({
       where: { id: userMissionId },
       data: { status: 'CLAIM_EXPIRED' },
@@ -110,32 +153,48 @@ const claimMissionReward = async (userId, userMissionId) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'The claim period for this mission has expired.');
   }
 
+  const rewardAmount = Number(missionToClaim.mission?.rewardAmount ?? 0);
+  if (!(rewardAmount > 0)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'This mission has no reward amount configured.');
+  }
+
   return prisma.$transaction(async (tx) => {
-    const rewardAmount = missionToClaim.mission.rewardAmount;
+    // ensure wallet
+    let wallet = missionToClaim.user.wallet;
+    if (!wallet) {
+      // either create one or error (choose what fits your app)
+      wallet = await tx.wallet.create({
+        data: { userId: missionToClaim.userId },
+      });
+    }
 
     const rewardTransaction = await tx.transaction.create({
       data: {
-        name: `รางวัลภารกิจ: ${missionToClaim.mission.title}`,
+        name: `รางวัลภารกิจ: ${missionToClaim.mission?.title ?? ''}`,
         type: 'REWARD',
         status: 'SUCCESS',
         amount: rewardAmount,
-        walletId: missionToClaim.walletId, // **หมายเหตุ:** คุณต้องหาวิธีดึง walletId ของ user มา
+        walletId: wallet.id,
       },
     });
 
     await tx.wallet.update({
-      where: { id: missionToClaim.walletId }, // **หมายเหตุ:** เช่นเดียวกัน
+      where: { id: wallet.id },
       data: { bonusBalance: { increment: rewardAmount } },
     });
 
-    return tx.userMission.update({
+    // NOTE: your schema has no rewardTransactionId on UserMission.
+    // If you want to link it, add the field (see below).
+    const updated = await tx.userMission.update({
       where: { id: userMissionId },
       data: {
         status: 'CLAIMED',
-        claimedAt: new Date(),
-        rewardTransactionId: rewardTransaction.id,
+        claimedAt: now,
+        // rewardTransactionId: rewardTransaction.id, // only if you add it to the schema
       },
     });
+
+    return updated;
   });
 };
 
@@ -199,29 +258,6 @@ const getMyMissionDetails = async (userMissionId) => {
     include: {
       mission: true,
     },
-  });
-};
-
-/**
- * (สำหรับ Cron Job) จัดการภารกิจที่หมดอายุ
- */
-const expireOverdueMissions = async () => {
-  const now = new Date();
-  // อัปเดตภารกิจที่ทำไม่สำเร็จ
-  await prisma.userMission.updateMany({
-    where: {
-      status: 'ENROLLED',
-      userExpiresAt: { lt: now },
-    },
-    data: { status: 'EXPIRED' },
-  });
-  // อัปเดตภารกิจที่ไม่ได้กดรับรางวัล
-  await prisma.userMission.updateMany({
-    where: {
-      status: 'AWAITING_CLAIM',
-      claimExpiresAt: { lt: now },
-    },
-    data: { status: 'CLAIM_EXPIRED' },
   });
 };
 
@@ -325,6 +361,61 @@ const checkForCompletion = async (userMission) => {
   }
 };
 
+/**
+ * (สำหรับ Cron Job) ค้นหาและอัปเดตสถานะภารกิจทั้งหมดที่หมดอายุ
+ * ฟังก์ชันนี้ถูกออกแบบมาให้ถูกเรียกใช้โดย Scheduler (เช่น QStash, Vercel Cron) ตามเวลาที่กำหนด (เช่น ทุกๆ ชั่วโมง)
+ * โดยจะจัดการภารกิจ 2 ประเภท:
+ * 1. ภารกิจที่ผู้ใช้ทำไม่สำเร็จตามเวลาที่กำหนด (ENROLLED -> EXPIRED)
+ * 2. ภารกิจที่ผู้ใช้ทำสำเร็จแต่ไม่มากดรับรางวัลตามเวลาที่กำหนด (AWAITING_CLAIM -> CLAIM_EXPIRED)
+ * @returns {Promise<{expiredCount: number, claimExpiredCount: number}>} - Object ที่ระบุจำนวนภารกิจที่ถูกอัปเดตในแต่ละประเภท
+ */
+const expireOverdueMissions = async () => {
+  const now = new Date();
+  console.log(`[Cron Job] Running expireOverdueMissions at ${now.toISOString()}`);
+
+  try {
+    // --- 1. จัดการภารกิจที่ทำไม่สำเร็จ (ENROLLED -> EXPIRED) ---
+    // ใช้ `updateMany` เพื่ออัปเดตหลาย record ในครั้งเดียว ซึ่งมีประสิทธิภาพสูงมาก
+    const expiredResult = await prisma.userMission.updateMany({
+      where: {
+        // เงื่อนไข: สถานะต้องเป็น ENROLLED "และ" เวลาหมดอายุ (userExpiresAt) ต้องผ่านไปแล้ว
+        status: 'ENROLLED',
+        userExpiresAt: {
+          lt: now,
+        },
+      },
+      data: {
+        status: 'EXPIRED',
+      },
+    });
+
+    // --- 2. จัดการภารกิจที่ไม่ได้กดรับรางวัล (AWAITING_CLAIM -> CLAIM_EXPIRED) ---
+    const claimExpiredResult = await prisma.userMission.updateMany({
+      where: {
+        status: 'AWAITING_CLAIM',
+        claimExpiresAt: {
+          lt: now,
+        },
+      },
+      data: {
+        status: 'CLAIM_EXPIRED',
+      },
+    });
+
+    const result = {
+      expiredCount: expiredResult.count,
+      claimExpiredCount: claimExpiredResult.count,
+    };
+
+    console.log('[Cron Job] Finished expiring missions:', result);
+    return result;
+  } catch (error) {
+    console.error('[Cron Job] An error occurred during expireOverdueMissions:', error);
+    // โยน Error ต่อไปเพื่อให้ระบบ Scheduler (เช่น QStash) รู้ว่างานล้มเหลวและอาจจะลองใหม่ (retry)
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to process overdue missions.');
+  }
+};
+
 export default {
   enrollInMission,
   updateMissionProgress,
@@ -333,4 +424,5 @@ export default {
   getMyMissionDetails,
   expireOverdueMissions,
   checkAndUpdateMissionProgress,
+  expireOverdueMissions,
 };

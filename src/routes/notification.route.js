@@ -4,7 +4,7 @@ import notificationController from '../controllers/notification.controller.js';
 const notificationRouter = express.Router();
 
 notificationRouter.get('/:userId', notificationController.getNotifications);
-notificationRouter.patch('/:notificationId/:userId/read', notificationController.markAsRead);
-notificationRouter.delete('/clear', notificationController.clearNotifications);
+notificationRouter.patch('/:notificationId/read', notificationController.markAsRead);
+notificationRouter.delete('/clear/:userId', notificationController.clearNotifications);
 
 export default notificationRouter;

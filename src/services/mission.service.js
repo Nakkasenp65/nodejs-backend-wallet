@@ -52,28 +52,48 @@ const getAllMissionsForAdmin = async (options = {}) => {
  * @returns {Promise<Array<object>>} Array ของ Missions ที่ผู้ใช้ยังไม่เคยเข้าร่วมและยังไม่หมดเขต
  */
 const getAvailableMissions = async (userId) => {
-  // 1. หา missionId ทั้งหมดที่ user คนนี้รับไปแล้ว
+  const now = new Date();
+
+  // 1) ภารกิจทั้งหมดที่ user เคยรับ (กันรับซ้ำ mission เดิม)
   const enrolledMissionIds = (
     await prisma.userMission.findMany({
-      where: { userId: userId },
+      where: { userId },
       select: { missionId: true },
     })
-  ).map((um) => um.missionId);
+  )
+    .map((um) => um.missionId)
+    .filter(Boolean); // กัน null
 
-  // 2. หา mission ทั้งหมดที่ยังไม่หมดเขต และ user ยังไม่เคยรับ
-  const availableMissions = await prisma.mission.findMany({
+  // 2) ประเภท (type) ที่ user "กำลังมีภารกิจอยู่" (กันรับภารกิจคนละอันแต่ type เดียวกัน)
+  const activeUserMissions = await prisma.userMission.findMany({
     where: {
-      webExpiresAt: {
-        gte: new Date(),
-      },
-      id: {
-        notIn: enrolledMissionIds,
-      },
+      userId,
+      status: { in: ['ENROLLED', 'AWAITING_CLAIM'] },
     },
-    orderBy: {
-      createdAt: 'desc',
+    include: {
+      mission: { select: { type: true } },
     },
   });
+
+  const blockedTypes = Array.from(new Set(activeUserMissions.map((um) => um.mission?.type).filter(Boolean)));
+
+  // 3) หา mission ที่ยังสมัครได้
+  const availableMissions = await prisma.mission.findMany({
+    where: {
+      AND: [
+        // ยังไม่หมดเขต (หรือไม่มีวันหมดอายุ)
+        { OR: [{ webExpiresAt: null }, { webExpiresAt: { gte: now } }] },
+
+        // ยังไม่เคยรับ mission นี้มาก่อน
+        { id: { notIn: enrolledMissionIds } },
+
+        // ไม่มีภารกิจ type เดียวกันค้างอยู่
+        blockedTypes.length ? { type: { notIn: blockedTypes } } : {},
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
   return availableMissions;
 };
 

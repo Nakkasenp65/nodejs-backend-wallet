@@ -228,16 +228,6 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
       );
     }
 
-    // 3.3 หักเงินออกจาก Wallet (ยอดเงิน + ค่าธรรมเนียม)
-    await tx.wallet.update({
-      where: { id: wallet.id },
-      data: {
-        balance: {
-          decrement: totalDeduction,
-        },
-      },
-    });
-
     // 3.4 สร้าง Transaction record ใหม่ในสถานะ PENDING
     const createdTransaction = await tx.transaction.create({
       data: {
@@ -254,35 +244,31 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
         },
       },
     });
-
+    console.log(
+      `Withdraw successfully: on process to withdraw ${createdTransaction.amount}฿ - ${withdrawalDetails.bank}`,
+    );
     return createdTransaction;
   });
 
   // (Optional) ส่ง Notification แจ้งเตือนผู้ใช้ว่า "ได้รับคำขอถอนเงินของคุณแล้ว"
-  // await notificationService.sendWithdrawalRequestReceived(userId, floatAmount);
-
   return newWithdrawalTransaction;
 };
 
 /**
  * โอนเงินระหว่าง Wallet ของผู้ใช้ภายในแอปพลิเคชัน
- * ฟังก์ชันนี้จะจัดการทุกอย่างภายใน Database Transaction เพื่อรับประกันความถูกต้องของข้อมูล
- * @param {string} senderUserId - ID ของผู้ใช้ที่ "ส่ง" เงิน
+ * @param {string} senderUserId - ID ของผู้ใช้ที่ "ส่ง" เงิน (from auth middleware)
  * @param {object} transferData - ข้อมูลการโอน
  * @param {string} transferData.recipientUserId - ID ของผู้ใช้ที่ "รับ" เงิน
  * @param {number} transferData.amount - จำนวนเงินที่ต้องการโอน
  * @param {string} transferData.pin - รหัส PIN 6 หลักของผู้ส่งเพื่อยืนยันตัวตน
- * @returns {Promise<object>} - Transaction object ของฝั่งผู้ส่ง (OUTCOME)
- * @throws {ApiError} - โยน ApiError หากเกิดข้อผิดพลาดต่างๆ เช่น PIN ไม่ถูกต้อง, ยอดเงินไม่พอ
  */
 const createInternalTransfer = async (senderUserId, transferData) => {
-  const { recipientUserId, amount, pin } = transferData;
+  const { line_user_id, recipientUserId, amount } = transferData;
 
-  // --- 1. ตรวจสอบข้อมูลนำเข้าพื้นฐาน ---
+  const { data } = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
+  console.log('PIN RESPONSE:', data.pin);
+  // --- Input Validation ---
   const floatAmount = parseFloat(amount);
-  if (!recipientUserId || !pin) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'ข้อมูลผู้รับและ PIN เป็นสิ่งจำเป็น');
-  }
   if (isNaN(floatAmount) || floatAmount <= 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'จำนวนเงินไม่ถูกต้อง');
   }
@@ -290,58 +276,52 @@ const createInternalTransfer = async (senderUserId, transferData) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'ไม่สามารถโอนเงินให้ตัวเองได้');
   }
 
-  // --- 2. ใช้ Database Transaction เพื่อความปลอดภัยสูงสุด ---
-  const outcomeTransaction = await prisma.$transaction(async (tx) => {
-    // 2.1 ดึงข้อมูลที่จำเป็นทั้งหมดในครั้งเดียว (Sender และ Recipient)
-    const [sender, recipient] = await Promise.all([
-      tx.user.findUnique({
-        where: { id: senderUserId },
-        include: { wallet: true }, // ดึง wallet ของผู้ส่งมาด้วย
-      }),
-      tx.user.findUnique({
-        where: { id: recipientUserId },
-        include: { wallet: true }, // ดึง wallet ของผู้รับมาด้วย
-      }),
-    ]);
+  console.log(`Initiating transfer from ${senderUserId} to ${recipientUserId}`);
 
-    // 2.2 ตรวจสอบเงื่อนไขสำคัญ
+  const outcomeTransaction = await prisma.$transaction(async (tx) => {
+    // 1. Fetch the sender using 'tx' and INCLUDE the wallet.
+    const sender = await tx.user.findUnique({
+      where: { id: senderUserId },
+      include: { wallet: true }, // <-- CRITICAL FIX #1: Include the wallet
+    });
+
+    // 2. Fetch the recipient using 'tx'.
+    const recipient = await tx.user.findUnique({
+      where: { id: recipientUserId },
+      include: { wallet: true },
+    });
+
+    // --- Validation logic ---
     if (!sender || !sender.wallet) {
+      // This check will now work correctly.
       throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบข้อมูลผู้ส่ง');
     }
     if (!recipient || !recipient.wallet) {
       throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบข้อมูลผู้รับ');
     }
-    if (!sender.pin) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'ผู้ส่งยังไม่ได้ตั้งค่า PIN');
-    }
     if (sender.wallet.balance < floatAmount) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'ยอดเงินคงเหลือไม่เพียงพอ');
     }
 
-    // 2.3 (สำคัญ) ตรวจสอบความถูกต้องของ PIN
-    // สมมติว่าคุณใช้ bcryptjs ในการ hash PIN ตอนที่ผู้ใช้ตั้งค่า
-    const isPinValid = await bcrypt.compare(pin, sender.pin);
+    const isPinValid = data.pin === sender.pin;
     if (!isPinValid) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัส PIN ไม่ถูกต้อง');
     }
 
-    // 2.4 ดำเนินการทางการเงิน: หักเงินผู้ส่ง, เพิ่มเงินผู้รับ
+    // --- Financial operations (remains the same) ---
     await Promise.all([
-      // หักเงินออกจาก balance ของผู้ส่ง
       tx.wallet.update({
         where: { id: sender.wallet.id },
         data: { balance: { decrement: floatAmount } },
       }),
-      // เพิ่มเงินเข้า balance ของผู้รับ
       tx.wallet.update({
         where: { id: recipient.wallet.id },
         data: { balance: { increment: floatAmount } },
       }),
     ]);
 
-    // 2.5 สร้าง Transaction records 2 รายการ (OUTCOME และ INCOME)
+    // --- Transaction record creation (remains the same) ---
     const [senderTransaction] = await Promise.all([
-      // สร้างรายการ "โอนออก" สำหรับผู้ส่ง
       tx.transaction.create({
         data: {
           name: `โอนเงินไปให้ ${recipient.line_display_name || recipient.fullname}`,
@@ -353,7 +333,6 @@ const createInternalTransfer = async (senderUserId, transferData) => {
           walletId: sender.wallet.id,
         },
       }),
-      // สร้างรายการ "รับเงิน" สำหรับผู้รับ
       tx.transaction.create({
         data: {
           name: `รับเงินจาก ${sender.line_display_name || sender.fullname}`,
@@ -367,13 +346,8 @@ const createInternalTransfer = async (senderUserId, transferData) => {
       }),
     ]);
 
-    // คืนค่า Transaction ของฝั่งผู้ส่งกลับไป
     return senderTransaction;
   });
-
-  // (Optional) ส่ง Notification ให้ทั้งผู้ส่งและผู้รับ
-  // await notificationService.sendTransferSuccessSender(senderUserId, recipient.line_display_name, floatAmount);
-  // await notificationService.sendTransferSuccessRecipient(recipientUserId, sender.line_display_name, floatAmount);
 
   return outcomeTransaction;
 };

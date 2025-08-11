@@ -18,8 +18,7 @@ const enrollInMission = catchAsync(async (req, res) => {
  * @route POST /v1/user-missions/claim
  */
 const claimMissionReward = catchAsync(async (req, res) => {
-  const userId = req.user.id;
-  const { userMissionId } = req.body;
+  const { userId, userMissionId } = req.body;
   const claimedMission = await userMissionService.claimMissionReward(userId, userMissionId);
   res.status(httpStatus.OK).json(claimedMission);
 });

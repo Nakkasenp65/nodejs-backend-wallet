@@ -11,7 +11,8 @@ const createGoal = catchAsync(async (req, res, next) => {
 
 const updateGoal = catchAsync(async (req, res, next) => {
   const { userId } = req.params;
-  const updatedGoal = await goalService.updateGoalForUser(userId, req.body);
+  const { planId, productId } = req.body;
+  const updatedGoal = await goalService.updateGoalForUser(userId, { planId, productId });
   return res.status(httpStatus.OK).json(updatedGoal);
 });
 

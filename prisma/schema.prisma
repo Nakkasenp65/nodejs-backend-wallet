@@ -13,9 +13,11 @@ datasource db {
 // --- Enums ---
 
 enum MissionType {
-  ONBOARDING // ภารกิจสำหรับผู้ใช้ใหม่โดยเฉพาะ
-  RECURRING // ภารกิจทั่วไปที่เกิดขึ้นซ้ำๆ หรือเป็น Event
+  ONBOARDING
+  ACCUMULATION
+  STREAK
   REFERRAL
+  // ประเภทสะสมยอด ประเภททำครั้งแรก ประเภทออมต่อเนื่อง เชิญเพื่อน
 }
 
 enum GoalStatus {
@@ -68,8 +70,8 @@ enum VoucherStatus {
 // --- Core Models ---
 
 model User {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  line_user_id      String  @unique
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  line_user_id      String   @unique
   line_display_name String?
   fullname          String?
   phone             String?
@@ -80,7 +82,7 @@ model User {
   monthlyPayment    Float?
   chat_url          String?
   isLocked          Boolean? @default(true)
-  referralCode      String? @unique
+  referralCode      String?  @unique
 
   // Saving Streaks & Insights
   currentSavingStreak Int       @default(0)
@@ -166,7 +168,7 @@ model Mission {
   id               String      @id @default(auto()) @map("_id") @db.ObjectId
   title            String?
   description      String?
-  type             MissionType @default(RECURRING)
+  type             MissionType @default(STREAK)
   rewardAmount     Float?
   webExpiresAt     DateTime?
   durationDays     Int?
@@ -243,6 +245,9 @@ model Product {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([downPaymentAmount])
+  @@index([brand, downPaymentAmount])
 }
 
 model Brand {
