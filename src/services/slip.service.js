@@ -12,24 +12,7 @@ import transactionService from './transaction.service.js';
  * @returns {Promise<number>} - จำนวนเงินที่ตรวจสอบได้จากสลิป
  * @throws {Error} - หากการตรวจสอบล้มเหลวหรือคืนค่าไม่ถูกต้อง
  */
-async function verfifySlip(slipImageUrl, transactionId) {
-  const mockResponse = {
-    code: '200000',
-    message: 'Slip verified successfully',
-    data: {
-      transRef: '015218185151CTF00170',
-      dateTime: '2025-08-06T18:51:51+07:00',
-      amount: 1,
-      ref1: null,
-      ref2: null,
-      ref3: null,
-      receiver: { account: [Object], bank: [Object] },
-      sender: { account: [Object], bank: [Object] },
-      decode: '0041000600000101030040220015218185151CTF001705102TH910436A7',
-      referenceId: '0fb03a9d-9427-4353-8a5a-7051a93e8025-1113',
-    },
-  };
-
+const verfifySlip = async (slipImageUrl, transactionId) => {
   const verificationApiUrl = process.env.SLIP2_GO_VERIFY_URL;
 
   try {
@@ -62,8 +45,6 @@ async function verfifySlip(slipImageUrl, transactionId) {
 
     console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
 
-    await transactionService.updateTransaction(verifyResult.code, transactionId, verifiedAmount);
-
     // --- 5. คืนค่าเฉพาะจำนวนเงินที่ตรวจสอบได้ ---
     return verifyResult;
   } catch (error) {
@@ -74,12 +55,12 @@ async function verfifySlip(slipImageUrl, transactionId) {
     );
     throw error;
   }
-}
+};
 
 /**
  * อัพโหลดรูปภาพสลิป URL
  */
-async function uploadSlip(fileObject, identifier) {
+const uploadSlip = async (fileObject, identifier) => {
   const uploadApiUrl = process.env.UPLOAD_IMAGE_API_URL;
 
   // 1. ตรวจสอบว่ามีไฟล์และ buffer อยู่จริง
@@ -128,6 +109,6 @@ async function uploadSlip(fileObject, identifier) {
     console.error('Error uploading slip:', error.response?.data || error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Could not upload slip image.');
   }
-}
+};
 
 export default { verfifySlip, uploadSlip };

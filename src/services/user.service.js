@@ -57,6 +57,45 @@ const getUserByLineUserId = async (lineUserId) => {
 };
 
 /**
+ * ค้นหาผู้ใช้ด้วยเบอร์โทรศัพท์สำหรับฟีเจอร์การโอนเงิน
+ * ฟังก์ชันนี้จะคืนค่าเฉพาะข้อมูลที่จำเป็นและปลอดภัยสำหรับแสดงผล (Public-facing data) เท่านั้น
+ * @param {string} phoneNumber - เบอร์โทรศัพท์ที่ต้องการค้นหา
+ * @param {string} currentUserId - ID ของผู้ใช้ที่กำลังทำการค้นหา (เพื่อป้องกันการค้นหาตัวเอง)
+ * @returns {Promise<object>} - Object ของผู้ใช้ที่พบ (ประกอบด้วย id, line_display_name, line_profile_url, phone)
+ * @throws {ApiError} - หากไม่พบผู้ใช้, พยายามค้นหาตัวเอง, หรือข้อมูลนำเข้าไม่ถูกต้อง
+ */
+const findUserByPhone = async (phoneNumber) => {
+  // --- 1. Input Validation ---
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง');
+  }
+
+  // --- 2. Database Query ---
+  // We use `findFirst` because `phone` is not a unique field.
+  // We use `select` to explicitly return only the data we need, which is a major security best practice.
+  const user = await prisma.user.findFirst({
+    where: {
+      phone: phoneNumber.trim(), // Use .trim() to remove accidental whitespace
+    },
+    select: {
+      id: true,
+      line_display_name: true,
+      line_profile_url: true,
+      phone: true,
+    },
+  });
+
+  // --- 3. Post-Query Validation ---
+  // Case 1: User not found
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้');
+  }
+
+  // --- 4. Return successful result ---
+  return user;
+};
+
+/**
  * สร้างหรืออัปเดตผู้ใช้, สร้าง Goal และ Wallet หากยังไม่มี
  * @param {object} userData - ข้อมูลของผู้ใช้ใหม่
  * @returns {Promise<object>} - Object ของ User พร้อม relations
@@ -211,14 +250,65 @@ const generateUniqueReferralCode = async () => {
   return referralCode;
 };
 
-const updateUserProfile = async (liffId, payload) => {
-  return prisma.user.update({
-    where: { liffId },
-    data: {
-      username: payload.username,
-      userProfilePicUrl: payload.userProfilePicUrl,
-    },
-  });
+/**
+ * อัปเดตข้อมูลส่วนตัวของผู้ใช้โดยใช้ ID ของผู้ใช้ (ไม่ใช่ Line User ID)
+ * ฟังก์ชันนี้ออกแบบมาเพื่อรับข้อมูลที่สามารถแก้ไขได้จากฟอร์ม 'แก้ไขโปรไฟล์'
+ * @param {string} userId - ID หลักของผู้ใช้ในฐานข้อมูล (Primary Key, ObjectId)
+ * @param {object} updateData - Object ที่มีข้อมูลที่ต้องการอัปเดต เช่น { fullname, phone, occupation, ageRange }
+ * @returns {Promise<object>} - Object ของผู้ใช้ที่อัปเดตข้อมูลล่าสุดแล้ว
+ * @throws {ApiError} - โยน ApiError หากไม่พบผู้ใช้ด้วย ID ที่ระบุ
+ */
+const updateUser = async (userId, updateData) => {
+  // 1. ตรวจสอบว่ามี User ID ส่งเข้ามาหรือไม่
+  if (!userId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'จำเป็นต้องระบุ User ID');
+  }
+
+  // 2. เตรียมข้อมูลที่จะอัปเดต
+  //    เราสามารถเพิ่ม Logic การ clean up ข้อมูลได้ที่นี่ เช่น trim() ช่องว่าง
+  const dataToUpdate = {
+    fullname: updateData.fullname,
+    phone: updateData.phone,
+    occupation: updateData.occupation,
+    ageRange: updateData.ageRange,
+  };
+
+  try {
+    // 3. ใช้ prisma.user.update เพื่อค้นหาและอัปเดตข้อมูลในขั้นตอนเดียว
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: userId, // ค้นหาผู้ใช้ด้วย ID หลัก
+      },
+      data: dataToUpdate,
+      // (สำคัญ) include ข้อมูลทั้งหมดที่ Frontend ต้องการกลับไป เพื่อให้ React Query cache อัปเดตถูกต้อง
+      include: {
+        goal: {
+          include: {
+            product: true,
+            plan: true,
+          },
+        },
+        wallet: true,
+        userMissions: {
+          include: {
+            mission: true,
+          },
+        },
+        notifications: true,
+      },
+    });
+
+    return updatedUser;
+  } catch (error) {
+    // 4. จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma
+    // P2025 คือ error code เมื่อไม่พบ record ที่ต้องการจะอัปเดต
+    if (error.code === 'P2025') {
+      throw new ApiError(httpStatus.NOT_FOUND, `ไม่พบผู้ใช้ที่มี ID: ${userId}`);
+    }
+    // โยน Error อื่นๆ ต่อไป
+    console.error('Error updating user:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้');
+  }
 };
 
-export default { getUserByLineUserId, updateUserProfile, checkUserStatus, createUserWithGoal };
+export default { getUserByLineUserId, findUserByPhone, updateUser, checkUserStatus, createUserWithGoal };

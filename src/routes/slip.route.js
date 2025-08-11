@@ -3,6 +3,6 @@ import { Router } from 'express';
 
 const slipRouter = Router();
 
-slipRouter.post('/', slipController.slipVerify);
+slipRouter.post('/verify', slipController.slipVerify);
 
 export default slipRouter;

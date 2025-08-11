@@ -15,7 +15,7 @@ import axios from 'axios';
  * @param {string} imageUrl - URL ของรูปภาพสลิปที่ได้จากการอัปโหลด
  * @returns {Promise<object>} - Transaction object ที่สร้างเสร็จแล้ว
  */
-async function createSavingTransaction(transactionBody, imageUrl) {
+const createSavingTransaction = async (transactionBody, imageUrl) => {
   // 1. ดึงข้อมูลที่จำเป็นออกมาจาก transactionBody
   const { name, type, status, from, to, walletId } = transactionBody;
 
@@ -62,7 +62,7 @@ async function createSavingTransaction(transactionBody, imageUrl) {
 
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create saving transaction in database.');
   }
-}
+};
 
 /**
  * อัปเดตสถานะ Transaction ตามผลการตรวจสอบสลิป
@@ -119,6 +119,9 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
             status: 'SUCCESS',
             description: `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`,
           },
+          include: {
+            wallet: true,
+          },
         });
       });
 
@@ -160,6 +163,17 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
     // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
     default: {
       console.error(`Unknown transaction verification code: ${transactionVerificationCode}`);
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: `รายการถูกปฏิเสธ: สลิปไม่ถูกต้องกรุณาลองใหม่อีกครั้ง ERROR:${transactionVerificationCode}`,
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+        include: true,
+      });
       // อาจจะอัปเดตเป็นสถานะพิเศษ หรือแค่โยน Error
       throw new ApiError(httpStatus.BAD_REQUEST, `Unknown verification code: ${transactionVerificationCode}`);
     }
@@ -248,6 +262,120 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
   // await notificationService.sendWithdrawalRequestReceived(userId, floatAmount);
 
   return newWithdrawalTransaction;
+};
+
+/**
+ * โอนเงินระหว่าง Wallet ของผู้ใช้ภายในแอปพลิเคชัน
+ * ฟังก์ชันนี้จะจัดการทุกอย่างภายใน Database Transaction เพื่อรับประกันความถูกต้องของข้อมูล
+ * @param {string} senderUserId - ID ของผู้ใช้ที่ "ส่ง" เงิน
+ * @param {object} transferData - ข้อมูลการโอน
+ * @param {string} transferData.recipientUserId - ID ของผู้ใช้ที่ "รับ" เงิน
+ * @param {number} transferData.amount - จำนวนเงินที่ต้องการโอน
+ * @param {string} transferData.pin - รหัส PIN 6 หลักของผู้ส่งเพื่อยืนยันตัวตน
+ * @returns {Promise<object>} - Transaction object ของฝั่งผู้ส่ง (OUTCOME)
+ * @throws {ApiError} - โยน ApiError หากเกิดข้อผิดพลาดต่างๆ เช่น PIN ไม่ถูกต้อง, ยอดเงินไม่พอ
+ */
+const createInternalTransfer = async (senderUserId, transferData) => {
+  const { recipientUserId, amount, pin } = transferData;
+
+  // --- 1. ตรวจสอบข้อมูลนำเข้าพื้นฐาน ---
+  const floatAmount = parseFloat(amount);
+  if (!recipientUserId || !pin) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'ข้อมูลผู้รับและ PIN เป็นสิ่งจำเป็น');
+  }
+  if (isNaN(floatAmount) || floatAmount <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'จำนวนเงินไม่ถูกต้อง');
+  }
+  if (senderUserId === recipientUserId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'ไม่สามารถโอนเงินให้ตัวเองได้');
+  }
+
+  // --- 2. ใช้ Database Transaction เพื่อความปลอดภัยสูงสุด ---
+  const outcomeTransaction = await prisma.$transaction(async (tx) => {
+    // 2.1 ดึงข้อมูลที่จำเป็นทั้งหมดในครั้งเดียว (Sender และ Recipient)
+    const [sender, recipient] = await Promise.all([
+      tx.user.findUnique({
+        where: { id: senderUserId },
+        include: { wallet: true }, // ดึง wallet ของผู้ส่งมาด้วย
+      }),
+      tx.user.findUnique({
+        where: { id: recipientUserId },
+        include: { wallet: true }, // ดึง wallet ของผู้รับมาด้วย
+      }),
+    ]);
+
+    // 2.2 ตรวจสอบเงื่อนไขสำคัญ
+    if (!sender || !sender.wallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบข้อมูลผู้ส่ง');
+    }
+    if (!recipient || !recipient.wallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบข้อมูลผู้รับ');
+    }
+    if (!sender.pin) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'ผู้ส่งยังไม่ได้ตั้งค่า PIN');
+    }
+    if (sender.wallet.balance < floatAmount) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'ยอดเงินคงเหลือไม่เพียงพอ');
+    }
+
+    // 2.3 (สำคัญ) ตรวจสอบความถูกต้องของ PIN
+    // สมมติว่าคุณใช้ bcryptjs ในการ hash PIN ตอนที่ผู้ใช้ตั้งค่า
+    const isPinValid = await bcrypt.compare(pin, sender.pin);
+    if (!isPinValid) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัส PIN ไม่ถูกต้อง');
+    }
+
+    // 2.4 ดำเนินการทางการเงิน: หักเงินผู้ส่ง, เพิ่มเงินผู้รับ
+    await Promise.all([
+      // หักเงินออกจาก balance ของผู้ส่ง
+      tx.wallet.update({
+        where: { id: sender.wallet.id },
+        data: { balance: { decrement: floatAmount } },
+      }),
+      // เพิ่มเงินเข้า balance ของผู้รับ
+      tx.wallet.update({
+        where: { id: recipient.wallet.id },
+        data: { balance: { increment: floatAmount } },
+      }),
+    ]);
+
+    // 2.5 สร้าง Transaction records 2 รายการ (OUTCOME และ INCOME)
+    const [senderTransaction] = await Promise.all([
+      // สร้างรายการ "โอนออก" สำหรับผู้ส่ง
+      tx.transaction.create({
+        data: {
+          name: `โอนเงินไปให้ ${recipient.line_display_name || recipient.fullname}`,
+          type: 'OUTCOME',
+          status: 'SUCCESS',
+          amount: floatAmount,
+          from: sender.line_display_name || sender.fullname,
+          to: recipient.line_display_name || recipient.fullname,
+          walletId: sender.wallet.id,
+        },
+      }),
+      // สร้างรายการ "รับเงิน" สำหรับผู้รับ
+      tx.transaction.create({
+        data: {
+          name: `รับเงินจาก ${sender.line_display_name || sender.fullname}`,
+          type: 'INCOME',
+          status: 'SUCCESS',
+          amount: floatAmount,
+          from: sender.line_display_name || sender.fullname,
+          to: recipient.line_display_name || recipient.fullname,
+          walletId: recipient.wallet.id,
+        },
+      }),
+    ]);
+
+    // คืนค่า Transaction ของฝั่งผู้ส่งกลับไป
+    return senderTransaction;
+  });
+
+  // (Optional) ส่ง Notification ให้ทั้งผู้ส่งและผู้รับ
+  // await notificationService.sendTransferSuccessSender(senderUserId, recipient.line_display_name, floatAmount);
+  // await notificationService.sendTransferSuccessRecipient(recipientUserId, sender.line_display_name, floatAmount);
+
+  return outcomeTransaction;
 };
 
 const getTransactions = async (walletId, options = {}) => {
@@ -358,6 +486,7 @@ const getTransactionsWithThaiStatus = async (walletId) => {
 
 export default {
   getTransactions,
+  createInternalTransfer,
   getTransactionsWithThaiStatus,
   createSavingTransaction,
   createWithdrawTransaction,

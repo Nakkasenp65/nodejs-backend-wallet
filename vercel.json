@@ -19,7 +19,7 @@
     {
       "src": "/v1/user/",
       "dest": "src/routes/user.route.js",
-      "methods": ["POST", "GET"]
+      "methods": ["POST", "GET", "PATCH"]
     },
     {
       "src": "/v1/wallet/",

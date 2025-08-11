@@ -2,12 +2,13 @@ import { Client } from '@upstash/qstash';
 
 /**
  * จัดตารางงานตรวจสอบสลิปกับ QStash โดยใช้ Best Practices
+ * @param {string} userUd - ID ของ user ที่ต้องการตรวจสอบ
  * @param {string} transactionId - ID ของ Transaction ที่ต้องการตรวจสอบ
  * @param {string} slipImageUrl - URL ของรูปภาพสลิป
  * @returns {Promise<object|void>} - ข้อมูลการตอบกลับจาก QStash หรือ void ถ้า service ไม่ได้ตั้งค่าไว้
  * @throws {ApiError} - หากการตั้งค่าผิดพลาดหรือการส่งงานล้มเหลว
  */
-async function scheduleSlipVerification(transactionId, slipImageUrl) {
+async function scheduleSlipVerification(userId, transactionId, slipImageUrl) {
   const qstashToken = process.env.QSTASH_TOKEN;
   const qstashClient = qstashToken ? new Client({ token: qstashToken }) : null;
 
@@ -39,7 +40,7 @@ async function scheduleSlipVerification(transactionId, slipImageUrl) {
   //   2. ตั้งค่า `Content-Type: application/json` ให้เอง
   //   3. ตั้งค่า `method: 'POST'` ให้เป็น default
   // ทำให้โค้ดของคุณสั้นลงและลดโอกาสเกิดข้อผิดพลาดจากการตั้งค่าซ้ำซ้อน
-  const payload = { slipImageUrl, transactionId };
+  const payload = { userId, slipImageUrl, transactionId };
 
   try {
     console.log(`Scheduling slip verification for TxID: ${transactionId} to ${webhookUrl}`);

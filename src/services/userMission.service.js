@@ -85,27 +85,6 @@ const updateMissionProgress = async (userId, eventType, eventData) => {
 };
 
 /**
- * (Private Function) ตรวจสอบว่าภารกิจสำเร็จหรือไม่ และอัปเดตสถานะ
- * @param {object} userMission - Object ของ UserMission ที่เพิ่งอัปเดต progress
- */
-const checkForCompletion = async (userMission) => {
-  if (userMission.currentProgress >= userMission.completeProgress) {
-    const claimExpiresAt = new Date();
-    claimExpiresAt.setHours(claimExpiresAt.getHours() + 24);
-
-    await prisma.userMission.update({
-      where: { id: userMission.id },
-      data: {
-        status: 'AWAITING_CLAIM',
-        completedAt: new Date(),
-        claimExpiresAt: claimExpiresAt,
-      },
-    });
-    // ส่ง Notification แจ้งเตือนผู้ใช้
-  }
-};
-
-/**
  * ให้ผู้ใช้กดรับรางวัลภารกิจ
  * @param {string} userId - ID ของผู้ใช้
  * @param {string} userMissionId - ID ของ UserMission ที่จะรับรางวัล
@@ -246,6 +225,106 @@ const expireOverdueMissions = async () => {
   });
 };
 
+/**
+ * (ที่คุณเรียกว่า CheckReward)
+ * ตรวจสอบและอัปเดตความคืบหน้าของภารกิจทั้งหมดที่ผู้ใช้กำลังทำอยู่
+ * โดยอิงจากเหตุการณ์ (Event) ที่เกิดขึ้นในระบบ
+ * @param {string} userId - ID ของผู้ใช้ที่เกิด Event
+ * @param {string} eventType - ประเภทของ Event เช่น 'DEPOSIT_SUCCESS'
+ * @param {object} eventData - ข้อมูลที่เกี่ยวข้องกับ Event เช่น { amount: 100.00 }
+ */
+const checkAndUpdateMissionProgress = async (userId, eventType, eventData) => {
+  // 1. ค้นหาภารกิจทั้งหมดที่ผู้ใช้กำลังทำอยู่ (ENROLLED)
+  const activeUserMissions = await prisma.userMission.findMany({
+    where: {
+      userId: userId,
+      status: 'ENROLLED',
+    },
+    include: {
+      mission: true, // ดึงข้อมูล Mission ต้นแบบมาด้วยเพื่อตรวจสอบเงื่อนไข
+    },
+  });
+
+  if (activeUserMissions.length === 0) {
+    console.log(`No active missions found for user ${userId}.`);
+    return; // ไม่มีภารกิจให้ทำ, จบการทำงาน
+  }
+
+  console.log(`Found ${activeUserMissions.length} active missions for user ${userId}. Checking progress...`);
+
+  // 2. สร้าง Array ของ Promises สำหรับการอัปเดตแต่ละภารกิจ
+  const updatePromises = activeUserMissions.map(async (userMission) => {
+    let progressIncrement = 0;
+
+    // --- 3. Logic การคำนวณ Progress ตามประเภทภารกิจและ Event ---
+    // เราจะใช้ switch-case ที่ซ้อนกันเพื่อความชัดเจน
+    switch (eventType) {
+      case 'DEPOSIT_SUCCESS': {
+        switch (userMission.mission.type) {
+          // ภารกิจ Onboarding (เช่น ออมครั้งแรก)
+          case 'ONBOARDING':
+            progressIncrement = 1; // นับเป็น 1 ครั้ง
+            break;
+
+          // ภารกิจทั่วไป (อาจจะเป็นนับครั้ง หรือนับยอด)
+          case 'RECURRING':
+            // ตัวอย่าง: ถ้า completeProgress > 100 ให้ถือว่าเป็นภารกิจ "สะสมยอด"
+            if (userMission.mission.completeProgress > 100) {
+              progressIncrement = eventData.amount; // เพิ่มตามจำนวนเงิน
+            } else {
+              progressIncrement = 1; // เพิ่ม 1 ครั้ง
+            }
+            break;
+        }
+        break;
+      }
+      // (ในอนาคต) เพิ่ม case สำหรับ eventType อื่นๆ เช่น 'REFERRAL_COMPLETE'
+      // case 'REFERRAL_COMPLETE': { ... }
+    }
+
+    // --- 4. ถ้ามีการเปลี่ยนแปลง Progress, ให้อัปเดตฐานข้อมูล ---
+    if (progressIncrement > 0) {
+      const updatedMission = await prisma.userMission.update({
+        where: { id: userMission.id },
+        data: {
+          currentProgress: { increment: progressIncrement },
+        },
+      });
+
+      // --- 5. ตรวจสอบการสำเร็จภารกิจโดยอัตโนมัติ ---
+      await checkForCompletion(updatedMission);
+    }
+  });
+
+  // 6. รอให้การอัปเดตทั้งหมดเสร็จสิ้น
+  await Promise.all(updatePromises);
+  console.log(`Finished checking mission progress for user ${userId}.`);
+};
+
+/**
+ * (Private Function) ตรวจสอบว่าภารกิจสำเร็จหรือไม่ และอัปเดตสถานะ
+ * @param {object} userMission - Object ของ UserMission ที่เพิ่งอัปเดต progress
+ */
+const checkForCompletion = async (userMission) => {
+  // ตรวจสอบว่า progress ปัจจุบันถึงเป้าหมายแล้ว และสถานะยังเป็น ENROLLED อยู่
+  if (userMission.currentProgress >= userMission.completeProgress && userMission.status === 'ENROLLED') {
+    const claimExpiresAt = new Date();
+    claimExpiresAt.setHours(claimExpiresAt.getHours() + 24);
+
+    await prisma.userMission.update({
+      where: { id: userMission.id },
+      data: {
+        status: 'AWAITING_CLAIM',
+        completedAt: new Date(),
+        claimExpiresAt: claimExpiresAt,
+      },
+    });
+
+    console.log(`Mission ${userMission.id} completed! Status is now AWAITING_CLAIM.`);
+    // (Optional) ส่ง Notification แจ้งเตือนผู้ใช้ว่าทำภารกิจสำเร็จแล้ว
+  }
+};
+
 export default {
   enrollInMission,
   updateMissionProgress,
@@ -253,4 +332,5 @@ export default {
   getMyMissions,
   getMyMissionDetails,
   expireOverdueMissions,
+  checkAndUpdateMissionProgress,
 };

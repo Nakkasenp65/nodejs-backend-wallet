@@ -7,12 +7,22 @@ import catchAsync from '../utils/catchAsync.js';
  * @route POST /v1/user
  * @param {object} req - Express request object, คาดว่าจะมีข้อมูลผู้ใช้ทั้งหมดใน `req.body`
  * @param {object} res - Express response object, ใช้สำหรับส่งข้อมูลกลับไปยัง client
- * @param {function} next - Express next middleware function
  * @returns {Promise<void>} ส่ง response กลับไปพร้อม status code 201 และข้อมูล user ที่สร้างใหม่ในรูปแบบ JSON
  */
-const createUser = catchAsync(async (req, res, next) => {
+const createUser = catchAsync(async (req, res) => {
   const newUser = await userService.createUserWithGoal(req.body);
   return res.status(201).json(newUser);
+});
+
+/**
+ * @description อัปเดตข้อมูลส่วนตัวของผู้ใช้
+ * @route PATCH /v1/user/:userId
+ */
+const updateUser = catchAsync(async (req, res) => {
+  console.log(req.params.mongoId);
+  console.log(req.body);
+  const updatedUser = await userService.updateUser(req.params.mongoId, req.body);
+  res.status(httpStatus.OK).json(updatedUser);
 });
 
 /**
@@ -29,6 +39,16 @@ const getUserWithLineUserId = catchAsync(async (req, res, next) => {
 });
 
 /**
+ * @description ค้นหาผู้รับโอนด้วยเบอร์โทรศัพท์
+ * @route GET /v1/user/by-phone/:phoneNumber
+ */
+const findUserByPhone = catchAsync(async (req, res) => {
+  const { phoneNumber } = req.params;
+  const recipient = await userService.findUserByPhone(phoneNumber);
+  res.status(httpStatus.OK).json(recipient);
+});
+
+/**
  * @description ตรวจสอบสถานะของผู้ใช้ว่าเป็นผู้ใช้ใหม่หรือไม่ โดยใช้ Line User ID
  * @route GET /v1/user/status/:userId
  * @param {object} req - Express request object, คาดว่าจะมี Line User ID ใน `req.params.userId`
@@ -42,6 +62,8 @@ const checkStatus = catchAsync(async (req, res) => {
 
 export default {
   createUser,
+  updateUser,
   getUserWithLineUserId,
+  findUserByPhone,
   checkStatus,
 };

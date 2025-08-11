@@ -7,7 +7,7 @@ import qstashService from '../services/qstash.service.js';
 const createSavingTransaction = catchAsync(async (req, res) => {
   const imageInfo = await slipService.uploadSlip(req.file, req.body.walletId);
   const newTransaction = await transactionService.createSavingTransaction(req.body, imageInfo.url);
-  const qstashJob = await qstashService.scheduleSlipVerification(newTransaction.id, imageInfo.url);
+  const qstashJob = await qstashService.scheduleSlipVerification(req.body.userId, newTransaction.id, imageInfo.url);
   res.status(httpStatus.CREATED).json({ newTransaction, qstashJob });
 });
 
@@ -24,6 +24,12 @@ const createWithdrawTransaction = catchAsync(async (req, res) => {
   const { amount, bank, accountNumber, accountName, userId } = req.body;
   const withdrawalDetails = { bank, accountNumber, accountName };
   const newTransaction = await transactionService.createWithdrawTransaction(userId, amount, withdrawalDetails);
+  res.status(httpStatus.CREATED).json(newTransaction);
+});
+
+const createInternalTransfer = catchAsync(async (req, res) => {
+  const { userId, recipientUserId, amount, pin } = req.body;
+  const newTransaction = await transactionService.createInternalTransfer(userId, { recipientUserId, amount, pin });
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 
@@ -45,9 +51,10 @@ const getThaiTransactions = catchAsync(async (req, res) => {
 
 export default {
   createSavingTransaction,
+  createWithdrawTransaction,
+  createInternalTransfer,
   getTransactions,
   getSuccessTransactions,
   getThaiTransactions,
   updateTransaction,
-  createWithdrawTransaction,
 };
