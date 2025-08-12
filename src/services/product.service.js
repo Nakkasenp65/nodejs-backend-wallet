@@ -10,9 +10,8 @@ import prisma from '../libs/prisma.js';
  * @param {number} [opts.skip=0]
  * @param {"asc"|"desc"} [opts.sort="asc"]     // by downPaymentAmount
  */
-export const fetchProducts = async (opts = {}) => {
+const fetchProducts = async (opts = {}) => {
   const { minPrice = null, maxPrice = null, topPerBrand = false, take = 24, skip = 0, sort = 'asc' } = opts;
-
   const where = {
     ...(minPrice != null || maxPrice != null
       ? {
@@ -23,6 +22,8 @@ export const fetchProducts = async (opts = {}) => {
         }
       : {}),
   };
+
+  console.log(where);
 
   // Aggregations for UI (range slider bounds, brand list)
   const [count, rangeAgg, brandsAgg] = await Promise.all([
