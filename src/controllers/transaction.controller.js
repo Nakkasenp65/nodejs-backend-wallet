@@ -23,8 +23,11 @@ const updateTransaction = catchAsync(async (req, res) => {
 
 const createWithdrawTransaction = catchAsync(async (req, res) => {
   const { amount, bank, accountNumber, accountName, userId } = req.body;
-  const withdrawalDetails = { bank, accountNumber, accountName };
-  const newTransaction = await transactionService.createWithdrawTransaction(userId, amount, withdrawalDetails);
+  const newTransaction = await transactionService.createWithdrawTransaction(userId, amount, {
+    bank,
+    accountNumber,
+    accountName,
+  });
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 
@@ -55,6 +58,12 @@ const getThaiTransactions = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(transactions);
 });
 
+const exportToPdf = catchAsync(async (req, res) => {
+  const { email, endDate, startDate, walletId } = req.body;
+  const result = await transactionService.exportToPdf(email, walletId, startDate, endDate);
+  res.status(httpStatus.OK).json(result);
+});
+
 export default {
   createSavingTransaction,
   createWithdrawTransaction,
@@ -63,4 +72,5 @@ export default {
   getSuccessTransactions,
   getThaiTransactions,
   updateTransaction,
+  exportToPdf,
 };

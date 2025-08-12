@@ -11,6 +11,7 @@ transactionRouter.post('/', upload.single('slipImage'), transactionController.cr
 transactionRouter.post('/withdraw', transactionController.createWithdrawTransaction);
 transactionRouter.post('/transfer', transactionController.createInternalTransfer);
 transactionRouter.post('/update/:transactionId', transactionController.updateTransaction);
+transactionRouter.post('/export', transactionController.exportToPdf);
 transactionRouter.get('/:walletId', transactionController.getTransactions);
 transactionRouter.get('/thai/:walletId', transactionController.getThaiTransactions);
 transactionRouter.get('/success/:walletId', transactionController.getSuccessTransactions);

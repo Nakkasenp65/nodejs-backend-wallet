@@ -227,18 +227,18 @@ model Plan {
 }
 
 model Product {
-  id                  String @id @default(auto()) @map("_id") @db.ObjectId
-  uniqueId            String @unique
-  brand               String
-  model               String
-  capacity            String
-  color               String
-  price               Int
-  imageUrl            String
-  downPaymentAmount   Int
-  downPaymentPercent  Int
-  installment6Months  Int
-  installment10Months Int
+  id                  String  @id @default(auto()) @map("_id") @db.ObjectId
+  uniqueId            String  @unique
+  brand               String?
+  model               String?
+  capacity            String?
+  color               String?
+  price               Int?
+  imageUrl            String?
+  downPaymentAmount   Int?
+  downPaymentPercent  Int?
+  installment6Months  Int?
+  installment10Months Int?
 
   targetedByGoals Goal[]
   vouchers        Voucher[]
