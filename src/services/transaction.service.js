@@ -81,13 +81,11 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
     throw new ApiError(httpStatus.NOT_FOUND, 'Transaction not found.');
   }
 
-  // --- 2. (สำคัญ) ป้องกันการอัปเดตซ้ำซ้อน ---
   // ไม่ว่าผลจะเป็นอะไร, ถ้าสถานะไม่ใช่ PENDING แสดงว่าเคยถูกประมวลผลไปแล้ว
   if (transaction.status !== 'PENDING') {
     console.warn(
       `Attempted to update an already processed transaction (ID: ${transactionId}, Status: ${transaction.status})`,
     );
-    // คืนค่า transaction เดิมกลับไป เพื่อไม่ให้ QStash retry โดยไม่จำเป็น
     return transaction;
   }
 
@@ -96,6 +94,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
     // --- CASE 3: SUCCESS ---
     case '200000': {
       const floatAmount = parseFloat(verifyAmount);
+
       if (isNaN(floatAmount) || floatAmount <= 0) {
         throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for SUCCESS case: ${verifyAmount}`);
       }
@@ -123,6 +122,58 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
           },
         });
       });
+
+      try {
+        const newcomerId = updatedTransaction.wallet.userId;
+
+        // 1. Check if this is the newcomer's first successful deposit.
+        const successfulTxCount = await prisma.transaction.count({
+          where: {
+            walletId: updatedTransaction.walletId,
+            status: 'SUCCESS',
+            type: 'INCOME',
+          },
+        });
+
+        if (successfulTxCount === 1) {
+          console.log(`[Referral Trigger] First successful deposit detected for newcomer ${newcomerId}.`);
+
+          // Also, update the user's `firstTime` flag.
+          await prisma.user.update({
+            where: { id: newcomerId },
+            data: { firstTime: false },
+          });
+
+          // 2. Find out who referred this newcomer.
+          const referralRecord = await prisma.referral.findUnique({
+            where: { newcomerId: newcomerId },
+          });
+
+          if (referralRecord) {
+            const referrerId = referralRecord.referrerId;
+            console.log(
+              `[Referral Trigger] Newcomer was referred by ${referrerId}. Triggering mission update for referrer.`,
+            );
+
+            // 3. Trigger the mission progress update for the REFERRER.
+            // This is the key part: we call the service for the referrer with the new event type.
+            await userMissionService.checkAndUpdateMissionProgress(
+              referrerId,
+              'NEWCOMER_FIRST_DEPOSIT',
+              { newcomerId: newcomerId }, // Pass extra data in case it's needed
+            );
+          } else {
+            console.log(
+              `[Referral Trigger] Newcomer ${newcomerId} was not referred. No referral mission update needed.`,
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[Referral Trigger] Failed to process post-deposit referral check for TxID ${transactionId}:`,
+          error,
+        );
+      }
 
       // (Optional) Trigger event อื่นๆ หลังสำเร็จ เช่น อัปเดต Mission
       // await missionService.checkAndUpdateProgress(transaction.wallet.userId, floatAmount);

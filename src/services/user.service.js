@@ -5,6 +5,8 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { MissionType } from '../generated/prisma/index.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
+import axios from 'axios';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +23,9 @@ const checkUserStatus = async (lineUserId) => {
   }
   const user = await prisma.user.findUnique({
     where: { line_user_id: lineUserId },
+    select: {
+      id: true,
+    },
   });
   if (!user) {
     return { isNewUser: true };
@@ -35,20 +40,39 @@ const checkUserStatus = async (lineUserId) => {
  * @param {string} userId - Line User ID ของผู้ใช้
  * @returns {Promise<object|null>} Promise ที่จะ resolve เป็น object ของผู้ใช้พร้อมข้อมูล relations ทั้งหมดหากพบข้อมูล, หรือ resolve เป็น `null` หากไม่พบ
  */
-const getUserByLineUserId = async (lineUserId) => {
+const getUser = async (line_user_id) => {
   return await prisma.user.findUnique({
-    where: { line_user_id: lineUserId },
-    include: {
-      wallet: true,
+    where: { line_user_id },
+    select: {
+      // scalar ที่ต้องใช้เท่านั้น
+      id: true,
+      line_user_id: true,
+      line_display_name: true,
+      fullname: true,
+      occupation: true,
+      ageRange: true,
+      line_profile_url: true,
+      monthlyPayment: true,
+      isLocked: true,
+      referralCode: true,
+      firstTime: true,
+      wallet: true, // ทั้งก้อนของ wallet
+      madeReferrals: true,
       goal: {
-        include: {
-          product: true,
-          plan: true,
+        select: {
+          product: {
+            select: {
+              brand: true,
+              model: true,
+              imageUrl: true,
+              downPaymentAmount: true,
+            },
+          },
         },
       },
       notifications: {
-        include: {
-          transaction: true,
+        select: {
+          transaction: true, // หรือ select ฟิลด์ย่อยของ transaction ต่อก็ได้
         },
       },
       userMissions: true,
@@ -114,6 +138,7 @@ const createUserWithGoal = async (userData) => {
     chat_url,
     phone,
     pin,
+    referToCode,
   } = userData;
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
@@ -161,6 +186,7 @@ const createUserWithGoal = async (userData) => {
       chat_url: chat_url,
       pin: pin,
       phone: phone,
+      referToCode: referToCode,
       wallet: {
         create: {
           balance: 0,
@@ -311,4 +337,172 @@ const updateUser = async (userId, updateData) => {
   }
 };
 
-export default { getUserByLineUserId, findUserByPhone, updateUser, checkUserStatus, createUserWithGoal };
+/**
+ * ดึงประวัติการเชิญเพื่อนทั้งหมดของผู้ใช้
+ * @param userId - ID ของผู้ใช้ (ผู้แนะนำ)
+ * @returns Array ของ ReferralHistoryDto
+ */
+const getReferralHistory = async (line_user_id) => {
+  // 1. ค้นหา User และดึงข้อมูล madeReferrals ที่เกี่ยวข้อง
+  const userWithReferrals = await prisma.user.findUnique({
+    where: {
+      line_user_id: line_user_id,
+    },
+    select: {
+      // 2. เลือกเฉพาะ field madeReferrals
+      madeReferrals: {
+        // 4. จัดเรียงข้อมูลตามวันที่สร้างล่าสุด
+        orderBy: {
+          createdAt: 'desc',
+        },
+        // 3. ดึงข้อมูลของ newcomer (ผู้ถูกเชิญ) มาด้วย
+        include: {
+          newcomer: {
+            select: {
+              id: true,
+              line_user_id: true,
+              line_display_name: true,
+              line_profile_url: true,
+              createdAt: true, // วันที่ newcomer สมัคร
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // กรณีไม่พบ User ID ดังกล่าวในระบบ
+  if (!userWithReferrals) {
+    throw new ApiError(httpStatus.NOT_FOUND, `User with ID ${line_user_id} not found.`);
+  }
+
+  // 5. แปลงข้อมูลให้อยู่ในรูปแบบ DTO ที่ใช้งานง่าย
+  const history = userWithReferrals.madeReferrals.map((referral) => ({
+    referredUserName: referral.newcomer.line_display_name,
+    referredUserImageUrl: referral.newcomer.line_profile_url,
+    referredUserId: referral.newcomer.userId,
+    referredUserLineId: referral.newcomer.line_user_id,
+    referralDate: referral.createdAt, //วันที่ชวน
+    rewardGiven: referral.rewardGiven,
+    newcomerJoinedDate: referral.newcomer.createdAt, // วันที่เพื่อนสมัครเข้ามา
+  }));
+
+  return history;
+};
+
+const createReferral = async (newcomerId, referralCode) => {
+  // 1. ตรวจสอบว่ามี Input ที่จำเป็นครบถ้วน
+  if (!newcomerId || !referralCode) {
+    throw new Error('Newcomer ID และ Referral Code เป็นสิ่งจำเป็น');
+  }
+
+  // 2. ค้นหาผู้ใช้ที่เป็นเจ้าของ referralCode (ผู้แนะนำ)
+  const referrer = await prisma.user.findUnique({
+    where: {
+      referralCode: referralCode,
+    },
+  });
+
+  // 3. ตรวจสอบความถูกต้อง
+  if (!referrer) {
+    // ไม่พบโค้ดนี้ในระบบ
+    throw new Error(`โค้ดแนะนำ "${referralCode}" ไม่ถูกต้องหรือไม่พบในระบบ`);
+  }
+
+  if (referrer.id === newcomerId) {
+    // ป้องกันการเชิญตัวเอง
+    throw new Error('ผู้ใช้ไม่สามารถแนะนำตัวเองได้');
+  }
+
+  // ตรวจสอบว่าผู้ใช้ใหม่คนนี้เคยถูกแนะนำแล้วหรือยัง
+  // ใช้ findUnique เพราะ field `newcomerId` ในตาราง Referral เป็น @unique
+  const existingReferral = await prisma.referral.findUnique({
+    where: {
+      newcomerId: newcomerId,
+    },
+  });
+
+  if (existingReferral) {
+    throw new Error(`ผู้ใช้ ID ${newcomerId} ได้ถูกแนะนำไปแล้ว`);
+  }
+
+  // 4. ถ้าทุกอย่างถูกต้อง, สร้าง Referral record ใหม่
+  console.log(`กำลังสร้าง Referral: ผู้แนะนำ (${referrer.id}) -> ผู้ใช้ใหม่ (${newcomerId})`);
+
+  const newReferral = await prisma.referral.create({
+    data: {
+      referrerId: referrer.id, // ID ของผู้แนะนำ
+      newcomerId: newcomerId, // ID ของผู้ใช้ใหม่
+      // rewardGiven จะมีค่า default เป็น false ตาม schema
+    },
+  });
+
+  // 5. คืนค่า Referral ที่สร้างใหม่
+  return newReferral;
+};
+
+const setUserReferCode = async (userId, referCode) => {
+  const referSet = await prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      referToCode: referCode,
+    },
+  });
+  return referSet;
+};
+
+const setLocked = async (line_user_id) => {
+  const locked = await prisma.user.update({
+    where: { line_user_id: line_user_id },
+    data: {
+      isLocked: true,
+    },
+  });
+
+  return locked;
+};
+
+const unlock = async (line_user_id, pin) => {
+  const response = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
+  const serverPin = response.data.pin;
+
+  const userPinBuffer = Buffer.from(String(pin));
+  const serverPinBuffer = Buffer.from(String(serverPin));
+
+  if (userPinBuffer.length !== serverPinBuffer.length) {
+    // If lengths don't match, they can't be equal.
+    // We still run a dummy comparison on the serverPin to prevent leaking length information.
+    crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัสผ่านไม่ถูกต้องกรุณาลองใหม่');
+  }
+
+  const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
+
+  if (pinsMatch) {
+    await prisma.user.update({
+      where: { line_user_id: line_user_id },
+      data: {
+        isLocked: false,
+      },
+    });
+    // It's good practice to return something to indicate success
+    return { message: 'User unlocked successfully.' };
+  } else {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัสผ่านไม่ถูกต้องกรุณาลองใหม่');
+  }
+};
+
+export default {
+  getUser,
+  findUserByPhone,
+  updateUser,
+  checkUserStatus,
+  createUserWithGoal,
+  createReferral,
+  setUserReferCode,
+  getReferralHistory,
+  setLocked,
+  unlock,
+};

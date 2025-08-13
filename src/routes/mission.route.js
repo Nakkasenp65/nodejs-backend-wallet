@@ -6,7 +6,7 @@ import missionController from '../controllers/mission.controller.js';
 const missionRouter = Router();
 
 // Public/User routes
-missionRouter.get('/available/:userId', /* auth, */ missionController.getAvailableMissions);
+missionRouter.get('/available/:userId', missionController.getAvailableMissions);
 // Admin routes
 missionRouter.post('/', /* adminAuth, */ missionController.createMission);
 missionRouter.patch('/:missionId', /* adminAuth, */ missionController.updateMission);

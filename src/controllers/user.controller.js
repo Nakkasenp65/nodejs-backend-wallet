@@ -19,22 +19,22 @@ const createUser = catchAsync(async (req, res) => {
  * @route PATCH /v1/user/:userId
  */
 const updateUser = catchAsync(async (req, res) => {
-  console.log(req.params.mongoId);
+  console.log(req.params.userId);
   console.log(req.body);
-  const updatedUser = await userService.updateUser(req.params.mongoId, req.body);
+  const updatedUser = await userService.updateUser(req.params.userId, req.body);
   res.status(httpStatus.OK).json(updatedUser);
 });
 
 /**
  * @description ดึงข้อมูลผู้ใช้ทั้งหมดพร้อม relations (wallet, goal, etc.) โดยใช้ Line User ID
- * @route GET /v1/user/:userId
+ * @route GET /v1/user/:line_user_id
  * @param {object} req - Express request object, คาดว่าจะมี Line User ID ใน `req.params.userId`
  * @param {object} res - Express response object, ใช้สำหรับส่งข้อมูลกลับไปยัง client
  * @param {function} next - Express next middleware function
  * @returns {Promise<void>} ส่ง response กลับไปพร้อม status code 200 และข้อมูล user ทั้งหมดในรูปแบบ JSON, หรือ `null` หากไม่พบ
  */
-const getUserWithLineUserId = catchAsync(async (req, res, next) => {
-  const user = await userService.getUserByLineUserId(req.params.userId);
+const getUser = catchAsync(async (req, res) => {
+  const user = await userService.getUser(req.params.line_user_id);
   return res.status(httpStatus.OK).json(user);
 });
 
@@ -55,15 +55,44 @@ const findUserByPhone = catchAsync(async (req, res) => {
  * @param {object} res - Express response object, ใช้สำหรับส่งข้อมูลกลับไปยัง client
  * @returns {Promise<void>} ส่ง response กลับไปพร้อม status code 200 และ object ที่ระบุสถานะ เช่น `{ isNewUser: true }`
  */
+
 const checkStatus = catchAsync(async (req, res) => {
-  const status = await userService.checkUserStatus(req.params.userId);
+  const status = await userService.checkUserStatus(req.params.line_user_id);
   res.status(httpStatus.OK).json(status);
+});
+
+const getReferralHistory = catchAsync(async (req, res) => {
+  console.log(req.params.line_user_id);
+  const history = await userService.getReferralHistory(req.params.line_user_id);
+  res.status(httpStatus.OK).json(history);
+});
+
+const createReferral = catchAsync(async (req, res) => {
+  const { newcomerId, referralCode } = req.body;
+  const referral = await userService.createReferral(newcomerId, referralCode);
+  res.status(httpStatus.OK).json(referral);
+});
+
+const setLocked = catchAsync(async (req, res) => {
+  const { line_user_id } = req.params;
+  const locked = await userService.setLocked(line_user_id);
+  res.status(httpStatus.OK).json({ message: 'locked successfully!' });
+});
+
+const unlock = catchAsync(async (req, res) => {
+  const { line_user_id, pin } = req.body;
+  const unlock = await userService.unlock(line_user_id, pin);
+  res.status(httpStatus.OK).json(unlock);
 });
 
 export default {
   createUser,
   updateUser,
-  getUserWithLineUserId,
+  getUser,
   findUserByPhone,
   checkStatus,
+  createReferral,
+  getReferralHistory,
+  setLocked,
+  unlock,
 };

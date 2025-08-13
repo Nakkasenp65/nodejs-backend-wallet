@@ -83,6 +83,8 @@ model User {
   chat_url          String?
   isLocked          Boolean? @default(true)
   referralCode      String?  @unique
+  referToCode       String?
+  firstTime         Boolean  @default(true)
 
   // Saving Streaks & Insights
   currentSavingStreak Int       @default(0)
@@ -291,11 +293,11 @@ model Referral {
   rewardGiven Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  // The user who MADE the referral
-  referrer   User   @relation("MadeReferrals", fields: [referrerId], references: [id])
+  // (old user)
+  referrer   User   @relation("MadeReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
   referrerId String @db.ObjectId
 
-  // The user who WAS REFERRED (the newcomer)
-  newcomer   User   @relation("WasReferred", fields: [newcomerId], references: [id])
+  // (new user)
+  newcomer   User   @relation("WasReferred", fields: [newcomerId], references: [id], onDelete: Cascade)
   newcomerId String @unique @db.ObjectId
 }

@@ -5,7 +5,7 @@ import ApiError from '../utils/ApiError.js';
 
 /**
  * @description ให้ผู้ใช้เข้าร่วมภารกิจ
- * @route POST /v1/user-missions/enroll
+ * @route POST /v1/user-mission/enroll
  */
 const enrollInMission = catchAsync(async (req, res) => {
   const { missionId, userId } = req.body;
@@ -15,7 +15,7 @@ const enrollInMission = catchAsync(async (req, res) => {
 
 /**
  * @description ให้ผู้ใช้กดรับรางวัลจากภารกิจที่ทำสำเร็จแล้ว
- * @route POST /v1/user-missions/claim
+ * @route POST /v1/user-mission/claim
  */
 const claimMissionReward = catchAsync(async (req, res) => {
   const { userId, userMissionId } = req.body;
@@ -25,7 +25,7 @@ const claimMissionReward = catchAsync(async (req, res) => {
 
 /**
  * @description ดึงข้อมูลภารกิจทั้งหมดของผู้ใช้ (My Missions)
- * @route GET /v1/user-missions?filter=[active|history]
+ * @route GET /v1/user-mission/:userId?filter=[active|history]
  */
 const getMyMissions = catchAsync(async (req, res) => {
   const userId = req.params.userId;
@@ -36,7 +36,7 @@ const getMyMissions = catchAsync(async (req, res) => {
 
 /**
  * @description ดึงข้อมูลรายละเอียดภารกิจของผู้ใช้แบบเจาะจง
- * @route GET /v1/user-missions/:userMissionId
+ * @route GET /v1/user-mission/:userMissionId
  */
 const getMyMissionDetails = catchAsync(async (req, res) => {
   const { userMissionId } = req.params;

@@ -206,6 +206,7 @@ const claimMissionReward = async (userId, userMissionId) => {
  * @returns {Promise<Array<object>>} Array ของ UserMissions
  */
 const getMyMissions = async (userId, options = {}) => {
+  console.log('Get my mission');
   const { filter } = options;
 
   // 1. สร้างเงื่อนไขพื้นฐานของ where clause
@@ -235,16 +236,18 @@ const getMyMissions = async (userId, options = {}) => {
   }
 
   // 3. ดึงข้อมูลจากฐานข้อมูลด้วย where clause ที่สร้างขึ้น
-  return prisma.userMission.findMany({
+  const missions = await prisma.userMission.findMany({
     where: whereClause,
-    include: {
-      mission: true,
-    },
     orderBy: [
       { status: 'asc' }, // 1. เรียงตามสถานะก่อน (AWAITING_CLAIM, ENROLLED จะมาก่อน)
       { enrolledAt: 'desc' }, // 2. ถ้าสถานะเหมือนกัน ให้เรียงตามวันที่เข้าร่วมล่าสุด
     ],
+    include: {
+      mission: true,
+    },
   });
+
+  return missions;
 };
 
 /**
@@ -314,8 +317,16 @@ const checkAndUpdateMissionProgress = async (userId, eventType, eventData) => {
         }
         break;
       }
-      // (ในอนาคต) เพิ่ม case สำหรับ eventType อื่นๆ เช่น 'REFERRAL_COMPLETE'
-      // case 'REFERRAL_COMPLETE': { ... }
+
+      case 'NEWCOMER_FIRST_DEPOSIT': {
+        // This event should only affect missions of type 'REFERRAL'
+        if (userMission.mission.type === 'REFERRAL') {
+          // Increment the counter by 1, representing one successful referral.
+          progressIncrement = 1;
+          console.log(`[Mission] User ${userId}'s REFERRAL mission progress will be incremented.`);
+        }
+        break;
+      }
     }
 
     // --- 4. ถ้ามีการเปลี่ยนแปลง Progress, ให้อัปเดตฐานข้อมูล ---
