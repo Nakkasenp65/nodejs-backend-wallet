@@ -11,6 +11,7 @@ userRouter.get('/:line_user_id', userController.getUser);
 userRouter.get('/status/:line_user_id', userController.checkStatus);
 userRouter.get('/by-phone/:phoneNumber', userController.findUserByPhone);
 userRouter.get('/referral/:line_user_id', userController.getReferralHistory);
+userRouter.get('/lock/:line_user_id', userController.getLockStatus);
 userRouter.post('/lock/:line_user_id', userController.setLocked);
 userRouter.post('/unlock', userController.unlock);
 

@@ -85,6 +85,12 @@ const unlock = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(unlock);
 });
 
+const getLockStatus = catchAsync(async (req, res) => {
+  const { isLocked } = await userService.getLockStatus(req.params.line_user_id);
+  const { isNewUser } = await userService.checkUserStatus(req.params.line_user_id);
+  res.status(httpStatus.OK).json({ isLocked, isNewUser });
+});
+
 export default {
   createUser,
   updateUser,
@@ -93,6 +99,7 @@ export default {
   checkStatus,
   createReferral,
   getReferralHistory,
+  getLockStatus,
   setLocked,
   unlock,
 };

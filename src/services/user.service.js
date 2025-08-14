@@ -17,12 +17,12 @@ const prisma = new PrismaClient();
  * @returns {Promise<{isNewUser: boolean}>} Promise ที่จะ resolve เป็น object ที่ระบุสถานะของผู้ใช้ เช่น { isNewUser: true }
  * @throws {ApiError} โยน ApiError หากไม่มีการส่ง `userId` (Line User ID) เข้ามา
  */
-const checkUserStatus = async (lineUserId) => {
-  if (!lineUserId) {
+const checkUserStatus = async (line_user_id) => {
+  if (!line_user_id) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Line userId is required');
   }
   const user = await prisma.user.findUnique({
-    where: { line_user_id: lineUserId },
+    where: { line_user_id: line_user_id },
     select: {
       id: true,
     },
@@ -494,6 +494,15 @@ const unlock = async (line_user_id, pin) => {
   }
 };
 
+const getLockStatus = async (line_user_id) => {
+  const status = await prisma.user.findUnique({ where: { line_user_id: line_user_id }, select: { isLocked: true } });
+  if (!status) {
+    console.log('No user');
+    return { isLocked: true };
+  }
+  return status;
+};
+
 export default {
   getUser,
   findUserByPhone,
@@ -503,6 +512,7 @@ export default {
   createReferral,
   setUserReferCode,
   getReferralHistory,
+  getLockStatus,
   setLocked,
   unlock,
 };
