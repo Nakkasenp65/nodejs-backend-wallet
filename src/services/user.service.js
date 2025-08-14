@@ -164,11 +164,9 @@ const createUserWithGoal = async (userData) => {
     });
   }
 
-  // --- กรณีเป็น User ใหม่ (ทำงานแบบเรียงลำดับ) ---
   console.log(`Creating new user for ${line_user_id}.`);
 
   // 2. สร้าง Referral Code ที่ไม่ซ้ำกัน
-  // สังเกตว่าเราต้องส่ง `prisma` client เข้าไปแทน `tx`
   const referralCode = await generateUniqueReferralCode(prisma);
 
   // 3. สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด

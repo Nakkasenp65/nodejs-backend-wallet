@@ -206,7 +206,6 @@ const claimMissionReward = async (userId, userMissionId) => {
  * @returns {Promise<Array<object>>} Array ของ UserMissions
  */
 const getMyMissions = async (userId, options = {}) => {
-  console.log('Get my mission');
   const { filter } = options;
 
   // 1. สร้างเงื่อนไขพื้นฐานของ where clause

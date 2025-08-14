@@ -81,7 +81,7 @@ model User {
   line_profile_url  String?
   monthlyPayment    Float?
   chat_url          String?
-  isLocked          Boolean? @default(true)
+  isLocked          Boolean? @default(false)
   referralCode      String?  @unique
   referToCode       String?
   firstTime         Boolean  @default(true)
