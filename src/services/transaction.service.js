@@ -7,6 +7,7 @@ import { TransactionStatus } from '../generated/prisma/index.js';
 import axios from 'axios';
 import PDFDocument from 'pdfkit';
 import sendEmail from '../utils/email.js';
+import crypto from 'crypto';
 
 /**
  * สร้าง Saving Transaction ใหม่ในฐานข้อมูลหลังจากอัปโหลดสลิปสำเร็จ
@@ -309,10 +310,10 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
  * @param {string} transferData.pin - รหัส PIN 6 หลักของผู้ส่งเพื่อยืนยันตัวตน
  */
 const createInternalTransfer = async (senderUserId, transferData) => {
-  const { line_user_id, recipientUserId, amount } = transferData;
+  const { line_user_id, recipientUserId, amount, pin } = transferData;
 
-  const { data } = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
-  console.log('PIN RESPONSE:', data.pin);
+  const response = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
+  const serverPin = response.data.pin;
   // --- Input Validation ---
   const floatAmount = parseFloat(amount);
   if (isNaN(floatAmount) || floatAmount <= 0) {
@@ -349,8 +350,19 @@ const createInternalTransfer = async (senderUserId, transferData) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'ยอดเงินคงเหลือไม่เพียงพอ');
     }
 
-    const isPinValid = data.pin === sender.pin;
-    if (!isPinValid) {
+    const userPinBuffer = Buffer.from(String(pin));
+    const serverPinBuffer = Buffer.from(String(serverPin));
+
+    if (userPinBuffer.length !== serverPinBuffer.length) {
+      // If lengths don't match, they can't be equal.
+      // We still run a dummy comparison on the serverPin to prevent leaking length information.
+      crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัสผ่านไม่ถูกต้องกรุณาลองใหม่');
+    }
+
+    const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
+
+    if (!pinsMatch) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัส PIN ไม่ถูกต้อง');
     }
 
