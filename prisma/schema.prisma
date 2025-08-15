@@ -230,7 +230,7 @@ model Plan {
 
 model Product {
   id                  String  @id @default(auto()) @map("_id") @db.ObjectId
-  uniqueId            String  @unique
+  uniqueId            String?
   brand               String?
   model               String?
   capacity            String?

@@ -57,6 +57,7 @@ const getUser = async (line_user_id) => {
       firstTime: true,
       wallet: true, // ทั้งก้อนของ wallet
       madeReferrals: true,
+      createdAt: true,
       goal: {
         select: {
           product: {
@@ -148,9 +149,7 @@ const createUserWithGoal = async (userData) => {
 
   // --- กรณีเป็น User ที่มีอยู่แล้ว ---
   if (existingUser) {
-    console.log(`User ${line_user_id} already exists. Fetching latest data.`);
     // ดึงข้อมูลล่าสุดทั้งหมดของ User คนนั้นแล้วคืนค่ากลับไปทันที
-    // ส่วนนี้เหมือนเดิม แต่ใช้ prisma ตรงๆ แทน tx
     return prisma.user.findUnique({
       where: { id: existingUser.id },
       include: {
@@ -162,13 +161,10 @@ const createUserWithGoal = async (userData) => {
     });
   }
 
-  console.log(`Creating new user for ${line_user_id}.`);
-
   // 2. สร้าง Referral Code ที่ไม่ซ้ำกัน
   const referralCode = await generateUniqueReferralCode(prisma);
 
   // 3. สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
-  // ใช้ prisma.user.create() โดยตรง
   const newUser = await prisma.user.create({
     data: {
       line_user_id: line_user_id,
@@ -225,9 +221,7 @@ const createUserWithGoal = async (userData) => {
     console.log(`Created ${userMissionsData.length} user missions.`);
   }
 
-  // 5. ดึงข้อมูลล่าสุดทั้งหมดของ "User ใหม่" ที่เพิ่งสร้างเสร็จ กลับไป
-  // เราต้องดึงข้อมูลอีกครั้งเพื่อให้ได้ข้อมูล nested relations ที่สร้างขึ้นมาทั้งหมด
-  return prisma.user.findUnique({
+  const createdUser = await prisma.user.findUnique({
     where: { id: newUser.id },
     include: {
       goal: {
@@ -245,6 +239,36 @@ const createUserWithGoal = async (userData) => {
       notifications: true,
     },
   });
+
+  if (referToCode) {
+    const referredUser = await prisma.user.findUnique({
+      where: { referralCode: referToCode },
+      select: { id: true },
+    });
+
+    // 2. IMPORTANT: Check if the referrer was actually found before using it
+    if (referredUser) {
+      await prisma.referral.create({
+        data: {
+          newcomer: {
+            connect: { id: newUser.id },
+          },
+          referrer: {
+            connect: {
+              id: referredUser.id,
+            },
+          },
+        },
+      });
+    } else {
+      // Optional: Log that an invalid referral code was used
+      console.warn(`Invalid referral code used during signup: ${referToCode}`);
+    }
+  }
+
+  // 5. ดึงข้อมูลล่าสุดทั้งหมดของ "User ใหม่" ที่เพิ่งสร้างเสร็จ กลับไป
+  // เราต้องดึงข้อมูลอีกครั้งเพื่อให้ได้ข้อมูล nested relations ที่สร้างขึ้นมาทั้งหมด
+  return createdUser;
 };
 
 /**

@@ -12,7 +12,6 @@ const enrollInMission = catchAsync(async (req, res) => {
   const { missionId, userId } = req.body;
   const newUserMission = await userMissionService.enrollInMission(userId, missionId);
   console.log('ENROLLED MISSION', newUserMission);
-
   res.status(httpStatus.CREATED).json(newUserMission);
 });
 

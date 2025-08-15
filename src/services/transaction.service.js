@@ -8,6 +8,7 @@ import axios from 'axios';
 import PDFDocument from 'pdfkit';
 import sendEmail from '../utils/email.js';
 import crypto from 'crypto';
+import userMissionService from './userMission.service.js';
 
 /**
  * สร้าง Saving Transaction ใหม่ในฐานข้อมูลหลังจากอัปโหลดสลิปสำเร็จ
@@ -72,8 +73,7 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
  * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
  */
 const updateTransaction = async (transactionVerificationCode, transactionId, verifyAmount = 0) => {
-  // --- 1. ค้นหา Transaction ที่ต้องการอัปเดตก่อน ---
-  console.log('Updating slip', transactionVerificationCode, transactionId, verifyAmount);
+  // --- 1. ค้นหา Transaction ที่ต้องการอัปเดต ---
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
@@ -90,7 +90,6 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
     return transaction;
   }
 
-  // --- 3. จัดการตามแต่ละ Case ---
   switch (transactionVerificationCode) {
     // --- CASE 3: SUCCESS ---
     case '200000': {
@@ -126,15 +125,18 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
 
       try {
         const newcomerId = updatedTransaction.wallet.userId;
-
+        const newUserWalletId = updatedTransaction.wallet.id;
+        console.log('New user Id updated transaction: ', newcomerId);
+        console.log('newUserWalletId from updated transaction: ', newUserWalletId);
         // 1. Check if this is the newcomer's first successful deposit.
         const successfulTxCount = await prisma.transaction.count({
           where: {
-            walletId: updatedTransaction.walletId,
+            walletId: newUserWalletId,
             status: 'SUCCESS',
             type: 'INCOME',
           },
         });
+        console.log('count new user wallet successfull transaction: ', successfulTxCount);
 
         if (successfulTxCount === 1) {
           console.log(`[Referral Trigger] First successful deposit detected for newcomer ${newcomerId}.`);
@@ -379,7 +381,7 @@ const createInternalTransfer = async (senderUserId, transferData) => {
     ]);
 
     // --- Transaction record creation (remains the same) ---
-    const [senderTransaction] = await Promise.all([
+    const [senderTransaction, receiverTransaction] = await Promise.all([
       tx.transaction.create({
         data: {
           name: `โอนเงินไปให้ ${recipient.line_display_name || recipient.fullname}`,
@@ -404,7 +406,7 @@ const createInternalTransfer = async (senderUserId, transferData) => {
       }),
     ]);
 
-    return senderTransaction;
+    return { senderTransaction, receiverTransaction };
   });
 
   return outcomeTransaction;

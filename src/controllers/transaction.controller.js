@@ -33,15 +33,21 @@ const createWithdrawTransaction = catchAsync(async (req, res) => {
 
 const createInternalTransfer = catchAsync(async (req, res) => {
   const { userId, recipientUserId, amount, pin, line_user_id } = req.body;
-  const newTransaction = await transactionService.createInternalTransfer(userId, {
+  const { senderTransaction, receiverTransaction } = await transactionService.createInternalTransfer(userId, {
     line_user_id,
     recipientUserId,
     amount,
     pin,
   });
-  if (newTransaction) {
+  console.log('Attempt to create notification for receiver userID: ', recipientUserId);
+  if (senderTransaction && receiverTransaction) {
+    const receiverNotification = await notificationService.sendTransferReceived(recipientUserId, {
+      amount,
+      fromName: receiverTransaction.from,
+      note: receiverTransaction.description,
+    });
   }
-  res.status(httpStatus.CREATED).json(newTransaction);
+  res.status(httpStatus.CREATED).json(senderTransaction);
 });
 
 const getTransactions = catchAsync(async (req, res) => {
