@@ -39,6 +39,8 @@ const createInternalTransfer = catchAsync(async (req, res) => {
     amount,
     pin,
   });
+  if (newTransaction) {
+  }
   res.status(httpStatus.CREATED).json(newTransaction);
 });
 

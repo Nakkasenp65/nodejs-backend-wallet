@@ -1,7 +1,6 @@
 // src/services/user.service.ts
 
 import { PrismaClient } from '../generated/prisma/index.js';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { MissionType } from '../generated/prisma/index.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
@@ -96,7 +95,6 @@ const findUserByPhone = async (phoneNumber) => {
 
   // --- 2. Database Query ---
   // We use `findFirst` because `phone` is not a unique field.
-  // We use `select` to explicitly return only the data we need, which is a major security best practice.
   const user = await prisma.user.findFirst({
     where: {
       phone: phoneNumber.trim(), // Use .trim() to remove accidental whitespace

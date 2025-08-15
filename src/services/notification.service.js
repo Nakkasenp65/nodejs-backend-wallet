@@ -50,6 +50,22 @@ const clearNotificationsByType = async (userId, type) => {
   return deleteResult; // `deleteResult` จะเป็น object ที่มี property `count`
 };
 
+// ---- Helpers ----
+const formatBaht = (amount) => {
+  const n = Number(amount);
+  if (Number.isNaN(n)) return `${amount} บาท`;
+  // ใช้ toFixed ให้สอดคล้องกับโค้ดเดิม
+  return `${n.toFixed(2)} บาท`;
+};
+
+const maskPhone = (phone) => {
+  if (!phone) return '';
+  // 08x-xxx-xx12
+  const s = String(phone).replace(/\D/g, '');
+  if (s.length < 4) return phone;
+  return `${s.slice(0, 2)}${'*'.repeat(Math.max(0, s.length - 4))}${s.slice(-2)}`;
+};
+
 /**
  * (ฟังก์ชันหลัก) สร้าง Notification ใหม่ในฐานข้อมูล
  * @param {string} userId - ID ของผู้ใช้ที่จะรับการแจ้งเตือน
@@ -92,8 +108,6 @@ const createNotification = async (userId, payload) => {
     // throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Could not create notification.');
   }
 };
-
-// --- ฟังก์ชันย่อยสำหรับเหตุการณ์ต่างๆ ---
 
 /**
  * ส่งการแจ้งเตือน "การฝากเงินสำเร็จ"
@@ -165,6 +179,138 @@ const sendWelcomeNotification = async (userId) => {
   });
 };
 
+/**
+ * แจ้งเตือนเมื่อผู้ใช้ "ได้รับเงิน" จากผู้อื่น
+ * @param {string} userId - ผู้รับเงิน
+ * @param {object} data
+ * @param {number|string} data.amount - จำนวนเงินที่ได้รับ
+ * @param {string} [data.fromName] - ชื่อผู้ส่ง (ถ้ามี)
+ * @param {string} [data.fromPhone] - เบอร์ผู้ส่ง (จะถูก mask)
+ * @param {string} [data.note] - โน้ตที่แนบมากับการโอน (ถ้ามี)
+ * @param {string} [data.transactionId] - ไอดีรายการโอน
+ */
+const sendTransferReceived = async (userId, { amount, fromName, fromPhone, note, transactionId } = {}) => {
+  const sender = fromName?.trim() || (fromPhone ? `ผู้ใช้ (${maskPhone(fromPhone)})` : 'ผู้ใช้ไม่ระบุชื่อ');
+
+  const pieces = [`ได้รับเงิน ${formatBaht(amount)} จาก ${sender}`, note ? `โน้ต: ${note}` : null].filter(Boolean);
+
+  return createNotification(userId, {
+    title: '📥 เงินเข้าแล้ว',
+    body: pieces.join('\n'),
+    type: 'WALLET',
+    transactionId,
+  });
+};
+
+// (ทางเลือก) แจ้งเตือนฝั่งผู้โอนเองว่าทำรายการสำเร็จ
+const sendTransferSent = async (userId, { amount, toName, toPhone, note, transactionId } = {}) => {
+  const receiver = toName?.trim() || (toPhone ? `ผู้ใช้ (${maskPhone(toPhone)})` : 'ผู้ใช้ไม่ระบุชื่อ');
+
+  const pieces = [`โอนเงิน ${formatBaht(amount)} ไปยัง ${receiver} สำเร็จ`, note ? `โน้ต: ${note}` : null].filter(
+    Boolean,
+  );
+
+  return createNotification(userId, {
+    title: '✅ โอนเงินสำเร็จ',
+    body: pieces.join('\n'),
+    type: 'WALLET',
+    transactionId,
+  });
+};
+
+/**
+ * เมื่อผู้ใช้สร้างเป้าหมายออมดาวน์ใหม่
+ * @param {string} userId
+ * @param {object} data
+ * @param {string} data.goalTitle - ชื่อเป้าหมาย (เช่น "iPhone 16")
+ * @param {number|string} data.targetAmount - ยอดเป้าหมายรวม
+ * @param {string|Date} [data.deadline] - วันสิ้นสุด (แสดงแบบข้อความ)
+ */
+const sendGoalCreated = async (userId, { goalTitle, targetAmount, deadline } = {}) => {
+  const lines = [
+    `ตั้งเป้าหมาย "${goalTitle}" เรียบร้อย`,
+    `ยอดเป้าหมายรวม ${formatBaht(targetAmount)}`,
+    deadline ? `กำหนดเสร็จภายใน: ${new Date(deadline).toLocaleDateString('th-TH')}` : null,
+  ].filter(Boolean);
+
+  return createNotification(userId, {
+    title: '🎯 เริ่มออมดาวน์แล้ว!',
+    body: lines.join('\n'),
+    type: 'SYSTEM',
+  });
+};
+
+/**
+ * แจ้งเตือนเมื่อความคืบหน้าแตะ Milestone สำคัญ (25/50/75/100%)
+ * @param {string} userId
+ * @param {object} data
+ * @param {string} data.goalTitle
+ * @param {number} data.percent - 0-100
+ * @param {number|string} [data.currentAmount]
+ * @param {number|string} [data.targetAmount]
+ */
+const sendGoalMilestone = async (userId, { goalTitle, percent, currentAmount, targetAmount } = {}) => {
+  const lines = [
+    `ออมครบ ${Math.round(percent)}% ของ "${goalTitle}" แล้ว`,
+    currentAmount != null && targetAmount != null
+      ? `ยอดสะสม ${formatBaht(currentAmount)} / ${formatBaht(targetAmount)}`
+      : null,
+  ].filter(Boolean);
+
+  return createNotification(userId, {
+    title: '📈 ความคืบหน้าการออม',
+    body: lines.join('\n'),
+    type: 'SYSTEM',
+  });
+};
+
+/**
+ * แจ้งเตือนใกล้ถึงกำหนดออมครั้งถัดไป/ครบกำหนด (D-n)
+ * @param {string} userId
+ * @param {object} data
+ * @param {string} data.goalTitle
+ * @param {number|string} data.amountDue - แนะนำยอดที่ควรออม
+ * @param {number} data.daysLeft - เหลือกี่วัน
+ */
+const sendGoalDueReminder = async (userId, { goalTitle, amountDue, daysLeft } = {}) => {
+  const when = daysLeft <= 0 ? 'วันนี้' : `อีก ${daysLeft} วัน`;
+  return createNotification(userId, {
+    title: '⏰ ถึงเวลาฝากออมแล้ว',
+    body: `${when}ควรออม ${formatBaht(amountDue)} สำหรับ "${goalTitle}"\nกดเพื่อฝากตอนนี้เลย`,
+    type: 'SYSTEM',
+  });
+};
+
+/**
+ * แจ้งเตือนเมื่อบรรลุเป้าหมายออมดาวน์ครบ 100%
+ * @param {string} userId
+ * @param {object} data
+ * @param {string} data.goalTitle
+ */
+const sendGoalAchieved = async (userId, { goalTitle } = {}) => {
+  return createNotification(userId, {
+    title: '🏁 บรรลุเป้าหมายแล้ว!',
+    body: `ยินดีด้วย คุณออมครบตามเป้าหมาย "${goalTitle}" แล้ว\nดำเนินการสั่งซื้อ/รับสิทธิ์ได้ทันที`,
+    type: 'SYSTEM',
+  });
+};
+
+/**
+ * แจ้งเตือนเมื่อไม่มีการออมมาระยะหนึ่ง (ป้องกันหลุดแผน)
+ * @param {string} userId
+ * @param {object} data
+ * @param {number} data.days - เว้นไปกี่วันแล้วที่ไม่ได้ออม
+ * @param {string} [data.goalTitle]
+ */
+const sendInactivityReminder = async (userId, { days, goalTitle } = {}) => {
+  const goal = goalTitle ? ` สำหรับ "${goalTitle}"` : '';
+  return createNotification(userId, {
+    title: '📌 อย่าลืมออมต่อเนื่อง',
+    body: `คุณไม่ได้ออมมา ${days} วันแล้ว${goal}\nการออมสม่ำเสมอช่วยให้ถึงเป้าหมายไวขึ้น`,
+    type: 'SYSTEM',
+  });
+};
+
 export default {
   getNotificationsByUserId,
   markNotificationAsRead,
@@ -174,4 +320,11 @@ export default {
   sendMissionCompleted,
   sendRewardClaimed,
   sendWelcomeNotification,
+  sendTransferReceived,
+  sendTransferSent,
+  sendGoalCreated,
+  sendGoalMilestone,
+  sendGoalDueReminder,
+  sendGoalAchieved,
+  sendInactivityReminder,
 };

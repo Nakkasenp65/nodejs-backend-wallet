@@ -19,14 +19,11 @@ const errorConverter = (err, req, res, next) => {
 const errorHandler = (err, req, res, next) => {
   console.log('ERROR CAUGHT: ', err);
   let { statusCode, message } = err;
-
   res.locals.errorMessage = err.message;
-
   const response = {
     code: statusCode,
     message: message,
   };
-
   res.status(statusCode).send(response);
 };
 
