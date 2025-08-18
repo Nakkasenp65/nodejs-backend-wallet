@@ -19,9 +19,9 @@ const createUser = catchAsync(async (req, res) => {
  * @route PATCH /v1/user/:userId
  */
 const updateUser = catchAsync(async (req, res) => {
-  console.log(req.params.userId);
+  console.log(req.user.line_user_id);
   console.log(req.body);
-  const updatedUser = await userService.updateUser(req.params.userId, req.body);
+  const updatedUser = await userService.updateUser(req.user.line_user_id, req.body);
   res.status(httpStatus.OK).json(updatedUser);
 });
 
@@ -92,8 +92,11 @@ const getLockStatus = catchAsync(async (req, res) => {
 });
 
 export default {
+  // สร้าง user ใหม่
   createUser,
+  // อัพเดทข้อมูล
   updateUser,
+  // ดึงข้อมูลผู้ใช้ทั้งหมดพร้อม relations
   getUser,
   findUserByPhone,
   checkStatus,

@@ -1,3 +1,4 @@
+import { NotificationType } from '../generated/prisma/index.js';
 import prisma from '../libs/prisma.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
@@ -311,6 +312,50 @@ const sendInactivityReminder = async (userId, { days, goalTitle } = {}) => {
   });
 };
 
+/**
+ * สร้างชุดการแจ้งเตือนต้อนรับสำหรับผู้ใช้ใหม่
+ * ประกอบด้วย:
+ * 1. โบนัสสมัครใหม่ 100 บาท (REWARD)
+ * 2. ข้อเสนอโบนัสออมครั้งแรก 2 เท่า (SYSTEM)
+ * @param userId - ID ของผู้ใช้ใหม่ (จาก Model User)
+ */
+const createWelcomeNotifications = async (userId, welcomeTransactionId) => {
+  if (!userId) {
+    console.error('Error: userId is required to create welcome notifications.');
+    return;
+  }
+
+  // 1. การแจ้งเตือน: แจกโบนัส 100 บาทสำหรับผู้ใช้ใหม่
+  const welcomeBonusNotification = {
+    userId: userId,
+    type: NotificationType.REWARD,
+    title: '💰 รับโบนัสฟรี 100 บาท!',
+    body: `ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้`,
+  };
+
+  const firstDepositOfferNotification = {
+    userId: userId,
+    type: NotificationType.SYSTEM,
+    title: '💵 พิเศษ! ออมครั้งแรก รับโบนัส 2 เท่า',
+    body: `เริ่มต้นการออมของคุณอย่างคุ้มค่าที่สุด! เพียงออมเงินครั้งแรกกับเรา รับโบนัสเพิ่มทันที 100% ของยอดออม สูงสุด 100 บาท\n\nตัวอย่าง:\n- ออมครั้งแรก 50 บาท -> รับโบนัสเพิ่ม 50 บาท\n- ออมครั้งแรก 100 บาท -> รับโบนัสเพิ่ม 100 บาท\n\nภารกิจนี้มีไว้สำหรับคุณโดยเฉพาะ อย่ารอช้า เริ่มออมเพื่อรับความคุ้มค่าแบบสองเท่าได้เลย!`,
+    // transactionId จะเป็น null ในที่นี้ เพราะนี่คือการแจ้ง "ข้อเสนอ"
+    // เมื่อผู้ใช้ฝากเงินจริงและระบบให้โบนัส การแจ้งเตือนครั้งนั้นถึงจะมี transactionId
+  };
+
+  try {
+    // ใช้ createMany เพื่อสร้างการแจ้งเตือนหลายรายการพร้อมกันอย่างมีประสิทธิภาพ
+    const result = await prisma.notification.createMany({
+      data: [welcomeBonusNotification, firstDepositOfferNotification],
+    });
+
+    console.log(`Successfully created ${result.count} welcome notifications for user ${userId}.`);
+  } catch (error) {
+    console.error(`Failed to create welcome notifications for user ${userId}:`, error);
+    // สามารถโยน Error ต่อเพื่อให้ Service ที่เรียกใช้จัดการต่อได้
+    throw new Error('Could not create welcome notifications.');
+  }
+};
+
 export default {
   getNotificationsByUserId,
   markNotificationAsRead,
@@ -327,4 +372,5 @@ export default {
   sendGoalDueReminder,
   sendGoalAchieved,
   sendInactivityReminder,
+  createWelcomeNotifications,
 };

@@ -67,6 +67,11 @@ enum VoucherStatus {
   CANCELLED
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 // --- Core Models ---
 
 model User {
@@ -85,6 +90,7 @@ model User {
   referralCode      String?  @unique
   referToCode       String?
   firstTime         Boolean  @default(true)
+  role              Role     @default(USER)
 
   // Saving Streaks & Insights
   currentSavingStreak Int       @default(0)

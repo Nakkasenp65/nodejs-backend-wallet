@@ -13,33 +13,22 @@ async function scheduleSlipVerification(userId, transactionId, slipImageUrl) {
   const qstashClient = qstashToken ? new Client({ token: qstashToken }) : null;
 
   if (!qstashClient) {
-    // Log error นี้ไว้ตอนที่เซิร์ฟเวอร์เริ่มทำงาน จะได้รู้ทันทีว่าตั้งค่าผิด
     console.error('CRITICAL: QSTASH_TOKEN is not defined. QStash service will be disabled.');
   }
 
-  // --- Best Practice 2: ตรวจสอบการตั้งค่าตั้งแต่ต้น ---
-  // ตรวจสอบว่า client ถูกสร้างสำเร็จหรือไม่
   if (!qstashClient) {
     // ไม่โยน Error ที่จะทำให้ user flow พัง แต่ log ไว้เพื่อให้นักพัฒนาทราบ
     console.warn(`QStash service is not configured. Skipping verification for TxID: ${transactionId}`);
     return; // จบการทำงานอย่างเงียบๆ
   }
 
-  // --- Best Practice 3: ดึงค่า URL จาก Environment Variables ---
-  // ทำให้โค้ดสามารถย้ายไปทำงานในสภาพแวดล้อมอื่น (dev, staging, prod) ได้ง่าย
-  // โดยแค่เปลี่ยนค่าใน .env ไม่ต้องแก้โค้ด
+  // ดึงค่า URL จาก Environment Variables ---
   const webhookUrl = process.env.QSTASH_WEBHOOK_URL;
   if (!webhookUrl) {
     console.error('CRITICAL: QSTASH_WEBHOOK_URL is not defined in .env file.');
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'QStash webhook URL is not configured.');
   }
 
-  // --- Best Practice 4: ใช้ `publishJSON` และส่ง Object ตรงๆ ---
-  // `publishJSON` ถูกออกแบบมาให้รับ JavaScript object และจะจัดการ...
-  //   1. `JSON.stringify(body)` ให้เอง
-  //   2. ตั้งค่า `Content-Type: application/json` ให้เอง
-  //   3. ตั้งค่า `method: 'POST'` ให้เป็น default
-  // ทำให้โค้ดของคุณสั้นลงและลดโอกาสเกิดข้อผิดพลาดจากการตั้งค่าซ้ำซ้อน
   const payload = { userId, slipImageUrl, transactionId };
 
   try {

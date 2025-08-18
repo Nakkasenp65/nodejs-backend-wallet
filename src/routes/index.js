@@ -10,6 +10,7 @@ import walletRouter from './wallet.route.js';
 import slipRouter from './slip.route.js';
 import userMissionRouter from './userMission.route.js';
 import cronRouter from './cron.route.js';
+import adminRoute from './admin.route.js';
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ const defaultRoutes = [
   { path: '/wallet', route: walletRouter },
   { path: '/slip', route: slipRouter },
   { path: '/cron', route: cronRouter },
+  { path: '/admin', route: adminRoute },
 ];
 
 defaultRoutes.forEach((route) => {

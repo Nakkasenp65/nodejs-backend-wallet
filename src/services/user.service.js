@@ -1,11 +1,13 @@
 // src/services/user.service.ts
 
-import { PrismaClient } from '../generated/prisma/index.js';
+import { PrismaClient, TransactionStatus } from '../generated/prisma/index.js';
 import { MissionType } from '../generated/prisma/index.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 import axios from 'axios';
 import crypto from 'crypto';
+import notificationService from './notification.service.js';
+import transactionService from './transaction.service.js';
 
 const prisma = new PrismaClient();
 
@@ -49,6 +51,7 @@ const getUser = async (line_user_id) => {
       line_display_name: true,
       fullname: true,
       occupation: true,
+      phone: true,
       ageRange: true,
       line_profile_url: true,
       monthlyPayment: true,
@@ -58,6 +61,7 @@ const getUser = async (line_user_id) => {
       wallet: true, // ทั้งก้อนของ wallet
       madeReferrals: true,
       createdAt: true,
+      role: true,
       goal: {
         select: {
           product: {
@@ -118,6 +122,14 @@ const findUserByPhone = async (phoneNumber) => {
   return user;
 };
 
+const getUserFirstTimeById = async (userId) => {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstTime: true } });
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบผู้ใช้ที่มี id นี้');
+  }
+  return user;
+};
+
 /**
  * สร้างหรืออัปเดตผู้ใช้, สร้าง Goal และ Wallet หากยังไม่มี
  * @param {object} userData - ข้อมูลของผู้ใช้ใหม่
@@ -142,29 +154,19 @@ const createUserWithGoal = async (userData) => {
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
 
-  // 1. ค้นหา User ที่มีอยู่ก่อนด้วย line_user_id
   const existingUser = await prisma.user.findUnique({
     where: { line_user_id: line_user_id },
+    select: { id: true },
   });
 
-  // --- กรณีเป็น User ที่มีอยู่แล้ว ---
   if (existingUser) {
-    // ดึงข้อมูลล่าสุดทั้งหมดของ User คนนั้นแล้วคืนค่ากลับไปทันที
-    return prisma.user.findUnique({
-      where: { id: existingUser.id },
-      include: {
-        goal: { include: { product: true, plan: true } },
-        wallet: true,
-        userMissions: { include: { mission: true } },
-        notifications: true,
-      },
-    });
+    throw new ApiError(httpStatus.CONFLICT, 'User is already exists');
   }
 
-  // 2. สร้าง Referral Code ที่ไม่ซ้ำกัน
+  // สร้าง Referral Code ที่ไม่ซ้ำกัน
   const referralCode = await generateUniqueReferralCode(prisma);
 
-  // 3. สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
+  // สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
   const newUser = await prisma.user.create({
     data: {
       line_user_id: line_user_id,
@@ -182,7 +184,7 @@ const createUserWithGoal = async (userData) => {
       wallet: {
         create: {
           balance: 0,
-          bonusBalance: 0,
+          bonusBalance: 100,
         },
       },
       goal: {
@@ -192,9 +194,13 @@ const createUserWithGoal = async (userData) => {
         },
       },
     },
+    select: {
+      id: true,
+      wallet: true,
+    },
   });
 
-  // 4. จัดการภารกิจ Onboarding สำหรับ User ใหม่
+  // จัดการภารกิจ Onboarding สำหรับ User ใหม่
   const onboardingMissions = await prisma.mission.findMany({
     where: {
       type: MissionType.ONBOARDING,
@@ -221,6 +227,20 @@ const createUserWithGoal = async (userData) => {
     console.log(`Created ${userMissionsData.length} user missions.`);
   }
 
+  // สร้าง Transaction สำเร็จเพื่อให้ขึ้น 100 บาทในประวัติสำหรับ User ใหม่
+  const welcomeTransaction = await transactionService.createSuccessedTransaction(
+    '💰รับโบนัสฟรี 100 บาท!',
+    100,
+    TransactionStatus.SUCCESS,
+    'One Wallet',
+    line_display_name,
+    'ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้',
+    newUser.wallet.id,
+  );
+
+  // แจ้งเตือนรับเงินโบนัส User ใหม่
+  await notificationService.createWelcomeNotifications(newUser.id, welcomeTransaction.id);
+
   const createdUser = await prisma.user.findUnique({
     where: { id: newUser.id },
     include: {
@@ -231,11 +251,6 @@ const createUserWithGoal = async (userData) => {
         },
       },
       wallet: true,
-      userMissions: {
-        include: {
-          mission: true,
-        },
-      },
       notifications: true,
     },
   });
@@ -266,8 +281,6 @@ const createUserWithGoal = async (userData) => {
     }
   }
 
-  // 5. ดึงข้อมูลล่าสุดทั้งหมดของ "User ใหม่" ที่เพิ่งสร้างเสร็จ กลับไป
-  // เราต้องดึงข้อมูลอีกครั้งเพื่อให้ได้ข้อมูล nested relations ที่สร้างขึ้นมาทั้งหมด
   return createdUser;
 };
 
@@ -304,9 +317,9 @@ const generateUniqueReferralCode = async () => {
  * @returns {Promise<object>} - Object ของผู้ใช้ที่อัปเดตข้อมูลล่าสุดแล้ว
  * @throws {ApiError} - โยน ApiError หากไม่พบผู้ใช้ด้วย ID ที่ระบุ
  */
-const updateUser = async (userId, updateData) => {
+const updateUser = async (line_user_id, updateData) => {
   // 1. ตรวจสอบว่ามี User ID ส่งเข้ามาหรือไม่
-  if (!userId) {
+  if (!line_user_id) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'จำเป็นต้องระบุ User ID');
   }
 
@@ -323,7 +336,7 @@ const updateUser = async (userId, updateData) => {
     // 3. ใช้ prisma.user.update เพื่อค้นหาและอัปเดตข้อมูลในขั้นตอนเดียว
     const updatedUser = await prisma.user.update({
       where: {
-        id: userId, // ค้นหาผู้ใช้ด้วย ID หลัก
+        line_user_id: line_user_id, // ค้นหาผู้ใช้ด้วย ID หลัก
       },
       data: dataToUpdate,
       // (สำคัญ) include ข้อมูลทั้งหมดที่ Frontend ต้องการกลับไป เพื่อให้ React Query cache อัปเดตถูกต้อง
@@ -524,8 +537,11 @@ const getLockStatus = async (line_user_id) => {
 };
 
 export default {
+  // ดึงข้อมูล user ด้วย line_user_id
   getUser,
+  // ดึงข้อมูล user ด้วย เบอร์
   findUserByPhone,
+  getUserFirstTimeById,
   updateUser,
   checkUserStatus,
   createUserWithGoal,

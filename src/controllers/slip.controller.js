@@ -4,27 +4,35 @@ import notificationService from '../services/notification.service.js';
 import userMissionService from '../services/userMission.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import httpStatus from 'http-status';
+import userService from '../services/user.service.js';
 
 const slipVerify = catchAsync(async (req, res) => {
-  const { userId, slipImageUrl, transactionId } = req.body;
+  const { userId, slipImageUrl, transactionId } = req.body; // mongo id : prisma id fielnd
 
+  // ตรวจสอบสลิปด้วย url รูป
   const verifyResult = await slipService.verfifySlip(slipImageUrl, transactionId);
   const verifiedAmount = verifyResult?.data?.amount;
   const verificationCode = verifyResult.code;
+  const verifiedTransferer = verifyResult.data.sender.name;
 
+  // อัพเดทรายการตามสถานะการตรวจ
   const updatedTransaction = await transactionService.updateTransaction(
     verificationCode,
     transactionId,
     verifiedAmount,
+    verifiedTransferer,
   );
-
+  console.log('Controller updatedTransaction: ', updatedTransaction);
+  // เป็นรายการที่สำเร็จหรือไม่
   if (updatedTransaction.status === 'SUCCESS') {
+    // ส่งแจ้งเตือนการอัพเดท
     await notificationService.sendDepositSuccess(userId, updatedTransaction.verifiedAmount, updatedTransaction.id);
+    // ตรวจสอบภารกิจสำหรับการฝากเงินสำเร็จ (ฝากเงินรายวัน / ฝากเงินสะสม)
     await userMissionService.checkAndUpdateMissionProgress(userId, 'DEPOSIT_SUCCESS', {
       amount: updatedTransaction.verifiedAmount,
     });
   } else if (updatedTransaction.status === 'REJECTED') {
-    // ส่ง Notification "รายการถูกปฏิเสธ"
+    // ส่งแจ้งเตือน "รายการถูกปฏิเสธ"
     await notificationService.sendDepositRejected(
       userId,
       updatedTransaction.description, // ใช้เหตุผลจาก description ที่เราสร้างไว้ใน service

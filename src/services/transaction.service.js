@@ -3,12 +3,13 @@ import prisma from '../libs/prisma.js';
 import path from 'path';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
-import { TransactionStatus } from '../generated/prisma/index.js';
+import { TransactionStatus, TransactionType } from '../generated/prisma/index.js';
 import axios from 'axios';
 import PDFDocument from 'pdfkit';
 import sendEmail from '../utils/email.js';
 import crypto from 'crypto';
 import userMissionService from './userMission.service.js';
+import notificationService from './notification.service.js';
 
 /**
  * สร้าง Saving Transaction ใหม่ในฐานข้อมูลหลังจากอัปโหลดสลิปสำเร็จ
@@ -36,8 +37,7 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
       wallet: {
         connect: { id: walletId },
       },
-      // Fields ที่ Backend ควรจัดการเอง ไม่ใช่จาก Frontend:
-      amount: null, // จะถูกอัปเดตโดย Admin/System หลังการตรวจสอบ
+      amount: null,
       verified: false,
       verifiedAmount: null,
     };
@@ -65,6 +65,32 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
   }
 };
 
+const createSuccessedTransaction = async (name, amount, status, from, to, description, walletId) => {
+  if (!name || !amount || !status || !from || !to || !description || !walletId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Information required.');
+  }
+
+  const successedTransaction = await prisma.transaction.create({
+    data: {
+      name,
+      amount,
+      type: TransactionType.REWARD,
+      status,
+      from,
+      to,
+      description,
+      wallet: {
+        connect: {
+          id: walletId,
+        },
+      },
+    },
+    include: true,
+  });
+
+  return successedTransaction;
+};
+
 /**
  * อัปเดตสถานะ Transaction ตามผลการตรวจสอบสลิป
  * @param {string} transactionVerificationCode - โค้ดผลการตรวจสอบ ('200000', '403001', '200001')
@@ -73,16 +99,29 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
  * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
  */
 const updateTransaction = async (transactionVerificationCode, transactionId, verifyAmount = 0) => {
-  // --- 1. ค้นหา Transaction ที่ต้องการอัปเดต ---
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
+    select: {
+      walletId: true,
+      status: true,
+      wallet: {
+        select: {
+          userId: true,
+          user: {
+            select: {
+              line_display_name: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!transaction) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Transaction not found.');
   }
 
-  // ไม่ว่าผลจะเป็นอะไร, ถ้าสถานะไม่ใช่ PENDING แสดงว่าเคยถูกประมวลผลไปแล้ว
+  // สถานะที่ไม่ใช่ PENDING แสดงว่าเคยถูกประมวลผลไปแล้ว
   if (transaction.status !== 'PENDING') {
     console.warn(
       `Attempted to update an already processed transaction (ID: ${transactionId}, Status: ${transaction.status})`,
@@ -90,6 +129,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
     return transaction;
   }
 
+  // อัพเดทตามสถานะจากการตรวจสอบ
   switch (transactionVerificationCode) {
     // --- CASE 3: SUCCESS ---
     case '200000': {
@@ -99,15 +139,53 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
         throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for SUCCESS case: ${verifyAmount}`);
       }
 
-      // ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัย (Atomicity)
+      const isFirstTimeDeposit = transaction.wallet.user.firstTime;
       const updatedTransaction = await prisma.$transaction(async (tx) => {
-        // 3.1 อัปเดต Wallet ของผู้ใช้
+        const walletUpdateData = {
+          balance: { increment: floatAmount },
+        };
+
+        // Initialize description here to be modified later if needed
+        let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`;
+
+        if (isFirstTimeDeposit) {
+          // --- NEW LOGIC START: Calculate bonus with a cap ---
+          const maxBonus = 100; // Define the maximum bonus amount
+          const bonusAmount = Math.min(floatAmount, maxBonus); // The bonus is the smaller of the deposit or the cap
+          // --- NEW LOGIC END ---
+
+          console.log(
+            `[First Deposit Bonus] User ${transaction.wallet.userId} is making their first deposit. Adding bonus of ${bonusAmount} baht.`,
+          );
+
+          // Add the calculated bonus to the update payload
+          walletUpdateData.bonusBalance = { increment: bonusAmount };
+
+          // Update the transaction description to reflect the actual bonus given
+          description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
+
+          await createSuccessedTransaction(
+            `คุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`,
+            bonusAmount,
+            TransactionStatus.SUCCESS,
+            'One Wallet',
+            transaction.wallet.user.line_display_name,
+            `💵 พิเศษ! ออมครั้งแรก รับโบนัส 2 เท่า\n\nโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`,
+            transaction.wallet.id,
+          );
+
+          // Set firstTime to false so they don't get the bonus again
+          await tx.user.update({
+            where: { id: transaction.wallet.userId },
+            data: { firstTime: false },
+          });
+        }
+
         await tx.wallet.update({
           where: { id: transaction.walletId },
-          data: { balance: { increment: floatAmount } },
+          data: walletUpdateData,
         });
 
-        // 3.2 อัปเดต Transaction
         return tx.transaction.update({
           where: { id: transactionId },
           data: {
@@ -115,7 +193,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
             verified: true,
             verifiedAmount: floatAmount,
             status: 'SUCCESS',
-            description: `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`,
+            description: description, // Use the potentially modified description
           },
           include: {
             wallet: true,
@@ -127,7 +205,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
         const newcomerId = updatedTransaction.wallet.userId;
         const newUserWalletId = updatedTransaction.wallet.id;
         console.log('New user Id updated transaction: ', newcomerId);
-        console.log('newUserWalletId from updated transaction: ', newUserWalletId);
+        console.log('\nnewUserWalletId from updated transaction: ', newUserWalletId);
         // 1. Check if this is the newcomer's first successful deposit.
         const successfulTxCount = await prisma.transaction.count({
           where: {
@@ -136,10 +214,10 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
             type: 'INCOME',
           },
         });
-        console.log('count new user wallet successfull transaction: ', successfulTxCount);
+        console.log('\ncount new user wallet successfull transaction: ', successfulTxCount);
 
         if (successfulTxCount === 1) {
-          console.log(`[Referral Trigger] First successful deposit detected for newcomer ${newcomerId}.`);
+          console.log(`\n[Referral Trigger] First successful deposit detected for newcomer ${newcomerId}.`);
 
           // Also, update the user's `firstTime` flag.
           await prisma.user.update({
@@ -817,12 +895,22 @@ function sum(arr) {
 }
 
 export default {
+  // ค้นหาข้อมูล
   getTransactions,
+  // สร้างรายการโอนเงิน
   createInternalTransfer,
+  // ดึงข้อมูลเป็นภาษาไทย
   getTransactionsWithThaiStatus,
+  // สร้างรายการออมเงิน
   createSavingTransaction,
+  // สร้างรายการที่มีสถานะเป็นสำเร็จ
+  createSuccessedTransaction,
+  // สร้างรายการถอนเงิน
   createWithdrawTransaction,
+  // ดึงข้อมูลรายการที่สำเร็จแล้ว
   getSuccessTransaction,
+  // อัพเดทรายการ หลังตรวจสลิป
   updateTransaction,
+  // ส่ง Statement ให้ผู้ใช้
   exportToPdf,
 };
