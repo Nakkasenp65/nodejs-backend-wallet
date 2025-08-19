@@ -85,6 +85,103 @@ const getUser = async (line_user_id) => {
 };
 
 /**
+ * ดึงข้อมูลผู้ใช้ทั้งหมดพร้อมข้อมูลสรุปของ Wallet และ Goal สำหรับหน้า Admin
+ * - ใช้ 'select' เพื่อเลือกเฉพาะฟิลด์ที่จำเป็น ทำให้ได้ประสิทธิภาพสูงสุดและลดขนาดข้อมูล
+ * - รองรับ Pagination, การค้นหา (Search), และการกรองตาม Role
+ *
+ * @param {object} options - ตัวเลือกสำหรับ Query
+ * @param {number} [options.page=1] - หน้าปัจจุบัน
+ * @param {number} [options.pageSize=10] - จำนวนรายการต่อหน้า
+ * @param {string} [options.search] - คำค้นหาสำหรับชื่อผู้ใช้
+ * @param {string} [options.role] - กรองตามบทบาท (USER, ADMIN)
+ * @returns {Promise<object>} - Object ที่มีข้อมูลผู้ใช้ (data) และข้อมูลการแบ่งหน้า (paging)
+ */
+const getUsers = async (options = {}) => {
+  // 1. ดึงค่า options พร้อมกำหนดค่าเริ่มต้น
+  const { page = 1, pageSize = 10, search, role } = options;
+
+  // 2. เตรียมค่าสำหรับ Pagination
+  const ps = Math.min(Number(pageSize) || 10, 100); // ป้องกันการดึงข้อมูลเยอะเกินไป
+  const p = Math.max(Number(page) || 1, 1);
+  const skip = (p - 1) * ps;
+
+  // 3. สร้างเงื่อนไขการค้นหา (whereClause) แบบ Dynamic
+  // ทำให้เราสามารถเพิ่มเงื่อนไขการค้นหาและการกรองได้ง่าย
+  const whereClause = {};
+  if (search) {
+    // ค้นหาแบบ case-insensitive ในหลายฟิลด์
+    whereClause.OR = [
+      { line_display_name: { contains: search, mode: 'insensitive' } },
+      { fullname: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+  if (role) {
+    whereClause.role = role;
+  }
+
+  // 4. ใช้ prisma.$transaction เพื่อรัน 2 query พร้อมกัน (ดึงข้อมูล + นับจำนวนทั้งหมด)
+  // ซึ่งเร็วกว่าการรันทีละ query
+  const [data, total] = await prisma.$transaction([
+    // Query ที่ 1: ดึงข้อมูลผู้ใช้ตามเงื่อนไข
+    prisma.user.findMany({
+      where: whereClause,
+      // ---- นี่คือส่วนที่สำคัญที่สุดเพื่อประสิทธิภาพ ----
+      // เราใช้ `select` เพื่อเลือกเฉพาะข้อมูลที่ต้องใช้ใน "ตาราง" เท่านั้น
+      select: {
+        id: true,
+        line_user_id: true,
+        line_display_name: true,
+        fullname: true,
+        line_profile_url: true,
+        role: true,
+        createdAt: true,
+        // ดึงข้อมูล Wallet ที่เกี่ยวข้อง (เฉพาะฟิลด์ที่ต้องการ)
+        wallet: {
+          select: {
+            id: true,
+            balance: true,
+          },
+        },
+        // ดึงข้อมูล Goal ที่เกี่ยวข้อง (เฉพาะฟิลด์ที่ต้องการ)
+        goal: {
+          select: {
+            status: true,
+            // ดึงข้อมูล Plan ที่ซ้อนอยู่ข้างในอีกที
+            plan: {
+              select: {
+                displayName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      skip,
+      take: ps,
+    }),
+    // Query ที่ 2: นับจำนวนผู้ใช้ทั้งหมดที่ตรงตามเงื่อนไข (สำหรับคำนวณ Pagination)
+    prisma.user.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // 5. คืนค่าข้อมูลพร้อม object สำหรับ Pagination
+  return {
+    data,
+    paging: {
+      page: p,
+      pageSize: ps,
+      total,
+      totalPages: Math.ceil(total / ps),
+      hasNextPage: skip + data.length < total,
+      hasPrevPage: p > 1,
+    },
+  };
+};
+
+/**
  * ค้นหาผู้ใช้ด้วยเบอร์โทรศัพท์สำหรับฟีเจอร์การโอนเงิน
  * ฟังก์ชันนี้จะคืนค่าเฉพาะข้อมูลที่จำเป็นและปลอดภัยสำหรับแสดงผล (Public-facing data) เท่านั้น
  * @param {string} phoneNumber - เบอร์โทรศัพท์ที่ต้องการค้นหา
@@ -371,6 +468,23 @@ const updateUser = async (line_user_id, updateData) => {
 };
 
 /**
+ * อัปเดตข้อมูลผู้ใช้โดย Admin
+ * @param {string} userId - Mongo ID ของผู้ใช้ที่จะแก้ไข
+ * @param {object} payload - ข้อมูลที่จะอัปเดต
+ * @returns {Promise<object>} - User object ที่อัปเดตแล้ว
+ */
+const updateUserByAdmin = async (userId, payload) => {
+  // เลือกเฉพาะ field ที่อนุญาตให้ Admin แก้ไขได้
+  const { fullname, phone, occupation, role } = payload;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { fullname, phone, occupation, role },
+  });
+  return user;
+};
+
+/**
  * ดึงประวัติการเชิญเพื่อนทั้งหมดของผู้ใช้
  * @param userId - ID ของผู้ใช้ (ผู้แนะนำ)
  * @returns Array ของ ReferralHistoryDto
@@ -537,11 +651,13 @@ const getLockStatus = async (line_user_id) => {
 };
 
 export default {
+  getUsers,
   // ดึงข้อมูล user ด้วย line_user_id
   getUser,
   // ดึงข้อมูล user ด้วย เบอร์
   findUserByPhone,
   getUserFirstTimeById,
+  updateUserByAdmin,
   updateUser,
   checkUserStatus,
   createUserWithGoal,

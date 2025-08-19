@@ -38,6 +38,14 @@ const getUser = catchAsync(async (req, res) => {
   return res.status(httpStatus.OK).json(user);
 });
 
+const getUsers = catchAsync(async (req, res) => {
+  // 1. ดึง query parameters ทั้งหมดจาก request URL (เช่น ?page=1&search=test)
+  // const { page = 1, pageSize = 10, search, role } = options;
+  const options = req.query;
+  const result = await userService.getUsers(options);
+  res.status(httpStatus.OK).json(result);
+});
+
 /**
  * @description ค้นหาผู้รับโอนด้วยเบอร์โทรศัพท์
  * @route GET /v1/user/by-phone/:phoneNumber
@@ -92,6 +100,7 @@ const getLockStatus = catchAsync(async (req, res) => {
 });
 
 export default {
+  getUsers,
   // สร้าง user ใหม่
   createUser,
   // อัพเดทข้อมูล

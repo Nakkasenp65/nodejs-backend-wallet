@@ -50,8 +50,8 @@ const createInternalTransfer = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).json(senderTransaction);
 });
 
-const getTransactions = catchAsync(async (req, res) => {
-  const transactions = await transactionService.getTransactions(req.params.walletId, req.query);
+const getWalletTransactions = catchAsync(async (req, res) => {
+  const transactions = await transactionService.getWalletTransaction(req.params.walletId, req.query);
   res.status(httpStatus.OK).json(transactions);
 });
 
@@ -72,13 +72,19 @@ const exportToPdf = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(result);
 });
 
+const getTransactions = catchAsync(async (req, res) => {
+  const transactions = await transactionService.getTransactions(req.query);
+  res.httpStatus(OK).json(transactions);
+});
+
 export default {
   createSavingTransaction,
   createWithdrawTransaction,
   createInternalTransfer,
-  getTransactions,
+  getWalletTransactions,
   getSuccessTransactions,
   getThaiTransactions,
   updateTransaction,
   exportToPdf,
+  getTransactions,
 };

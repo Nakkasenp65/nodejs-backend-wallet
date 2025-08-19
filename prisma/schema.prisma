@@ -17,6 +17,7 @@ enum MissionType {
   ACCUMULATION
   STREAK
   REFERRAL
+  DELETE
   // ประเภทสะสมยอด ประเภททำครั้งแรก ประเภทออมต่อเนื่อง เชิญเพื่อน
 }
 

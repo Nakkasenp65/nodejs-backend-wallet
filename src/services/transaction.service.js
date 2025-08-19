@@ -1,15 +1,14 @@
 import prisma from '../libs/prisma.js';
 // IMPORTANT: We now need JWT from the library
-import path from 'path';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 import { TransactionStatus, TransactionType } from '../generated/prisma/index.js';
 import axios from 'axios';
-import PDFDocument from 'pdfkit';
 import sendEmail from '../utils/email.js';
 import crypto from 'crypto';
 import userMissionService from './userMission.service.js';
 import notificationService from './notification.service.js';
+import buildTransactionsPdf from '../utils/pdf.js';
 
 /**
  * สร้าง Saving Transaction ใหม่ในฐานข้อมูลหลังจากอัปโหลดสลิปสำเร็จ
@@ -347,14 +346,6 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบ Wallet ของผู้ใช้');
     }
 
-    // 3.2 (สำคัญที่สุด) ตรวจสอบยอดเงินคงเหลือ
-    if (wallet.balance < totalDeduction) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        `ยอดเงินคงเหลือไม่เพียงพอ (ต้องมีอย่างน้อย ${totalDeduction.toFixed(2)} บาท)`,
-      );
-    }
-
     // 3.4 สร้าง Transaction record ใหม่ในสถานะ PENDING
     const createdTransaction = await tx.transaction.create({
       data: {
@@ -364,7 +355,7 @@ const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
         amount: floatAmount, // 'amount' คือยอดที่ผู้ใช้จะได้รับ
         from: `Wallet ของ ${userId}`, // หรือชื่อผู้ใช้
         to: `${withdrawalDetails.bank} - ${withdrawalDetails.accountNumber}`,
-        description: `ถอนเงิน ${floatAmount.toFixed(2)} บาท, ค่าธรรมเนียม ${WITHDRAWAL_FEE.toFixed(2)} บาท`,
+        description: `ถอนเงิน ${floatAmount.toFixed(2)} บาท,`,
         bank: withdrawalDetails.bank,
         wallet: {
           connect: { id: wallet.id },
@@ -490,7 +481,7 @@ const createInternalTransfer = async (senderUserId, transferData) => {
   return outcomeTransaction;
 };
 
-const getTransactions = async (walletId, options = {}) => {
+const getWalletTransaction = async (walletId, options = {}) => {
   const whereClause = {
     walletId: walletId,
   };
@@ -502,6 +493,7 @@ const getTransactions = async (walletId, options = {}) => {
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 1);
 
+    // เติม query วันเวลาลงไปถ้ามี options.year, options.month
     whereClause.createdAt = {
       gte: startDate,
       lt: endDate,
@@ -665,252 +657,152 @@ const exportToPdf = async (email, walletId, startDate, endDate) => {
   return { count: transactions.length, emailId: result?.data?.id ?? null };
 };
 
-/* ---------------- PDF builder ---------------- */
-
-// --- Theme and Layout Constants ---
-const COLOR_PRIMARY = '#7C3AED';
-const COLOR_LIGHT_PURPLE = '#F5F3FF';
-const COLOR_TEXT_HEADER = '#FFFFFF';
-const COLOR_TEXT_BODY = '#1F2937';
-const COLOR_TEXT_MUTED = '#6B7280';
-const PAGE_MARGIN = 50;
-
-// --- Formatting and Translation Helpers ---
-function fmtDate(d) {
-  if (!d) return '';
-  const x = new Date(d);
-  const y = x.getFullYear();
-  const m = String(x.getMonth() + 1).padStart(2, '0');
-  const dd = String(x.getDate()).padStart(2, '0');
-  return `${y}${m}${dd}`;
-}
-
-function fmtTHB(n) {
-  const num = Number(n) || 0;
-  return num.toLocaleString('th-TH', {
-    style: 'currency',
-    currency: 'THB',
-    minimumFractionDigits: 2,
-  });
-}
-
-/**
- * Translates specific transaction terms into Thai.
- * @param {string} term The term to translate (e.g., 'SUCCESS', 'INCOME').
- * @returns {string} The translated Thai term or the original term if no translation exists.
- */
-function translateTerm(term) {
-  switch (term) {
-    case 'SUCCESS':
-      return 'สำเร็จ';
-    case 'INCOME':
-      return 'รายรับ';
-    case 'OUTCOME':
-      return 'รายจ่าย';
-    default:
-      return term;
-  }
-}
-
-// --- PDF Generation Logic ---
-const buildTransactionsPdf = async ({ wallet, transactions, startDate, endDate }) => {
-  const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN });
-
-  const chunks = [];
-  const streamDone = new Promise((resolve, reject) => {
-    doc.on('data', (c) => chunks.push(c));
-    doc.on('end', () => resolve());
-    doc.on('error', reject);
-  });
-
-  const fontPath = path.join(process.cwd(), 'public', 'fonts', 'NotoSansThai-Regular.ttf');
-  doc.registerFont('thai', fontPath);
-  doc.font('thai');
-
-  // --- Document Sections ---
-  drawHeader(doc, { wallet, startDate, endDate });
-
-  const tableTop = 190;
-  doc.y = tableTop;
-
-  const tableCols = [
-    { key: 'date', label: 'วันที่', width: 90 },
-    { key: 'name', label: 'ชื่อรายการ', width: 185 },
-    { key: 'type', label: 'ประเภท', width: 70 },
-    { key: 'status', label: 'สถานะ', width: 70 },
-    { key: 'amount', label: 'จำนวนเงิน', width: 80, align: 'right' },
-  ];
-
-  drawTableHeader(doc, tableCols);
-
-  if (!transactions.length) {
-    drawEmptyState(doc);
-  } else {
-    transactions.forEach((t) => drawTxnRow(doc, t, tableCols));
-  }
-
-  drawFooter(doc, transactions);
-
-  doc.end();
-  await streamDone;
-  return Buffer.concat(chunks);
+const createTransaction = async ({ payload }) => {
+  const newTransaction = await prisma.transaction.create({ payload });
+  return newTransaction;
 };
 
-function drawHeader(doc, { wallet, startDate, endDate }) {
-  doc.rect(0, 0, doc.page.width, 120).fill(COLOR_PRIMARY);
-  doc.fontSize(22).fillColor(COLOR_TEXT_HEADER).text('รายการเดินบัญชี', PAGE_MARGIN, 45);
-  doc.fontSize(14).text('(Statement)', { continued: false });
+const getTransactions = async (options = {}) => {
+  const {
+    // pagination
+    page = 1,
+    pageSize = 10,
+    // sort
+    sort = 'createdAt',
+    order = 'desc',
+    // [MODIFIED] รับค่า status มาจาก options
+    status,
+  } = options;
 
-  doc.y = 140;
-  doc.fontSize(10).fillColor(COLOR_TEXT_BODY);
-  const owner = wallet?.user?.fullname ?? wallet?.user?.line_display_name ?? `User ${wallet?.userId ?? ''}`;
-  doc.text(`กระเป๋า: ${wallet.id}`, PAGE_MARGIN, doc.y);
-  doc.text(`ชื่อผู้ใช้: ${owner}`, { align: 'right' });
+  const orderBy = sort === 'amount' ? { amount: order } : { createdAt: order };
+  const ps = Math.min(Number(pageSize) || 20, 100);
+  const p = Math.max(Number(page) || 1, 1);
+  const skip = (p - 1) * ps;
 
-  const dateText =
-    startDate || endDate
-      ? `ช่วงเวลา: ${new Date(startDate).toLocaleDateString('th-TH')} ถึง ${new Date(endDate).toLocaleDateString('th-TH')}`
-      : 'ช่วงเวลา: ทั้งหมด';
-  doc.moveDown(0.5);
-  doc.fontSize(10).fillColor(COLOR_TEXT_MUTED).text(dateText);
-}
-
-function drawTableHeader(doc, cols) {
-  const y = doc.y;
-  let x = PAGE_MARGIN;
-  const cellPadding = 5;
-
-  doc.rect(x, y, doc.page.width - PAGE_MARGIN * 2, 25).fill(COLOR_LIGHT_PURPLE);
-  doc.fillColor(COLOR_TEXT_BODY).fontSize(10);
-
-  cols.forEach((col) => {
-    doc.text(col.label, x + cellPadding, y + 8, {
-      width: col.width - cellPadding * 2,
-      align: col.align || 'left',
-    });
-    x += col.width;
-  });
-
-  doc.y += 25;
-}
-
-function drawTxnRow(doc, txn, cols) {
-  const rowY = doc.y;
-  let cellX = PAGE_MARGIN;
-  const rowHeight = 35;
-  const cellPadding = 5;
-
-  doc
-    .moveTo(PAGE_MARGIN, rowY + rowHeight)
-    .lineTo(doc.page.width - PAGE_MARGIN, rowY + rowHeight)
-    .lineWidth(0.5)
-    .strokeColor('#E5E7EB')
-    .stroke();
-
-  const date = new Date(txn.createdAt).toLocaleString('th-TH', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  const amountText = fmtTHB(txn.amount ?? 0);
-  const amountColor = txn.type === 'INCOME' ? '#16A34A' : '#DC2626';
-
-  // **CHANGE: Use the translateTerm function to convert data to Thai.**
-  const rowData = {
-    date,
-    name: txn.name || '-',
-    type: translateTerm(txn.type),
-    status: translateTerm(txn.status),
-    amount: amountText,
-  };
-
-  doc.fillColor(COLOR_TEXT_BODY).fontSize(9);
-
-  cols.forEach((col) => {
-    if (col.key === 'amount') doc.fillColor(amountColor);
-
-    doc.text(rowData[col.key], cellX + cellPadding, rowY + 12, {
-      width: col.width - cellPadding * 2,
-      align: col.align || 'left',
-    });
-
-    if (col.key === 'amount') doc.fillColor(COLOR_TEXT_BODY);
-    cellX += col.width;
-  });
-
-  doc.y = rowY + rowHeight;
-}
-
-function drawFooter(doc, transactions) {
-  const totalIn = sum(transactions.filter((t) => t.type === 'INCOME').map((t) => t.amount));
-  const totalOut = sum(transactions.filter((t) => t.type === 'OUTCOME').map((t) => t.amount));
-  const net = totalIn - totalOut;
-
-  let y = doc.page.height - 150;
-  if (doc.y > y) {
-    doc.addPage();
-    y = PAGE_MARGIN;
+  // [MODIFIED] สร้าง where clause แบบไดนามิก
+  const whereClause = {};
+  if (status && status !== 'ALL') {
+    whereClause.status = status;
   }
-  doc.y = y;
 
-  const summaryBoxWidth = 300;
-  const summaryBoxX = doc.page.width - PAGE_MARGIN - summaryBoxWidth;
+  // [MODIFIED] ใช้ whereClause ทั้งใน findMany และ count
+  const [data, total] = await prisma.$transaction([
+    prisma.transaction.findMany({
+      where: whereClause, // <--- เพิ่มตรงนี้
+      orderBy,
+      skip,
+      take: ps,
+      include: { wallet: true },
+    }),
+    prisma.transaction.count({
+      where: whereClause, // <--- และเพิ่มตรงนี้เพื่อให้ Pagination ถูกต้อง
+    }),
+  ]);
 
-  doc.fontSize(11).fillColor(COLOR_TEXT_BODY);
-  doc.text('รวมเงินเข้า:', summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'left' });
-  doc.text(fmtTHB(totalIn), summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'right' });
-  doc.moveDown(0.75);
+  return {
+    data,
+    paging: {
+      mode: 'offset',
+      page: p,
+      pageSize: ps,
+      total,
+      totalPages: Math.ceil(total / ps),
+      hasNextPage: skip + data.length < total,
+      hasPrevPage: p > 1,
+    },
+  };
+};
 
-  doc.text('รวมเงินออก:', summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'left' });
-  doc.text(fmtTHB(totalOut), summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'right' });
-  doc.moveDown(0.5);
+const editTransaction = async (transactionId, payload) => {
+  if (!transactionId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Transaction ID is required.');
+  }
+  if (!payload || Object.keys(payload).length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Update payload cannot be empty.');
+  }
 
-  doc
-    .moveTo(summaryBoxX, doc.y)
-    .lineTo(summaryBoxX + summaryBoxWidth, doc.y)
-    .lineWidth(1)
-    .strokeColor(COLOR_TEXT_BODY)
-    .stroke();
-  doc.moveDown(0.5);
+  const existingTransaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
 
-  doc.fontSize(12);
-  doc.text('สุทธิ:', summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'left' });
-  doc.text(fmtTHB(net), summaryBoxX, doc.y, { width: summaryBoxWidth, align: 'right' });
-}
+  if (!existingTransaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Transaction not found.');
+  }
 
-function drawEmptyState(doc) {
-  doc
-    .fontSize(11)
-    .fillColor(COLOR_TEXT_MUTED)
-    .text('ไม่มีรายการที่จะแสดง', PAGE_MARGIN, doc.y + 20, {
-      align: 'center',
-      width: doc.page.width - PAGE_MARGIN * 2,
+  // --- LOGIC ENHANCEMENT ---
+  // ตรวจสอบว่านี่คือการ "อนุมัติ" รายการที่ยังไม่สำเร็จหรือไม่
+  const isApproving = payload.status === 'SUCCESS' && existingTransaction.status !== 'SUCCESS';
+
+  if (isApproving) {
+    // กรณีอนุมัติ: ต้องอัปเดตทั้ง Transaction และ Wallet พร้อมกัน
+    const floatAmount = parseFloat(payload.amount);
+    if (isNaN(floatAmount) || floatAmount <= 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'A valid amount is required to approve a transaction.');
+    }
+    if (!existingTransaction.walletId) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Transaction is not associated with a wallet.');
+    }
+
+    // ใช้ prisma.$transaction เพื่อให้แน่ใจว่าการดำเนินการทั้งสองอย่างสำเร็จพร้อมกัน
+    const [updatedWallet, updatedTransaction] = await prisma.$transaction([
+      // 1. เพิ่มยอดเงินใน Wallet
+      prisma.wallet.update({
+        where: { id: existingTransaction.walletId },
+        data: {
+          balance: { increment: floatAmount },
+        },
+      }),
+      // 2. อัปเดต Transaction
+      prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          ...payload, // ใช้ข้อมูลทั้งหมดจาก payload (status, amount, etc.)
+          verified: true,
+          verifiedAmount: floatAmount,
+        },
+      }),
+    ]);
+
+    console.log(`Transaction ${transactionId} approved. Wallet ${updatedWallet.id} balance updated.`);
+    return updatedTransaction;
+  } else {
+    // กรณีอัปเดตอื่นๆ (เช่น แก้ไข description, ปฏิเสธ, หรือแก้ไขข้อมูลเฉยๆ)
+    const updatedTransaction = await prisma.transaction.update({
+      where: { id: transactionId },
+      data: payload,
     });
-}
+    console.log(`Transaction ${transactionId} updated successfully.`);
+    return updatedTransaction;
+  }
+};
 
-function sum(arr) {
-  return arr.reduce((a, b) => a + (Number(b) || 0), 0);
-}
+const deleteTransaction = async (transactionId, permanently = true) => {};
 
 export default {
-  // ค้นหาข้อมูล
-  getTransactions,
-  // สร้างรายการโอนเงิน
+  // ดึงข้อมูลรายการตาม query (สำหรับผู้ใช้)
+  getWalletTransaction,
+  // สร้างรายการโอนเงินภายใน
   createInternalTransfer,
   // ดึงข้อมูลเป็นภาษาไทย
   getTransactionsWithThaiStatus,
-  // สร้างรายการออมเงิน
+  // สร้างรายการสำหรับออมเงิน
   createSavingTransaction,
   // สร้างรายการที่มีสถานะเป็นสำเร็จ
   createSuccessedTransaction,
-  // สร้างรายการถอนเงิน
+  // สร้างรายการสำหรับถอนเงิน
   createWithdrawTransaction,
-  // ดึงข้อมูลรายการที่สำเร็จแล้ว
+  // ดึงข้อมูลรายการที่มีสถานะสำเร็จ
   getSuccessTransaction,
   // อัพเดทรายการ หลังตรวจสลิป
   updateTransaction,
   // ส่ง Statement ให้ผู้ใช้
   exportToPdf,
+  // สร้างรายการสำหรับ admin
+  createTransaction,
+  // ดึงข้อมูลรายการตาม query (สำหรับ admin ไม่มี walletId)
+  getTransactions,
+  // แก้ไข หรือ อัพเดทรายการสำหรับ admin
+  editTransaction,
+  // ลบรายการสำหรับแอดมิน
+  deleteTransaction,
 };

@@ -45,9 +45,21 @@ const getAvailableMissions = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json(availableMissions);
 });
 
+const deleteMission = catchAsync(async (req, res) => {
+  const binMission = await missionService.deleteMission(req.params.missionId);
+  res.status(httpStatus.OK).json(binMission);
+});
+
+const editMission = catchAsync(async (req, res) => {
+  const updatedMission = await missionService.updateMission(req.params.missionId, req.body);
+  res.status(httpStatus.OK).json(updatedMission);
+});
+
 export default {
   createMission,
   updateMission,
   getAllMissionsForAdmin,
   getAvailableMissions,
+  deleteMission,
+  editMission,
 };
