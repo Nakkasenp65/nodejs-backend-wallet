@@ -157,6 +157,111 @@ const getAllMissionsForAdmin = async (options = {}) => {
 };
 
 /**
+ * (Admin) ดึงข้อมูลภารกิจเชิงลึก (Mission Details)
+ * ประกอบด้วย:
+ * 1. ข้อมูลหลักของภารกิจ
+ * 2. สถิติสรุป (จำนวนผู้เข้าร่วมทั้งหมด, แยกตามสถานะ)
+ * 3. รายชื่อผู้เข้าร่วมแบบแบ่งหน้า (Paginated) พร้อม Progress และ Status
+ *
+ * @param {string} missionId - ID ของภารกิจที่ต้องการดูรายละเอียด
+ * @param {object} options - ตัวเลือกสำหรับ Query (ใช้สำหรับ Pagination ของรายชื่อผู้เข้าร่วม)
+ * @param {number} [options.page=1] - หน้าปัจจุบันของรายชื่อผู้เข้าร่วม
+ * @param {number} [options.pageSize=10] - จำนวนผู้เข้าร่วมต่อหน้า
+ * @returns {Promise<object>} Object ที่มีข้อมูลเชิงลึกทั้งหมดของภารกิจ
+ */
+const getDetailsMission = async (missionId, options = {}) => {
+  // 1. กำหนดค่าเริ่มต้นสำหรับ Pagination ของ "รายชื่อผู้เข้าร่วม"
+  const { page = 1, pageSize = 10 } = options;
+  const take = parseInt(pageSize, 10);
+  const skip = (parseInt(page, 10) - 1) * take;
+
+  // 2. ใช้ prisma.$transaction เพื่อรันทุก Query ที่จำเป็นพร้อมกัน ทำให้ได้ประสิทธิภาพสูงสุด
+  const [
+    mission, // Query 1: ดึงข้อมูลหลักของภารกิจ
+    participantsData, // Query 2: ดึงรายชื่อผู้เข้าร่วมแบบแบ่งหน้า
+    totalParticipants, // Query 3: นับจำนวนผู้เข้าร่วมทั้งหมด (สำหรับ Pagination)
+    statusStats, // Query 4: คำนวณสถิติตามสถานะ (วิธีที่เร็วที่สุด)
+  ] = await prisma.$transaction([
+    // Query 1: ดึงข้อมูล Mission หลัก
+    prisma.mission.findUnique({
+      where: { id: missionId },
+    }),
+
+    // Query 2: ดึงรายชื่อผู้เข้าร่วม (UserMission) พร้อมข้อมูล User ที่เกี่ยวข้อง
+    prisma.userMission.findMany({
+      where: { missionId: missionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            line_display_name: true,
+            line_profile_url: true,
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+      take,
+      skip,
+    }),
+
+    // Query 3: นับจำนวนผู้เข้าร่วมทั้งหมดในภารกิจนี้
+    prisma.userMission.count({
+      where: { missionId },
+    }),
+
+    // Query 4: ใช้ `groupBy` เพื่อให้ Database คำนวณสถิติตามสถานะให้เรา
+    // นี่คือวิธีที่มีประสิทธิภาพสูงสุดสำหรับการทำ Aggregation
+    prisma.userMission.groupBy({
+      by: ['status'], // จัดกลุ่มตามฟิลด์ 'status'
+      where: { missionId },
+      _count: {
+        status: true, // นับจำนวนรายการในแต่ละกลุ่ม
+      },
+    }),
+  ]);
+
+  // 3. ตรวจสอบว่าภารกิจมีอยู่จริงหรือไม่
+  if (!mission) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Mission not found.');
+  }
+
+  // 4. จัดรูปแบบข้อมูลสถิติที่ได้จาก `groupBy` ให้อยู่ในรูปแบบที่ใช้งานง่าย
+  // จาก: [{ status: 'ENROLLED', _count: { status: 5 } }]
+  // เป็น: { ENROLLED: 5, CLAIMED: 0, ... }
+  const statistics = {
+    totalEnrolled: totalParticipants,
+    byStatus: {
+      ENROLLED: 0,
+      AWAITING_CLAIM: 0,
+      CLAIMED: 0,
+      EXPIRED: 0,
+      CLAIM_EXPIRED: 0,
+    },
+  };
+  statusStats.forEach((stat) => {
+    statistics.byStatus[stat.status] = stat._count.status;
+  });
+
+  // 5. สร้าง Object สำหรับ Pagination ของรายชื่อผู้เข้าร่วม
+  const participantsPaging = {
+    page: parseInt(page, 10),
+    pageSize: take,
+    total: totalParticipants,
+    totalPages: Math.ceil(totalParticipants / take),
+  };
+
+  // 6. ประกอบร่างข้อมูลทั้งหมดเพื่อส่งกลับไปให้ Frontend
+  return {
+    mission,
+    statistics,
+    participants: {
+      data: participantsData,
+      paging: participantsPaging,
+    },
+  };
+};
+
+/**
  * ดึงข้อมูลภารกิจที่ผู้ใช้ "สามารถเข้าร่วมได้"
  * @param {string} userId - ID ของผู้ใช้
  * @returns {Promise<Array<object>>} Array ของ Missions ที่ผู้ใช้ยังไม่เคยเข้าร่วมและยังไม่หมดเขต
@@ -214,9 +319,21 @@ const deleteMission = async (missionId) => {
   });
 };
 
-const editMission = async (missionId, payload) => {
-  if (!missionId) throw new ApiError(httpStatus.BAD_REQUEST);
-  return await prisma.mission.update({ where: missionId, data: payload });
+const editMission = async (payload) => {
+  if (!payload.id || !payload.title) throw new ApiError(httpStatus.BAD_REQUEST);
+  const { id, title, description, type, rewardAmount, webExpiresAt, durationDays, completeProgress } = payload;
+  return await prisma.mission.update({
+    where: { id },
+    data: {
+      title,
+      description,
+      type,
+      rewardAmount,
+      webExpiresAt,
+      durationDays,
+      completeProgress,
+    },
+  });
 };
 
 export default {
@@ -224,6 +341,7 @@ export default {
   updateMission,
   getAllMissionsForAdmin,
   getAvailableMissions,
+  getDetailsMission,
   deleteMission,
   editMission,
 };

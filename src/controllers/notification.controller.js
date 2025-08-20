@@ -27,4 +27,32 @@ const clearNotifications = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).json({ success: true, message: `${result.count} notifications cleared.`, data: result });
 });
 
-export default { getNotifications, markAsRead, clearNotifications };
+const getSystemNotifications = catchAsync(async (req, res) => {
+  const notifications = await notificationService.getSystemNotifications(req.query);
+  res.status(httpStatus.OK).json(notifications);
+});
+
+const createSystemNotification = catchAsync(async (req, res) => {
+  const notification = await notificationService.createSystemNotification(req.body);
+  res.status(httpStatus.CREATED).json(notification);
+});
+
+const editNotification = catchAsync(async (req, res) => {
+  const notification = await notificationService.editNotification(req.params.notificationId, payload);
+  res.status(httpStatus.OK).json(notification);
+});
+
+const deleteNotification = catchAsync(async (req, res) => {
+  const deletedNotification = await notificationService.deleteNotification(req.params.notificationId);
+  res.status(httpStatus.OK).json(deletedNotification);
+});
+
+export default {
+  getNotifications,
+  markAsRead,
+  clearNotifications,
+  getSystemNotifications,
+  createSystemNotification,
+  editNotification,
+  deleteNotification,
+};

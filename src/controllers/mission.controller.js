@@ -51,14 +51,26 @@ const deleteMission = catchAsync(async (req, res) => {
 });
 
 const editMission = catchAsync(async (req, res) => {
-  const updatedMission = await missionService.updateMission(req.params.missionId, req.body);
+  const updatedMission = await missionService.editMission(req.body);
   res.status(httpStatus.OK).json(updatedMission);
+});
+
+/**
+ * @description (Admin) ดึงข้อมูลภารกิจเชิงลึก พร้อมสถิติและรายชื่อผู้เข้าร่วม
+ * @route GET /v1/admin/missions/:missionId
+ */
+const getMissionDetails = catchAsync(async (req, res) => {
+  const { missionId } = req.params;
+  const options = req.query;
+  const result = await missionService.getDetailsMission(missionId, options);
+  res.status(httpStatus.OK).json(result);
 });
 
 export default {
   createMission,
   updateMission,
   getAllMissionsForAdmin,
+  getMissionDetails,
   getAvailableMissions,
   deleteMission,
   editMission,

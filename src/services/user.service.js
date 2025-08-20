@@ -54,32 +54,16 @@ const getUser = async (line_user_id) => {
       phone: true,
       ageRange: true,
       line_profile_url: true,
+      referralCode: true,
       monthlyPayment: true,
       isLocked: true,
-      referralCode: true,
-      firstTime: true,
-      wallet: true, // ทั้งก้อนของ wallet
-      madeReferrals: true,
       createdAt: true,
       role: true,
-      goal: {
+      wallet: {
         select: {
-          product: {
-            select: {
-              brand: true,
-              model: true,
-              imageUrl: true,
-              downPaymentAmount: true,
-            },
-          },
+          id: true,
         },
       },
-      notifications: {
-        select: {
-          transaction: true, // หรือ select ฟิลด์ย่อยของ transaction ต่อก็ได้
-        },
-      },
-      userMissions: true,
     },
   });
 };

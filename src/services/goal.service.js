@@ -1,6 +1,7 @@
 import prisma from '../libs/prisma.js';
+import httpStatus from 'http-status';
 
-async function createGoalForUser(userId, data) {
+const createGoalForUser = async (userId, data) => {
   const newGoal = await prisma.goal.create({
     data: {
       user: { connect: { id: userId } },
@@ -20,9 +21,9 @@ async function createGoalForUser(userId, data) {
   });
 
   return newGoal;
-}
+};
 
-async function updateGoalForUser(userId, data) {
+const updateGoalForUser = async (userId, data) => {
   const updatedGoal = await prisma.goal.update({
     where: {
       userId: userId,
@@ -31,6 +32,24 @@ async function updateGoalForUser(userId, data) {
   });
 
   return updatedGoal;
-}
+};
 
-export default { createGoalForUser, updateGoalForUser };
+const getUserGoal = async (userId) => {
+  if (!userId) throw new ApiError(httpStatus.BAD_REQUEST);
+  const goal = await prisma.goal.findUnique({
+    where: { userId },
+    select: {
+      product: {
+        select: {
+          brand: true,
+          model: true,
+          downPaymentAmount: true,
+          imageUrl: true,
+        },
+      },
+    },
+  });
+  return goal;
+};
+
+export default { createGoalForUser, getUserGoal, updateGoalForUser };

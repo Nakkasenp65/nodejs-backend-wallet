@@ -72,4 +72,12 @@ const confirmWalletAmount = async (transactionVerification, transactionId, amoun
 
   return updatedTransaction;
 };
-export default { confirmWalletAmount };
+
+const getUserWallet = async (userId) => {
+  if (!userId) throw new ApiError(httpStatus.BAD_REQUEST);
+  const wallet = await prisma.wallet.findUnique({
+    where: { userId },
+  });
+  return wallet;
+};
+export default { confirmWalletAmount, getUserWallet };

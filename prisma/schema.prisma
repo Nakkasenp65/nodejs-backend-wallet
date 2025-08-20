@@ -117,6 +117,7 @@ model Wallet {
   id           String @id @default(auto()) @map("_id") @db.ObjectId
   balance      Float  @default(0) // Real, withdrawable money
   bonusBalance Float  @default(0) // Non-withdrawable bonus money
+  // 1WL-XXXXXX (random number) @unique
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
@@ -171,8 +172,6 @@ model Goal {
   updatedAt DateTime @updatedAt
 }
 
-// --- Mission System ---
-
 model Mission {
   id               String      @id @default(auto()) @map("_id") @db.ObjectId
   title            String?
@@ -210,7 +209,20 @@ model UserMission {
   @@unique([userId, missionId])
 }
 
-// --- Supporting Models ---
+model Broadcast {
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  title String
+  body  String?
+  // type ไม่จำเป็นต้องมี เพราะเราจะถือว่าทั้งหมดเป็น SYSTEM/PROMOTION
+
+  status String    @default("DRAFT") // DRAFT, SENT
+  sentAt DateTime? // เวลาที่กดส่งจริง
+
+  sentToUserCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
 model Notification {
   id     String           @id @default(auto()) @map("_id") @db.ObjectId
@@ -248,6 +260,7 @@ model Product {
   downPaymentPercent  Int?
   installment6Months  Int?
   installment10Months Int?
+  condition           String? @default("มือหนึ่ง")
 
   targetedByGoals Goal[]
   vouchers        Voucher[]
@@ -271,8 +284,6 @@ model SlipDecoded {
   decodedContent String
   createdAt      DateTime @default(now())
 }
-
-// --- New System Models ---
 
 model Voucher {
   id         String        @id @default(auto()) @map("_id") @db.ObjectId
@@ -300,11 +311,9 @@ model Referral {
   rewardGiven Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  // (old user)
   referrer   User   @relation("MadeReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
   referrerId String @db.ObjectId
 
-  // (new user)
   newcomer   User   @relation("WasReferred", fields: [newcomerId], references: [id], onDelete: Cascade)
   newcomerId String @unique @db.ObjectId
 }

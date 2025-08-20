@@ -3,9 +3,13 @@ import catchAsync from '../utils/catchAsync.js';
 import httpStatus from 'http-status';
 
 const confirmWalletAmount = catchAsync(async (req, res) => {
-  console.log(req.params, req.query);
   const updatedTransaction = await walletService.confirmWalletAmount(req.query.amount, req.params.transactionId);
   res.status(httpStatus.OK).json(updatedTransaction);
 });
 
-export default { confirmWalletAmount };
+const getUserWallet = catchAsync(async (req, res) => {
+  const wallet = await walletService.getUserWallet(req.params.userId);
+  res.status(httpStatus.OK).json(wallet);
+});
+
+export default { confirmWalletAmount, getUserWallet };
