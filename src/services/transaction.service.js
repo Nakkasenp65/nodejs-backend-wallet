@@ -25,13 +25,15 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Wallet ID is required to create a transaction.');
   }
 
+  const walletUniqueId = prisma.wallet.findUnique({ where: { id: walletId }, select: { walletUniqueId: true } });
+
   try {
     const dataToSave = {
       name: name,
       type: type,
       status: status,
       from: from,
-      to: to,
+      to: 'WalletId: ' + walletUniqueId,
       slipImageUrl: imageUrl,
       wallet: {
         connect: { id: walletId },
@@ -41,13 +43,9 @@ const createSavingTransaction = async (transactionBody, imageUrl) => {
       verifiedAmount: null,
     };
 
-    console.log('Attempting to create transaction with data:', dataToSave);
-
     const newTransaction = await prisma.transaction.create({
       data: dataToSave,
     });
-
-    console.log('Transaction created successfully:', newTransaction.id);
 
     // 5. คืนค่า Transaction ที่สร้างเสร็จแล้ว
     return newTransaction;
@@ -92,12 +90,12 @@ const createSuccessedTransaction = async (name, amount, status, from, to, descri
 
 /**
  * อัปเดตสถานะ Transaction ตามผลการตรวจสอบสลิป
- * @param {string} transactionVerificationCode - โค้ดผลการตรวจสอบ ('200000', '403001', '200001')
+ * @param {string} code - โค้ดผลการตรวจสอบ ('200000', '403001', '200001')
  * @param {string} transactionId - ID ของ Transaction ที่จะอัปเดต
  * @param {number} [verifyAmount=0] - จำนวนเงินที่ตรวจสอบได้ (จำเป็นสำหรับเคส Success)
  * @returns {Promise<object>} - Transaction ที่อัปเดตแล้ว
  */
-const updateTransaction = async (transactionVerificationCode, transactionId, verifyAmount = 0) => {
+const updateTransaction = async (code, transactionId, verifyAmount = 0, senderName = '', sendBankName = '') => {
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
     select: {
@@ -105,9 +103,13 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
       status: true,
       wallet: {
         select: {
+          id: true,
+          walletUniqueId: true,
           userId: true,
+          balance: true,
           user: {
             select: {
+              firstTime: true,
               line_display_name: true,
             },
           },
@@ -129,7 +131,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
   }
 
   // อัพเดทตามสถานะจากการตรวจสอบ
-  switch (transactionVerificationCode) {
+  switch (code) {
     // --- CASE 3: SUCCESS ---
     case '200000': {
       const floatAmount = parseFloat(verifyAmount);
@@ -140,18 +142,18 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
 
       const isFirstTimeDeposit = transaction.wallet.user.firstTime;
       const updatedTransaction = await prisma.$transaction(async (tx) => {
+        // ข้อมูลที่จะนำไปอัพเดท
         const walletUpdateData = {
           balance: { increment: floatAmount },
         };
 
         // Initialize description here to be modified later if needed
-        let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`;
+        let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท\nชื่อผู้โอน: ${senderName}\nเลขบัญชี: ${sendBankName}`;
 
+        // โบนัสเติมเงินครั้งแรก 2 เท่า
         if (isFirstTimeDeposit) {
-          // --- NEW LOGIC START: Calculate bonus with a cap ---
           const maxBonus = 100; // Define the maximum bonus amount
           const bonusAmount = Math.min(floatAmount, maxBonus); // The bonus is the smaller of the deposit or the cap
-          // --- NEW LOGIC END ---
 
           console.log(
             `[First Deposit Bonus] User ${transaction.wallet.userId} is making their first deposit. Adding bonus of ${bonusAmount} baht.`,
@@ -163,6 +165,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
           // Update the transaction description to reflect the actual bonus given
           description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
 
+          // สร้างรายการสำหรับโบนัส
           await createSuccessedTransaction(
             `คุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`,
             bonusAmount,
@@ -180,6 +183,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
           });
         }
 
+        // อัพเดทรายการ
         await tx.wallet.update({
           where: { id: transaction.walletId },
           data: walletUpdateData,
@@ -188,6 +192,7 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
         return tx.transaction.update({
           where: { id: transactionId },
           data: {
+            from: senderName + ' ' + sendBankName,
             amount: floatAmount,
             verified: true,
             verifiedAmount: floatAmount,
@@ -203,8 +208,6 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
       try {
         const newcomerId = updatedTransaction.wallet.userId;
         const newUserWalletId = updatedTransaction.wallet.id;
-        console.log('New user Id updated transaction: ', newcomerId);
-        console.log('\nnewUserWalletId from updated transaction: ', newUserWalletId);
         // 1. Check if this is the newcomer's first successful deposit.
         const successfulTxCount = await prisma.transaction.count({
           where: {
@@ -213,18 +216,14 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
             type: 'INCOME',
           },
         });
-        console.log('\ncount new user wallet successfull transaction: ', successfulTxCount);
 
+        // มีแค่รายการเดียว
         if (successfulTxCount === 1) {
-          console.log(`\n[Referral Trigger] First successful deposit detected for newcomer ${newcomerId}.`);
-
-          // Also, update the user's `firstTime` flag.
           await prisma.user.update({
             where: { id: newcomerId },
             data: { firstTime: false },
           });
 
-          // 2. Find out who referred this newcomer.
           const referralRecord = await prisma.referral.findUnique({
             where: { newcomerId: newcomerId },
           });
@@ -235,8 +234,6 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
               `[Referral Trigger] Newcomer was referred by ${referrerId}. Triggering mission update for referrer.`,
             );
 
-            // 3. Trigger the mission progress update for the REFERRER.
-            // This is the key part: we call the service for the referrer with the new event type.
             await userMissionService.checkAndUpdateMissionProgress(
               referrerId,
               'NEWCOMER_FIRST_DEPOSIT',
@@ -254,10 +251,6 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
           error,
         );
       }
-
-      // (Optional) Trigger event อื่นๆ หลังสำเร็จ เช่น อัปเดต Mission
-      // await missionService.checkAndUpdateProgress(transaction.wallet.userId, floatAmount);
-
       return updatedTransaction;
     }
 
@@ -292,20 +285,18 @@ const updateTransaction = async (transactionVerificationCode, transactionId, ver
 
     // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
     default: {
-      console.error(`Unknown transaction verification code: ${transactionVerificationCode}`);
+      console.error(`Unknown transaction verification code: ${code}`);
       return await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: TransactionStatus.REJECTED,
-          description: `รายการถูกปฏิเสธ: สลิปไม่ถูกต้องกรุณาลองใหม่อีกครั้ง ERROR:${transactionVerificationCode}`,
+          description: `รายการถูกปฏิเสธ: สลิปไม่ถูกต้องกรุณาลองใหม่อีกครั้ง ERROR:${code}`,
           amount: 0,
           verified: true,
           verifiedAmount: 0,
         },
         include: true,
       });
-      // อาจจะอัปเดตเป็นสถานะพิเศษ หรือแค่โยน Error
-      throw new ApiError(httpStatus.BAD_REQUEST, `Unknown verification code: ${transactionVerificationCode}`);
     }
   }
 };

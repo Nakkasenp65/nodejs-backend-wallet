@@ -1,15 +1,14 @@
 // src/services/user.service.ts
 
-import { PrismaClient, TransactionStatus } from '../generated/prisma/index.js';
-import { MissionType } from '../generated/prisma/index.js';
+import { MissionType, TransactionStatus } from '../generated/prisma/index.js';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
 import axios from 'axios';
 import crypto from 'crypto';
 import notificationService from './notification.service.js';
 import transactionService from './transaction.service.js';
-
-const prisma = new PrismaClient();
+import prisma from '../libs/prisma.js';
+import { generateUniqueReferralCode, generateUniqueWalletId } from '../utils/random.js';
 
 /**
  * ตรวจสอบว่าผู้ใช้มีข้อมูลอยู่ในระบบแล้วหรือไม่จาก Line User ID เพื่อระบุว่าเป็นผู้ใช้ใหม่หรือผู้ใช้ปัจจุบัน
@@ -246,6 +245,7 @@ const createUserWithGoal = async (userData) => {
 
   // สร้าง Referral Code ที่ไม่ซ้ำกัน
   const referralCode = await generateUniqueReferralCode(prisma);
+  const walletId = await generateUniqueWalletId(prisma);
 
   // สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
   const newUser = await prisma.user.create({
@@ -264,8 +264,10 @@ const createUserWithGoal = async (userData) => {
       referToCode: referToCode,
       wallet: {
         create: {
+          walletUniqueId: walletId,
           balance: 0,
           bonusBalance: 100,
+          // โปรโมชั่น เติมเงินได้ 2 เท่า
         },
       },
       goal: {
@@ -363,31 +365,6 @@ const createUserWithGoal = async (userData) => {
   }
 
   return createdUser;
-};
-
-/**
- * สร้าง Referral Code ที่ไม่ซ้ำกันในระบบ
- * @returns {Promise<string>} - Referral Code ที่พร้อมใช้งาน
- */
-const generateUniqueReferralCode = async () => {
-  let referralCode;
-  let isUnique = false;
-
-  while (!isUnique) {
-    // สร้างรหัสสุ่ม 6 ตัวอักษร (ตัวพิมพ์ใหญ่)
-    referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    // ตรวจสอบว่ารหัสนี้มีอยู่ในฐานข้อมูลแล้วหรือยัง
-    const existingUser = await prisma.user.findUnique({
-      where: { referralCode: referralCode },
-    });
-
-    // ถ้าไม่พบ แสดงว่ารหัสนี้ใช้ได้
-    if (!existingUser) {
-      isUnique = true;
-    }
-  }
-  return referralCode;
 };
 
 /**

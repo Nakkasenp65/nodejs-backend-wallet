@@ -39,7 +39,6 @@ const createInternalTransfer = catchAsync(async (req, res) => {
     amount,
     pin,
   });
-  console.log('Attempt to create notification for receiver userID: ', recipientUserId);
   if (senderTransaction && receiverTransaction) {
     const receiverNotification = await notificationService.sendTransferReceived(recipientUserId, {
       amount,

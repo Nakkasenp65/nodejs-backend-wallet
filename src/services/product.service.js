@@ -1,4 +1,6 @@
 import prisma from '../libs/prisma.js';
+import ApiError from '../utils/ApiError.js';
+import httpStatus from 'http-status';
 
 /**
  * Fetch products with price range + options
@@ -298,7 +300,7 @@ const editProduct = async (productId, payload) => {
 
   // 4. ตรวจสอบว่า uniqueId ใหม่ซ้ำกับรายการอื่นหรือไม่
   if (newUniqueId !== currentProduct.uniqueId) {
-    const existingProduct = await prisma.product.findUnique({ where: { uniqueId: newUniqueId } });
+    const existingProduct = await prisma.product.findFirst({ where: { uniqueId: newUniqueId } });
     if (existingProduct) {
       throw new ApiError(
         httpStatus.CONFLICT,
@@ -307,10 +309,13 @@ const editProduct = async (productId, payload) => {
     }
   }
 
+  // ลบ id ออกจาก payload
+  const { id, ...nonIdPayload } = payload;
+
   // 5. อัปเดตข้อมูลในฐานข้อมูล
   const product = await prisma.product.update({
     where: { id: productId },
-    data: { ...payload, uniqueId: newUniqueId }, // อัปเดตข้อมูลพร้อม uniqueId ใหม่
+    data: { ...nonIdPayload, uniqueId: newUniqueId }, // อัปเดตข้อมูลพร้อม uniqueId ใหม่
   });
 
   return product;

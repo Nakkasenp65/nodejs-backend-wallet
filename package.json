@@ -14,7 +14,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@prisma/client": "^6.12.0",
+    "@prisma/client": "^6.14.0",
     "@upstash/qstash": "^2.8.2",
     "axios": "^1.11.0",
     "cors": "^2.8.5",
@@ -30,15 +30,16 @@
     "http-status": "^2.1.0",
     "joi": "^17.13.3",
     "multer": "^2.0.2",
+    "nanoid": "^5.1.5",
     "nodemailer": "^7.0.5",
     "nodemon": "^3.1.10",
     "pdfkit": "^0.17.1",
     "prettier": "^3.6.2",
-    "prisma": "^6.12.0",
     "resend": "^6.0.1",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
-    "cross-env": "^10.0.0"
+    "cross-env": "^10.0.0",
+    "prisma": "^6.14.0"
   }
 }

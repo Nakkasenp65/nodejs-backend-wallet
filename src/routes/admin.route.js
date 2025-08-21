@@ -6,6 +6,7 @@ import userController from '../controllers/user.controller.js';
 import missionController from '../controllers/mission.controller.js';
 import broadcastController from '../controllers/broadcast.controller.js';
 import productController from '../controllers/product.controller.js';
+import lineController from '../controllers/line.controller.js';
 
 const adminRoute = Router();
 
@@ -37,7 +38,9 @@ adminRoute.delete('/broadcasts/:broadcastId', auth, adminAuth, broadcastControll
 adminRoute.post('/products', auth, adminAuth, productController.createProduct);
 adminRoute.get('/products/filters', auth, adminAuth, productController.getProductFilters);
 adminRoute.get('/products', auth, adminAuth, productController.getProducts);
-adminRoute.patch('/products/:broadcastId', auth, adminAuth, productController.editProduct);
-adminRoute.delete('/products/:broadcastId', auth, adminAuth, productController.deleteProduct);
+adminRoute.patch('/products/:productId', auth, adminAuth, productController.editProduct);
+adminRoute.delete('/products/:productId', auth, adminAuth, productController.deleteProduct);
+
+adminRoute.post('/line/test/:line_user_id', auth, adminAuth, lineController.sendFlexMessage);
 
 export default adminRoute;
