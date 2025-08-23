@@ -10,10 +10,10 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
     //เช็คข้อมูุลที่ใช้
     const { walletUniqueId, fullname, phone, balance } = payload;
 
-    if (!walletUniqueId || !fullname || !phone || !balance)
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Flex message content failed');
+    if (!walletUniqueId || !fullname || !phone || !balance) throw new ApiError(httpStatus.BAD_REQUEST, 'Flex message content failed');
 
     return {
+      // <-------------------- FLEX MESSAGE : ฝากเงิน -------------------->
       to: line_user_id,
       messages: [
         {
@@ -182,29 +182,28 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
     };
   }
 
+  // REQUIRED: amount, fullnameWithBankNumber, bankName, bankIcon, walletUniqueId, date, balance
   if (mode === 'save') {
-    const { amount, fullnameWithBankNumber, walletUniqueId, date, balance } = payload;
+    const { amount, fullnameWithBankNumber, walletUniqueId, date, balance, bankName, bankIcon } = payload;
+    if (!amount || !fullnameWithBankNumber || !walletUniqueId || !date || !balance) throw new ApiError(httpStatus.BAD_REQUEST, 'Failed flex message');
 
-    if (!amount || !fullnameWithBankNumber || !walletUniqueId || !date || !balance)
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Failed flex message');
-
-    const numberOptions = {
+    const formattedAmount = amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    };
-
-    const formattedAmount = amount.toLocaleString('en-US', numberOptions);
-    const formattedBalance = balance.toLocaleString('en-US', numberOptions);
-
-    console.log('FORMATTED AMOUNT: ', formattedAmount);
-    console.log('FORMATTED BALANCE: ', formattedBalance);
+    });
+    const formattedBalance = balance.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
     return {
+      // <-------------------- FLEX MESSAGE : เติมเงิน -------------------->
       to: line_user_id,
       messages: [
         {
           type: 'flex',
-          altText: `📢 แจ้งเตือน 1 Wallet ออมเงินสำเร็จ จำนวน ... บาท 💵`,
+          // <-------------------- [data] จำนวนเงินที่สำเร็จ -------------------->
+          altText: `📢 แจ้งเตือน 1 Wallet ออมเงินสำเร็จ จำนวน ${formattedAmount} บาท 💵`,
           contents: {
             type: 'bubble',
             size: 'mega',
@@ -253,7 +252,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       contents: [
                         {
                           type: 'text',
-                          // [data] ยอดเงินที่เข้า
+                          // <-------------------- [data] amount -------------------->
                           text: `+${formattedAmount} บาท`,
                           offsetTop: '10px',
                           align: 'end',
@@ -285,7 +284,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // [data] ชื่อจริงและเลขบัญชี
+                          // <-------------------- [data] ชื่อจริง + เลขบัญชี -------------------->
                           text: `${fullnameWithBankNumber}`,
                           align: 'end',
                           size: 'sm',
@@ -299,6 +298,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       contents: [
                         {
                           type: 'image',
+                          // <-------------------- [data] imageUrl ธนาคารที่โอนมา -------------------->
                           url: 'https://lh3.googleusercontent.com/d/1L516HGgJAkdyXcZsP24wmt8yU3oB09Q6',
                           size: '18px',
                           align: 'end',
@@ -307,6 +307,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
+                          // <-------------------- [data] ชื่อธนาคาร : กสิกรไทย -------------------->
                           text: 'กสิกรไทย',
                           align: 'end',
                           size: 'sm',
@@ -328,7 +329,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // [data] walletUniqueId
+                          // <-------------------- [data] walletUniqueId -------------------->
                           text: `${walletUniqueId}`,
                           align: 'end',
                           size: 'sm',
@@ -348,7 +349,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // [data] วัน เดือน ปี เวลา ของสลิป
+                          // <-------------------- [data] วันเวลาที่อัพเดท: 20 ส.ค. 68 15:36 -------------------->
                           text: `${date}`,
                           align: 'end',
                           size: 'sm',
@@ -378,7 +379,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // [data] ยอดเงินของ wallet : balance
+                          // <-------------------- [data] balance: 0,000.00 บาท -------------------->
                           text: `${formattedBalance} บาท`,
                           align: 'end',
                           size: 'sm',
@@ -402,7 +403,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       action: {
                         type: 'uri',
                         label: 'ดูรายการเดินบัญชี',
-                        // [data] ดูรายการเดินบัญชี หน้า history
+                        // <-------------------- [data] LIFF_URL/history -------------------->
                         uri: `${LIFF_URL}/history`,
                       },
                       height: 'sm',
@@ -447,6 +448,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                     },
                   ],
                   spacing: 'md',
+                  // <-------------------- ปุ่มแจ้งปัญหาติดต่อเจ้าหน้า -------------------->
                   action: {
                     type: 'message',
                     label: 'ติดต่อเจ้าหน้าที่',
@@ -467,6 +469,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
 
   if (mode === 'withdraw') {
     return {
+      // <-------------------- FLEX MESSAGE : ถอนเงิน -------------------->
       to: line_user_id,
       messages: [
         {
@@ -520,7 +523,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       contents: [
                         {
                           type: 'text',
-                          // [data] amount
+                          // <-------------------- [data] amount -------------------->
                           text: '-100.00 บาท',
                           offsetTop: '10px',
                           align: 'end',
@@ -552,7 +555,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // [data] walletUniqueId
+                          // <-------------------- [data] walletUniqueId -------------------->
                           text: '1WL-999-999',
                           align: 'end',
                           size: 'sm',
@@ -571,7 +574,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                           size: 'sm',
                         },
                         {
-                          // [data] ชื่อบัญชี + เลขบัญชี
+                          // <-------------------- [data] ชื่อบัญชี + เลขบัญชี -------------------->
                           type: 'text',
                           text: 'นาย สมศรี กี X-7813',
                           align: 'end',
@@ -586,7 +589,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       contents: [
                         {
                           type: 'image',
-                          // [data] รูปธนาคาร
+                          // <-------------------- [data] imageUrl ธนาคาร -------------------->
                           url: 'https://lh3.googleusercontent.com/d/1L516HGgJAkdyXcZsP24wmt8yU3oB09Q6',
                           size: '18px',
                           align: 'end',
@@ -595,7 +598,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          // ชื่อธนาคาร
+                          // <-------------------- [data] ชื่อธนาคาร: กสิกรไทย -------------------->
                           text: 'กสิกรไทย',
                           align: 'end',
                           size: 'sm',
@@ -616,7 +619,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
-                          //เวลาที่โอนสำเร็จ
+                          // <-------------------- [data] วันเวลาที่อัพเดท: 20 ส.ค. 68 15:36 -------------------->
                           text: '20 ส.ค. 68 15:36',
                           align: 'end',
                           size: 'sm',
@@ -647,6 +650,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         },
                         {
                           type: 'text',
+                          // <-------------------- [data] ยอดเงินคงเหลือ: 0.00 บาท -------------------->
                           text: '0.00 บาท',
                           align: 'end',
                           size: 'sm',
@@ -670,6 +674,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                       type: 'button',
                       action: {
                         type: 'uri',
+                        // <-------------------- [data] LIFF_URL -------------------->
                         label: 'ดูรายการเดินบัญชี',
                         uri: 'http://linecorp.com/',
                       },
@@ -733,6 +738,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
       ],
     };
   }
+
   return null;
 };
 

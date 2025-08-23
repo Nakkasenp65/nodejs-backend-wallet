@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import { lineAxios } from '../utils/axios.js';
 import line, { flexMessage } from '../utils/line.js';
 import prisma from '../libs/prisma.js';
+import getBankIconUrl from '../utils/bankIcon.js';
 
 const FLEX_MODE = {
   SAVE: 'save',
@@ -74,16 +75,9 @@ const sendDepositFlexMessage = async (userId, senderName, senderBankNumber, send
 
   const thaiDateFormatter = new Intl.DateTimeFormat('th-TH', options);
   const formattedDate = thaiDateFormatter.format(updatedDate);
-
   const bankNumber = 'X' + senderBankNumber.slice(-4);
-
-  //   const numberOptions = {
-  //   minimumFractionDigits: 2,
-  //   maximumFractionDigits: 2,
-  // };
-
-  // const formattedAmount = amount.toLocaleString('en-US', options);
-  // const formattedBalance = user.wallet.balance
+  const formattedBankName = senderBankName.replace('ธนาคาร', '');
+  const bankImageUrl = getBankIconUrl(senderBankName);
 
   const payload = {
     amount: amount,
@@ -91,6 +85,8 @@ const sendDepositFlexMessage = async (userId, senderName, senderBankNumber, send
     walletUniqueId: user.wallet.walletUniqueId,
     date: formattedDate,
     balance: user.wallet.balance,
+    bankName: formattedBankName,
+    bankIcon: bankImageUrl,
   };
 
   const devId = process.env.DEV_LINE_USER_ID;
