@@ -43,6 +43,8 @@ enum NotificationType {
 enum TransactionType {
   OUTCOME
   INCOME
+  WITHDRAW
+  DEPOSIT
   REWARD
 }
 
@@ -119,7 +121,6 @@ model Wallet {
   balance        Float  @default(0) // Real, withdrawable money
   bonusBalance   Float  @default(0) // Non-withdrawable bonus money
   walletUniqueId String @unique // 1WL-XXXXXX (random number) @unique
-  
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
@@ -139,7 +140,7 @@ model Transaction {
   from           String?
   to             String?
   description    String?
-  slipImageUrl   String? // Can be optional if transaction is not from slip
+  slipImageUrl   String?
   bank           String?
   verified       Boolean           @default(false)
   verifiedAmount Float?

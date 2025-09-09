@@ -5,17 +5,7 @@ import catchAsync from '../utils/catchAsync.js';
 // GET /products?mode=affordable|upgrade|all&min=&max=&topPerBrand=&take=&skip=&sort=
 export const listProducts = async (req, res, next) => {
   try {
-    const {
-      mode = 'affordable',
-      min,
-      max,
-      minPrice: minPriceQ,
-      maxPrice: maxPriceQ,
-      topPerBrand,
-      take,
-      skip,
-      sort,
-    } = req.query;
+    const { mode = 'affordable', min, max, minPrice: minPriceQ, maxPrice: maxPriceQ, topPerBrand, take, skip, sort } = req.query;
 
     // resolve numbers (null means "no bound")
     let minPrice = min != null ? Number(min) : minPriceQ != null ? Number(minPriceQ) : null;

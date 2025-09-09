@@ -5,19 +5,15 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 const errorConverter = (err, req, res, next) => {
   let error = err;
   if (!(error instanceof ApiError)) {
-    const statusCode =
-      error.statusCode || error instanceof PrismaClientKnownRequestError
-        ? httpStatus.BAD_REQUEST
-        : httpStatus.INTERNAL_SERVER_ERROR;
+    const statusCode = error.statusCode || error instanceof PrismaClientKnownRequestError ? httpStatus.BAD_REQUEST : httpStatus.INTERNAL_SERVER_ERROR;
     // const message = error.message || httpStatus[statusCode];
-    const message = error.message;
     error = new ApiError(statusCode, error.message, false, err.stack);
   }
   next(error);
 };
 
 const errorHandler = (err, req, res, next) => {
-  console.log('ERROR CAUGHT: ', err);
+  console.error(err);
   let { statusCode, message } = err;
   res.locals.errorMessage = err.message;
   const response = {

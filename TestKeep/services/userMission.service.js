@@ -67,8 +67,7 @@ const enrollInMission = async (userId, missionId) => {
 
     // 4) คำนวณ config ที่ต้องมี (กันค่า null)
     const durationDays = Number.isFinite(mission.durationDays) ? mission.durationDays : 7; // fallback หรือโยน error ถ้าอยาก strict
-    const completeProgress =
-      Number.isFinite(mission.completeProgress) && mission.completeProgress > 0 ? mission.completeProgress : 1;
+    const completeProgress = Number.isFinite(mission.completeProgress) && mission.completeProgress > 0 ? mission.completeProgress : 1;
 
     const userExpiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 

@@ -88,11 +88,7 @@ const fetchProducts = async (opts = {}) => {
   const perBrand = Array.from(map.values());
 
   // Apply pagination AFTER grouping
-  const items = perBrand
-    .sort((a, b) =>
-      sort === 'asc' ? a.downPaymentAmount - b.downPaymentAmount : b.downPaymentAmount - a.downPaymentAmount,
-    )
-    .slice(skip, skip + take);
+  const items = perBrand.sort((a, b) => (sort === 'asc' ? a.downPaymentAmount - b.downPaymentAmount : b.downPaymentAmount - a.downPaymentAmount)).slice(skip, skip + take);
 
   return {
     items,
@@ -180,10 +176,7 @@ const getProducts = async (options = {}) => {
 
   // --- ส่วนของ Filter เดิม ---
   if (search) {
-    where.OR = [
-      { model: { contains: search, mode: 'insensitive' } },
-      { brand: { contains: search, mode: 'insensitive' } },
-    ];
+    where.OR = [{ model: { contains: search, mode: 'insensitive' } }, { brand: { contains: search, mode: 'insensitive' } }];
   }
   if (brand && brand !== 'ALL') {
     where.brand = brand;
@@ -239,8 +232,7 @@ const getProducts = async (options = {}) => {
  * @returns {Promise<object>} - Product object ที่สร้างเสร็จแล้ว
  */
 const createProduct = async (payload) => {
-  const { brand, model, capacity, color, downPaymentAmount, imageUrl, price, installment6Months, installment10Months } =
-    payload;
+  const { brand, model, capacity, color, downPaymentAmount, imageUrl, price, installment6Months, installment10Months } = payload;
 
   // 1. ตรวจสอบข้อมูลที่จำเป็น
   if (!brand || !model || !capacity || !downPaymentAmount) {
@@ -302,10 +294,7 @@ const editProduct = async (productId, payload) => {
   if (newUniqueId !== currentProduct.uniqueId) {
     const existingProduct = await prisma.product.findFirst({ where: { uniqueId: newUniqueId } });
     if (existingProduct) {
-      throw new ApiError(
-        httpStatus.CONFLICT,
-        `Another product with these specifications already exists: ${newUniqueId}`,
-      );
+      throw new ApiError(httpStatus.CONFLICT, `Another product with these specifications already exists: ${newUniqueId}`);
     }
   }
 
