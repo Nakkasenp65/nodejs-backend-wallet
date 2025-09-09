@@ -118,8 +118,8 @@ model Wallet {
   id             String @id @default(auto()) @map("_id") @db.ObjectId
   balance        Float  @default(0) // Real, withdrawable money
   bonusBalance   Float  @default(0) // Non-withdrawable bonus money
-  walletUniqueId String @unique
-  // 1WL-XXXXXX (random number) @unique
+  walletUniqueId String @unique // 1WL-XXXXXX (random number) @unique
+  
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
