@@ -125,35 +125,44 @@ model Wallet {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique @db.ObjectId
 
-  transactions Transaction[]
+  sentTransaction     Transaction[] @relation("SentTransactions")
+  receieveTransaction Transaction[] @relation("ReceiveTransaction")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Transaction {
-  id             String            @id @default(auto()) @map("_id") @db.ObjectId
-  name           String?
-  amount         Float?
-  type           TransactionType?
-  status         TransactionStatus @default(PENDING)
-  from           String?
+  id     String            @id @default(auto()) @map("_id") @db.ObjectId
+  name   String?
+  amount Float?
+  type   TransactionType?
+  status TransactionStatus @default(PENDING)
+  from   String?
+
+  fromWallet   Wallet? @relation("SentTransactions", fields: [fromWalletId], references: [id])
+  fromWalletId String? @db.ObjectId
+
+  toWallet   Wallet? @relation("ReceiveTransaction", fields: [toWalletId], references: [id])
+  toWalletId String? @db.ObjectId
+
   to             String?
   description    String?
   slipImageUrl   String?
   bank           String?
-  verified       Boolean           @default(false)
+  verified       Boolean @default(false)
   verifiedAmount Float?
 
-  wallet   Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
-  walletId String? @db.ObjectId
+  externalSource String?
 
   notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([walletId, status, createdAt(sort: Desc)])
+  @@index([toWalletId, status, createdAt(sort: Desc)])
+  @@index([fromWalletId, status, createdAt(sort: Desc)])
+  @@index([fromWalletId, toWalletId, status, createdAt(sort: Desc)])
 }
 
 model Goal {

@@ -1,11 +1,11 @@
-import httpStatus from 'http-status';
-import adminService from './admin.service.js';
-import catchAsync from '../../../utils/catchAsync.js';
-import transactionService from '../transactions/transaction.service.js';
-import userService from '../users/user.controller.js';
-import missionService from '../missions/mission.service.js';
-import lineService from '../lines/line.service.js';
-import notificationService from '../notifications/notification.service.js';
+import httpStatus from "http-status";
+import adminService from "./admin.service.js";
+import catchAsync from "../../../utils/catchAsync.js";
+import transactionService from "../transactions/transaction.service.js";
+import userService from "../users/user.controller.js";
+import missionService from "../missions/mission.service.js";
+import lineService from "../lines/line.service.js";
+import notificationService from "../notifications/notification.service.js";
 
 const getDashboardData = catchAsync(async (req, res) => {
   const data = await adminService.getDashboardData();
@@ -19,12 +19,6 @@ const getTransactions = catchAsync(async (req, res) => {
 
 const editTransaction = catchAsync(async (req, res) => {
   const transaction = await transactionService.editTransaction(req.params.transactionId, req.file, req.body);
-  console.log('UPDATE:', transaction);
-  const userId = transaction.wallet.user.id;
-  // const fullname = transaction.wallet.user.fullname
-  // const bank = transaction.bank
-  const amount = transaction.amount;
-  const notification = await notificationService.sendWithdrawSuccessNotification(userId, amount, req.params.transactionId);
   res.status(httpStatus.OK).json(transaction);
 });
 

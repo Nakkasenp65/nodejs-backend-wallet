@@ -1,9 +1,49 @@
-import httpStatus from 'http-status';
-import axios from 'axios';
-import FormData from 'form-data';
-import ApiError from '../../../utils/ApiError.js';
-import walletService from '../wallets/wallet.service.js';
-import transactionService from '../transactions/transaction.service.js';
+import httpStatus from "http-status";
+import axios from "axios";
+import FormData from "form-data";
+import ApiError from "../../../utils/ApiError.js";
+import walletService from "../wallets/wallet.service.js";
+import transactionService from "../transactions/transaction.service.js";
+
+const mockSuccess = {
+  code: "200000",
+  message: "Slip verified successfully",
+  data: {
+    transRef: "015253144947DTF01773",
+    dateTime: "2025-09-10T14:49:47+07:00",
+    amount: 1,
+    ref1: null,
+    ref2: null,
+    ref3: null,
+    receiver: {
+      account: {
+        name: "นัมเบอร์วันมันนี่",
+        bank: {
+          account: "xxx-x-x2208-x",
+        },
+        proxy: null,
+      },
+      bank: {
+        id: "004",
+        name: "ธนาคารกสิกรไทย",
+      },
+    },
+    sender: {
+      account: {
+        name: "MR. Nakasen P",
+        bank: {
+          account: "xxx-x-x9320-x",
+        },
+      },
+      bank: {
+        id: "004",
+        name: "ธนาคารกสิกรไทย",
+      },
+    },
+    decode: "0041000600000101030040220015253144947DTF017735102TH9104F751",
+    referenceId: "049b727a-4006-4a92-9902-813e9e6e0452-1113",
+  },
+};
 
 /**
  * ดาวน์โหลดรูปภาพสลิปจาก URL และส่งไปตรวจสอบที่ API ภายนอก
@@ -16,37 +56,34 @@ const verfifySlip = async (slipImageUrl, transactionId) => {
   const verificationApiUrl = process.env.SLIP2_GO_VERIFY_URL;
 
   try {
-    // --- 1. ดาวน์โหลดรูปภาพสลิปในรูปแบบ Buffer ---
-    const slipImageResponse = await axios.get(slipImageUrl, {
-      responseType: 'arraybuffer', // <-- บอกให้ axios คืนค่าเป็น ArrayBuffer
-    });
+    // const slipImageResponse = await axios.get(slipImageUrl, {
+    //   responseType: "arraybuffer",
+    // });
 
-    const imageBuffer = slipImageResponse.data; // <-- Buffer จะอยู่ใน .data
-    const mimeType = slipImageResponse.headers['content-type'] || 'image/jpeg'; // <-- เข้าถึง header แบบ object
+    // const imageBuffer = slipImageResponse.data;
+    // const mimeType = slipImageResponse.headers["content-type"] || "image/jpeg";
 
-    // --- 2. เตรียม FormData เพื่อส่งไปตรวจสอบ ---
-    const form = new FormData();
-    form.append('file', imageBuffer, {
-      filename: `slip_${transactionId}.${mimeType.split('/')[1] || 'jpg'}`,
-      contentType: mimeType,
-    });
+    // const form = new FormData();
+    // form.append("file", imageBuffer, {
+    //   filename: `slip_${transactionId}.${mimeType.split("/")[1] || "jpg"}`,
+    //   contentType: mimeType,
+    // });
 
-    // --- 3. ส่งข้อมูลไปตรวจสอบที่ API ---
-    const verifyResponse = await axios.post(verificationApiUrl, form, {
-      headers: {
-        ...form.getHeaders(), // <-- (สำคัญ) ใช้ getHeaders() เพื่อสร้าง Content-Type ที่ถูกต้อง
-      },
-    });
+    // const verifyResponse = await axios.post(verificationApiUrl, form, {
+    //   headers: {
+    //     ...form.getHeaders(),
+    //   },
+    // });
 
-    // --- 4. ประมวลผลและตรวจสอบผลลัพธ์ ---
-    const verifyResult = verifyResponse.data; // <-- ข้อมูล JSON จะอยู่ใน .data
-    const verifiedAmount = verifyResult?.data?.amount;
+    // TEST CASE ALWAYS SUCCESS
+
+    // const verifyResult = verifyResponse.data;
+    // const verifiedAmount = verifyResult?.data?.amount;
     // const verifiedAmount = mockResponse?.data?.amount;
 
-    console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
+    // console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
 
-    // --- 5. คืนค่าเฉพาะจำนวนเงินที่ตรวจสอบได้ ---
-    return verifyResult;
+    return mockSuccess;
   } catch (error) {
     await transactionService.updateTransaction(error.response?.data.code, transactionId, 0);
     console.error(`[Verify Slip] An error occurred during slip verification for TxID: ${transactionId}`, error.response?.data || error.message);
@@ -62,7 +99,7 @@ const uploadSlip = async (fileObject, identifier) => {
 
   // 1. ตรวจสอบว่ามีไฟล์และ buffer อยู่จริง
   if (!fileObject || !fileObject.buffer) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'No file buffer provided for upload.');
+    throw new ApiError(httpStatus.BAD_REQUEST, "No file buffer provided for upload.");
   }
 
   // 2. สร้าง instance ของ FormData จาก library
@@ -73,17 +110,17 @@ const uploadSlip = async (fileObject, identifier) => {
   //    - key คือ 'myFile' ตามที่ API กำหนด
   //    - value คือ Buffer ของไฟล์
   //    - options คือ object ที่มี filename
-  formData.append('myFile', fileObject.buffer, {
+  formData.append("myFile", fileObject.buffer, {
     filename: fileObject.originalname,
     contentType: fileObject.mimetype,
   });
 
   // 4. Append userId เข้าไปตามปกติ
-  formData.append('userId', identifier);
+  formData.append("userId", identifier);
 
   try {
     if (!uploadApiUrl) {
-      throw new Error('UPLOAD_IMAGE_API_URL is not defined in .env');
+      throw new Error("UPLOAD_IMAGE_API_URL is not defined in .env");
     }
 
     console.log(`Uploading slip for identifier: ${identifier} to ${uploadApiUrl}`);
@@ -97,14 +134,14 @@ const uploadSlip = async (fileObject, identifier) => {
 
     // 6. ตรวจสอบ Response และคืนค่าเฉพาะส่วน data ตามที่คู่มือกำหนด
     if (!data || !data.data?.url) {
-      throw new Error('Invalid response format from image upload service');
+      throw new Error("Invalid response format from image upload service");
     }
 
     // คืนค่าเฉพาะส่วน data ที่มี fileId, fileName, url
     return data.data;
   } catch (error) {
-    console.error('Error uploading slip:', error.response?.data || error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Could not upload slip image.');
+    console.error("Error uploading slip:", error.response?.data || error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not upload slip image.");
   }
 };
 

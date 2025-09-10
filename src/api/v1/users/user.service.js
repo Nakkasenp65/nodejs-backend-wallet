@@ -1,15 +1,15 @@
 // src/services/user.service.ts
 
-import { MissionType, TransactionStatus } from '../../../generated/prisma/index.js';
-import ApiError from '../../../utils/ApiError.js';
-import httpStatus from 'http-status';
-import axios from 'axios';
-import crypto from 'crypto';
-import notificationService from '../notifications/notification.service.js';
-import transactionService from '../transactions/transaction.service.js';
-import prisma from '../../../libs/prisma.js';
-import { generateUniqueReferralCode, generateUniqueWalletId } from '../../../utils/random.js';
-import { Prisma } from '@prisma/client';
+import { MissionType, TransactionStatus } from "../../../generated/prisma/index.js";
+import ApiError from "../../../utils/ApiError.js";
+import httpStatus from "http-status";
+import axios from "axios";
+import crypto from "crypto";
+import notificationService from "../notifications/notification.service.js";
+import transactionService from "../transactions/transaction.service.js";
+import prisma from "../../../libs/prisma.js";
+import { generateUniqueReferralCode, generateUniqueWalletId } from "../../../utils/random.js";
+import { Prisma } from "@prisma/client";
 
 /**
  * ตรวจสอบว่าผู้ใช้มีข้อมูลอยู่ในระบบแล้วหรือไม่จาก Line User ID เพื่อระบุว่าเป็นผู้ใช้ใหม่หรือผู้ใช้ปัจจุบัน
@@ -20,7 +20,7 @@ import { Prisma } from '@prisma/client';
  */
 const checkUserStatus = async (line_user_id) => {
   if (!line_user_id) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Line userId is required');
+    throw new ApiError(httpStatus.BAD_REQUEST, "Line userId is required");
   }
   try {
     const user = await prisma.user.findUnique({
@@ -39,7 +39,7 @@ const checkUserStatus = async (line_user_id) => {
     return { isNewUser: false, userId: user.id };
   } catch (error) {
     console.error(`[CRITICAL_DB_ERROR] Failed to check user status for line_user_id: ${line_user_id}`, error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Could not verify user status due to a database error.');
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not verify user status due to a database error.");
   }
 };
 
@@ -71,6 +71,7 @@ const getUser = async (line_user_id) => {
       wallet: {
         select: {
           id: true,
+          walletUniqueId: true,
         },
       },
     },
@@ -103,7 +104,7 @@ const getUsers = async (options = {}) => {
   const whereClause = {};
   if (search) {
     // ค้นหาแบบ case-insensitive ในหลายฟิลด์
-    whereClause.OR = [{ line_display_name: { contains: search, mode: 'insensitive' } }, { fullname: { contains: search, mode: 'insensitive' } }];
+    whereClause.OR = [{ line_display_name: { contains: search, mode: "insensitive" } }, { fullname: { contains: search, mode: "insensitive" } }];
   }
   if (role) {
     whereClause.role = role;
@@ -146,7 +147,7 @@ const getUsers = async (options = {}) => {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       skip,
       take: ps,
@@ -181,8 +182,8 @@ const getUsers = async (options = {}) => {
  */
 const findUserByPhone = async (phoneNumber) => {
   // --- 1. Input Validation ---
-  if (!phoneNumber || typeof phoneNumber !== 'string') {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง');
+  if (!phoneNumber || typeof phoneNumber !== "string") {
+    throw new ApiError(httpStatus.BAD_REQUEST, "กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง");
   }
 
   // --- 2. Database Query ---
@@ -202,7 +203,7 @@ const findUserByPhone = async (phoneNumber) => {
   // --- 3. Post-Query Validation ---
   // Case 1: User not found
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้');
+    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้");
   }
 
   // --- 4. Return successful result ---
@@ -212,7 +213,7 @@ const findUserByPhone = async (phoneNumber) => {
 const getUserFirstTimeById = async (userId) => {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstTime: true } });
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ไม่พบผู้ใช้ที่มี id นี้');
+    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบผู้ใช้ที่มี id นี้");
   }
   return user;
 };
@@ -233,7 +234,7 @@ const createUserWithGoal = async (userData) => {
   });
 
   if (existingUser) {
-    throw new ApiError(httpStatus.CONFLICT, 'User is already exists');
+    throw new ApiError(httpStatus.CONFLICT, "User is already exists");
   }
 
   // สร้าง Referral Code ที่ไม่ซ้ำกัน
@@ -291,7 +292,7 @@ const createUserWithGoal = async (userData) => {
     const userMissionsData = onboardingMissions.map((mission) => ({
       userId: newUser.id,
       missionId: mission.id,
-      status: 'ENROLLED',
+      status: "ENROLLED",
       userExpiresAt: new Date(Date.now() + mission.durationDays * 24 * 60 * 60 * 1000),
       completeProgress: mission.completeProgress,
     }));
@@ -305,12 +306,12 @@ const createUserWithGoal = async (userData) => {
 
   // สร้าง Transaction สำเร็จเพื่อให้ขึ้น 100 บาทในประวัติสำหรับ User ใหม่
   const welcomeTransaction = await transactionService.createSuccessedTransaction(
-    '💰รับโบนัสฟรี 100 บาท!',
+    "💰รับโบนัสฟรี 100 บาท!",
     100,
     TransactionStatus.SUCCESS,
-    'One Wallet',
+    "One Wallet",
     line_display_name,
-    'ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้',
+    "ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้",
     newUser.wallet.id,
   );
 
@@ -371,7 +372,7 @@ const createUserWithGoal = async (userData) => {
 const updateUser = async (line_user_id, updateData) => {
   // 1. ตรวจสอบว่ามี User ID ส่งเข้ามาหรือไม่
   if (!line_user_id) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'จำเป็นต้องระบุ User ID');
+    throw new ApiError(httpStatus.BAD_REQUEST, "จำเป็นต้องระบุ User ID");
   }
 
   // 2. เตรียมข้อมูลที่จะอัปเดต
@@ -412,12 +413,12 @@ const updateUser = async (line_user_id, updateData) => {
   } catch (error) {
     // 4. จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma
     // P2025 คือ error code เมื่อไม่พบ record ที่ต้องการจะอัปเดต
-    if (error.code === 'P2025') {
+    if (error.code === "P2025") {
       throw new ApiError(httpStatus.NOT_FOUND, `ไม่พบผู้ใช้ที่มี ID: ${userId}`);
     }
     // โยน Error อื่นๆ ต่อไป
-    console.error('Error updating user:', error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้');
+    console.error("Error updating user:", error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้");
   }
 };
 
@@ -454,7 +455,7 @@ const getReferralHistory = async (line_user_id) => {
       madeReferrals: {
         // 4. จัดเรียงข้อมูลตามวันที่สร้างล่าสุด
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         // 3. ดึงข้อมูลของ newcomer (ผู้ถูกเชิญ) มาด้วย
         include: {
@@ -494,7 +495,7 @@ const getReferralHistory = async (line_user_id) => {
 const createReferral = async (newcomerId, referralCode) => {
   // 1. ตรวจสอบว่ามี Input ที่จำเป็นครบถ้วน
   if (!newcomerId || !referralCode) {
-    throw new Error('Newcomer ID และ Referral Code เป็นสิ่งจำเป็น');
+    throw new Error("Newcomer ID และ Referral Code เป็นสิ่งจำเป็น");
   }
 
   // 2. ค้นหาผู้ใช้ที่เป็นเจ้าของ referralCode (ผู้แนะนำ)
@@ -512,7 +513,7 @@ const createReferral = async (newcomerId, referralCode) => {
 
   if (referrer.id === newcomerId) {
     // ป้องกันการเชิญตัวเอง
-    throw new Error('ผู้ใช้ไม่สามารถแนะนำตัวเองได้');
+    throw new Error("ผู้ใช้ไม่สามารถแนะนำตัวเองได้");
   }
 
   // ตรวจสอบว่าผู้ใช้ใหม่คนนี้เคยถูกแนะนำแล้วหรือยัง
@@ -576,7 +577,7 @@ const unlock = async (line_user_id, pin) => {
     // If lengths don't match, they can't be equal.
     // We still run a dummy comparison on the serverPin to prevent leaking length information.
     crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัสผ่านไม่ถูกต้องกรุณาลองใหม่');
+    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
   }
 
   const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
@@ -589,9 +590,9 @@ const unlock = async (line_user_id, pin) => {
       },
     });
     // It's good practice to return something to indicate success
-    return { message: 'User unlocked successfully.' };
+    return { message: "User unlocked successfully." };
   } else {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'รหัสผ่านไม่ถูกต้องกรุณาลองใหม่');
+    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
   }
 };
 

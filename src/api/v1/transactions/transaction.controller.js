@@ -1,9 +1,9 @@
-import transactionService from './transaction.service.js';
-import httpStatus from 'http-status';
-import catchAsync from '../../../utils/catchAsync.js';
-import slipService from '../slips/slip.service.js';
-import qstashService from '../qstash/qstash.service.js';
-import notificationService from '../notifications/notification.service.js';
+import transactionService from "./transaction.service.js";
+import httpStatus from "http-status";
+import catchAsync from "../../../utils/catchAsync.js";
+import slipService from "../slips/slip.service.js";
+import qstashService from "../qstash/qstash.service.js";
+import notificationService from "../notifications/notification.service.js";
 
 const createSavingTransaction = catchAsync(async (req, res) => {
   const imageInfo = await slipService.uploadSlip(req.file, req.body.walletId);
