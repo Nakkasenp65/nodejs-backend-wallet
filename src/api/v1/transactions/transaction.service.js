@@ -414,90 +414,132 @@ const createInternalTransfer = async (senderUserId, transferData) => {
 
   console.log(`Initiating transfer from ${senderUserId} to ${recipientUserId}`);
 
-  const outcomeTransaction = await prisma.$transaction(async (tx) => {
-    // 1. Fetch the sender using 'tx' and INCLUDE the wallet.
-    const sender = await tx.user.findUnique({
-      where: { id: senderUserId },
-      include: { wallet: true }, // <-- CRITICAL FIX #1: Include the wallet
-    });
+  const { transaction: outcomeTransaction, flexData: flexData } =
+    await prisma.$transaction(async (tx) => {
+      const sender = await tx.user.findUnique({
+        where: { id: senderUserId },
+        include: { wallet: true },
+      });
 
-    // 2. Fetch the recipient using 'tx'.
-    const recipient = await tx.user.findUnique({
-      where: { id: recipientUserId },
-      include: { wallet: true },
-    });
+      const recipient = await tx.user.findUnique({
+        where: { id: recipientUserId },
+        include: { wallet: true },
+      });
 
-    // --- Validation logic ---
-    if (!sender || !sender.wallet) {
-      // This check will now work correctly.
-      throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้ส่ง");
-    }
-    if (!recipient || !recipient.wallet) {
-      throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้รับ");
-    }
-    if (sender.wallet.balance < floatAmount) {
-      throw new ApiError(httpStatus.BAD_REQUEST, "ยอดเงินคงเหลือไม่เพียงพอ");
-    }
+      if (!sender || !sender.wallet) {
+        // This check will now work correctly.
+        throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้ส่ง");
+      }
+      if (!recipient || !recipient.wallet) {
+        throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้รับ");
+      }
+      if (sender.wallet.balance < floatAmount) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "ยอดเงินคงเหลือไม่เพียงพอ");
+      }
 
-    const userPinBuffer = Buffer.from(String(pin));
-    const serverPinBuffer = Buffer.from(String(serverPin));
+      const userPinBuffer = Buffer.from(String(pin));
+      const serverPinBuffer = Buffer.from(String(serverPin));
 
-    if (userPinBuffer.length !== serverPinBuffer.length) {
-      // If lengths don't match, they can't be equal.
-      // We still run a dummy comparison on the serverPin to prevent leaking length information.
-      crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
-      throw new ApiError(
-        httpStatus.UNAUTHORIZED,
-        "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
-      );
-    }
+      if (userPinBuffer.length !== serverPinBuffer.length) {
+        // If lengths don't match, they can't be equal.
+        // We still run a dummy comparison on the serverPin to prevent leaking length information.
+        crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
+        throw new ApiError(
+          httpStatus.UNAUTHORIZED,
+          "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
+        );
+      }
 
-    const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
+      const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
 
-    if (!pinsMatch) {
-      throw new ApiError(httpStatus.UNAUTHORIZED, "รหัส PIN ไม่ถูกต้อง");
-    }
+      if (!pinsMatch) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "รหัส PIN ไม่ถูกต้อง");
+      }
 
-    // --- Financial operations (remains the same) ---
-    await Promise.all([
-      tx.wallet.update({
-        where: { id: sender.wallet.id },
-        data: { balance: { decrement: floatAmount } },
-      }),
-      tx.wallet.update({
-        where: { id: recipient.wallet.id },
-        data: { balance: { increment: floatAmount } },
-      }),
-    ]);
+      // --- Financial operations (remains the same) ---
+      await Promise.all([
+        tx.wallet.update({
+          where: { id: sender.wallet.id },
+          data: { balance: { decrement: floatAmount } },
+        }),
+        tx.wallet.update({
+          where: { id: recipient.wallet.id },
+          data: { balance: { increment: floatAmount } },
+        }),
+      ]);
 
-    // --- Transaction record creation (remains the same) ---
-    const [senderTransaction, receiverTransaction] = await Promise.all([
-      tx.transaction.create({
+      // --- Transaction record creation (remains the same) ---
+      const transaction = await tx.transaction.create({
         data: {
-          name: `โอนเงินไปให้ ${recipient.line_display_name || recipient.fullname}`,
-          type: "OUTCOME",
-          status: "SUCCESS",
+          name: "โอนเงินภายในระบบ",
+          type: TransactionType.TRANSFER,
+          status: TransactionStatus.SUCCESS,
           amount: floatAmount,
           from: sender.line_display_name || sender.fullname,
           to: recipient.line_display_name || recipient.fullname,
-          walletId: sender.wallet.id,
+          fromWalletId: sender.wallet.id,
+          toWalletId: recipient.wallet.id,
         },
-      }),
-      tx.transaction.create({
-        data: {
-          name: `รับเงินจาก ${sender.line_display_name || sender.fullname}`,
-          type: "INCOME",
-          status: "SUCCESS",
-          amount: floatAmount,
-          from: sender.line_display_name || sender.fullname,
-          to: recipient.line_display_name || recipient.fullname,
-          walletId: recipient.wallet.id,
+        include: {
+          toWallet: {
+            include: { user: true },
+          },
+          fromWallet: {
+            include: { user: true },
+          },
         },
-      }),
-    ]);
+      });
 
-    return { senderTransaction, receiverTransaction };
-  });
+      try {
+        await notificationService.sendTransferReceived(recipient.id, {
+          amount: transaction.amount,
+          fromName: transaction.fromWallet.user.line_display_name,
+          fromPhone: transaction.toWallet.user.phone,
+        });
+
+        await notificationService.sendTransferSent(sender.id, {
+          amount: transaction.amount,
+          toName: transaction.toWallet.user.line_display_name,
+          toPhone: transaction.toWallet.user.phone,
+        });
+      } catch (error) {
+        console.error("[CREATE_NOTIFICATION_FAIL]", error);
+      }
+
+      const flexData = {
+        sendingAmount: transaction.amount,
+        senderWalletUniqueId: transaction.fromWallet.walletUniqueId,
+        senderBalance: transaction.fromWallet.walletUniqueId,
+        senderLineId: transaction.fromWallet.line_user_id,
+        receiverWalletUniqueId: transaction.toWallet.walletUniqueId,
+        receiverBalance: transaction.toWallet.walletUniqueId,
+        receiverLineId: transaction.toWallet.line_user_id,
+        updatedDate: transaction.updatedAt,
+        liffUrlHistory: `${process.env.LIFF_URL}/history`,
+      };
+
+      return { transaction, flexData };
+    });
+
+  await lineService.sendSenderFlex(
+    flexData.senderLineId,
+    flexData.sendingAmount,
+    flexData.senderWalletUniqueId,
+    flexData.receiverWalletUniqueId,
+    flexData.updatedDate,
+    flexData.senderBalance,
+    flexData.liffUrlHistory,
+  );
+
+  await lineService.sendReceiverFlex(
+    flexData.receiverLineId,
+    flexData.sendingAmount,
+    flexData.senderWalletUniqueId,
+    flexData.receiverWalletUniqueId,
+    flexData.updatedDate,
+    flexData.receiverBalance,
+    flexData.liffUrlHistory,
+  );
 
   return outcomeTransaction;
 };
@@ -559,6 +601,7 @@ const getSuccessTransaction = async (walletId, options = {}) => {
 
   const transactions = await prisma.transaction.findMany({
     where: whereClause,
+    take: 5,
     orderBy: {
       createdAt: "desc",
     },
@@ -656,12 +699,15 @@ const exportToPdf = async (email, walletId, startDate, endDate) => {
     }),
     prisma.transaction.findMany({
       where: {
-        walletId,
+        OR: [{ fromWalletId: walletId }, { toWalletId: walletId }],
         status: "SUCCESS",
-        type: { in: ["INCOME", "OUTCOME"] },
         ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
       },
       orderBy: { createdAt: "asc" },
+      include: {
+        fromWallet: { include: { user: true } },
+        toWallet: { include: { user: true } },
+      },
     }),
   ]);
 
@@ -669,6 +715,7 @@ const exportToPdf = async (email, walletId, startDate, endDate) => {
 
   // Build PDF
   const buffer = await buildTransactionsPdf({
+    currentWalletId: walletId,
     wallet,
     transactions,
     startDate: createdAtFilter?.gte,
@@ -957,78 +1004,94 @@ const approveDeposit = async (transactionId, approvalData) => {
 
   // --- STAGE 2: ปฏิบัติการเชิงปรมาณู (The Atomic Operation) ---
   // รับประกันความสมบูรณ์ของข้อมูลทางการเงินและตรรกะที่เกี่ยวข้องกัน
-  const updatedTransaction = await prisma.$transaction(async (tx) => {
-    const walletId = transaction.toWallet.id;
-    const isFirstTimeDeposit = transaction.toWallet.user.firstTime;
+  const { mainUpdatedTransaction: updatedTransaction, flexData: flexData } =
+    await prisma.$transaction(async (tx) => {
+      const walletId = transaction.toWallet.id;
+      const isFirstTimeDeposit = transaction.toWallet.user.firstTime;
 
-    const walletUpdateData = { balance: { increment: floatAmount } };
-    let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount.toFixed(2)} บาท\nชื่อผู้โอน: ${sender.account.name}\nธนาคาร: ${sender.bank.name}`;
+      const walletUpdateData = { balance: { increment: floatAmount } };
+      let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount.toFixed(2)} บาท\nชื่อผู้โอน: ${sender.account.name}\nธนาคาร: ${sender.bank.name}`;
 
-    // 2.1 ตรรกะโบนัสเงินฝากครั้งแรก
-    if (isFirstTimeDeposit) {
-      const maxBonus = 100;
-      const bonusAmount = Math.min(floatAmount, maxBonus);
-      walletUpdateData.bonusBalance = { increment: bonusAmount };
-      description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
+      // 2.1 ตรรกะโบนัสเงินฝากครั้งแรก
+      if (isFirstTimeDeposit) {
+        const maxBonus = 100;
+        const bonusAmount = Math.min(floatAmount, maxBonus);
+        walletUpdateData.bonusBalance = { increment: bonusAmount };
+        description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
 
-      await createSuccessedTransaction(
-        `โบนัสเงินฝากครั้งแรก`,
-        bonusAmount,
-        TransactionStatus.SUCCESS,
-        "SYSTEM_BONUS",
-        transaction.toWallet.user.line_display_name,
-        `โบนัสเงินฝากครั้งแรก ${bonusAmount} บาท`,
-        walletId,
-      );
-    }
-
-    // 2.2 อัปเดต Wallet หลัก
-    await tx.wallet.update({ where: { id: walletId }, data: walletUpdateData });
-
-    // 2.3 อัปเดต Transaction หลัก
-    const mainUpdatedTransaction = await tx.transaction.update({
-      where: { id: transactionId },
-      data: {
-        externalSource: `${sender.account.name} (${sender.bank.name})`,
-        amount: floatAmount,
-        verified: true,
-        verifiedAmount: floatAmount,
-        status: "SUCCESS",
-        description: description,
-      },
-      include: { toWallet: true }, // include wallet เพื่อส่งข้อมูลกลับ
-    });
-
-    // 2.4 ตรรกะ Referral (อยู่ภายใต้การคุ้มครองของ Transaction)
-    if (isFirstTimeDeposit) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { firstTime: false },
-      });
-      const referralRecord = await tx.referral.findUnique({
-        where: { newcomerId: userId },
-      });
-      if (referralRecord) {
-        console.log(
-          `[Referral Trigger] Updating mission for referrer ${referralRecord.referrerId}`,
-        );
-        await userMissionService.checkAndUpdateMissionProgress(
-          referralRecord.referrerId,
-          "NEWCOMER_FIRST_DEPOSIT",
-          { newcomerId: userId },
+        await createSuccessedTransaction(
+          `โบนัสเงินฝากครั้งแรก`,
+          bonusAmount,
+          TransactionStatus.SUCCESS,
+          "SYSTEM_BONUS",
+          transaction.toWallet.user.line_display_name,
+          `โบนัสเงินฝากครั้งแรก ${bonusAmount} บาท`,
+          walletId,
         );
       }
-    }
 
-    return mainUpdatedTransaction;
-  });
+      // 2.2 อัปเดต Wallet หลัก
+      await tx.wallet.update({
+        where: { id: walletId },
+        data: walletUpdateData,
+      });
+
+      // 2.3 อัปเดต Transaction หลัก
+      const mainUpdatedTransaction = await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          from: `${sender.bank.name} - ${sender.account.bank.account}`,
+          externalSource: `${sender.account.name} (${sender.bank.name})`,
+          amount: floatAmount,
+          verified: true,
+          verifiedAmount: floatAmount,
+          status: "SUCCESS",
+          description: description,
+        },
+        include: { toWallet: { include: { user: true } } }, // include wallet เพื่อส่งข้อมูลกลับ
+      });
+
+      const flexData = {
+        line_user_id: mainUpdatedTransaction.toWallet.user.line_user_id,
+        amount: mainUpdatedTransaction.verifiedAmount,
+        balance: mainUpdatedTransaction.toWallet.balance,
+        walletUniqueId: mainUpdatedTransaction.toWallet.walletUniqueId,
+        accountName: sender.account.name,
+        accountNumber: sender.account.bank.account,
+        bankName: sender.bank.name,
+        updatedDate: mainUpdatedTransaction.updatedAt,
+      };
+
+      // 2.4 ตรรกะ Referral (อยู่ภายใต้การคุ้มครองของ Transaction)
+      if (isFirstTimeDeposit) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { firstTime: false },
+        });
+        const referralRecord = await tx.referral.findUnique({
+          where: { newcomerId: userId },
+        });
+        if (referralRecord) {
+          console.log(
+            `[Referral Trigger] Updating mission for referrer ${referralRecord.referrerId}`,
+          );
+          await userMissionService.checkAndUpdateMissionProgress(
+            referralRecord.referrerId,
+            "NEWCOMER_FIRST_DEPOSIT",
+            { newcomerId: userId },
+          );
+        }
+      }
+
+      return { mainUpdatedTransaction, flexData };
+    });
 
   // --- STAGE 3: ปฏิบัติการหลังการยืนยันข้อมูล (Post-Commit Operations) ---
   // ส่วนนี้จะทำงานก็ต่อเมื่อ STAGE 2 สำเร็จทั้งหมดแล้วเท่านั้น
   try {
     // ส่งแจ้งเตือนการอัพเดท
     await notificationService.sendDepositSuccess(
-      userId,
+      updatedTransaction.toWallet.userId,
       updatedTransaction.verifiedAmount,
       updatedTransaction.id,
     );
@@ -1042,12 +1105,14 @@ const approveDeposit = async (transactionId, approvalData) => {
 
     // ส่ง Flex message รายการสำเร็จ
     await lineService.sendDepositFlexMessage(
-      userId,
-      sender.account.name,
-      sender.account.bank.account,
-      sender.bank.name,
-      floatAmount,
-      updatedTransaction.updatedAt,
+      flexData.line_user_id,
+      flexData.amount,
+      flexData.balance,
+      flexData.walletUniqueId,
+      flexData.accountName,
+      flexData.accountNumber,
+      flexData.bankName,
+      flexData.updatedDate,
     );
   } catch (error) {
     console.error(

@@ -1,24 +1,27 @@
-import goalService from './goal.service.js';
-import httpStatus from 'http-status';
-import catchAsync from '../../../utils/catchAsync.js';
+import goalService from "./goal.service.js";
+import httpStatus from "http-status";
+import catchAsync from "../../../utils/catchAsync.js";
 
 const createGoal = catchAsync(async (req, res, next) => {
-  console.log('Log Check: ', req.params.userId, ' Body: ', req.body);
+  console.log("Log Check: ", req.params.userId, " Body: ", req.body);
   const { userId } = req.params;
   const newGoal = await goalService.createGoalForUser(userId, req.body);
   res.status(httpStatus.CREATED).json(newGoal);
 });
 
 const getUserGoal = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-  const goal = await goalService.getUserGoal(userId);
+  const { line_user_id } = req.params;
+  const goal = await goalService.getUserGoal(line_user_id);
   res.status(httpStatus.OK).json(goal);
 });
 
 const updateGoal = catchAsync(async (req, res, next) => {
   const { userId } = req.params;
   const { planId, productId } = req.body;
-  const updatedGoal = await goalService.updateGoalForUser(userId, { planId, productId });
+  const updatedGoal = await goalService.updateGoalForUser(userId, {
+    planId,
+    productId,
+  });
   res.status(httpStatus.OK).json(updatedGoal);
 });
 

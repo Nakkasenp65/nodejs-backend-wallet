@@ -195,26 +195,21 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
       walletUniqueId,
       date,
       balance,
+      bankImageUrl,
       bankName,
-      bankIcon,
+      liffHistoryUrl,
     } = payload;
     if (
       !amount ||
       !fullnameWithBankNumber ||
       !walletUniqueId ||
       !date ||
-      !balance
+      !balance ||
+      !bankImageUrl ||
+      !bankName ||
+      !liffHistoryUrl
     )
       throw new ApiError(httpStatus.BAD_REQUEST, "Failed flex message");
-
-    const formattedAmount = amount.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    const formattedBalance = balance.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
 
     return {
       // <-------------------- FLEX MESSAGE : เติมเงิน -------------------->
@@ -223,7 +218,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
         {
           type: "flex",
           // <-------------------- [data] จำนวนเงินที่สำเร็จ -------------------->
-          altText: `📢 แจ้งเตือน 1 Wallet ออมเงินสำเร็จ จำนวน ${formattedAmount} บาท 💵`,
+          altText: `📢 แจ้งเตือน 1 Wallet ออมเงินสำเร็จ จำนวน ${amount} บาท 💵`,
           contents: {
             type: "bubble",
             size: "mega",
@@ -273,7 +268,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         {
                           type: "text",
                           // <-------------------- [data] amount -------------------->
-                          text: `+${formattedAmount} บาท`,
+                          text: `+${amount} บาท`,
                           offsetTop: "10px",
                           align: "end",
                           weight: "bold",
@@ -319,7 +314,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         {
                           type: "image",
                           // <-------------------- [data] imageUrl ธนาคารที่โอนมา -------------------->
-                          url: "https://lh3.googleusercontent.com/d/1L516HGgJAkdyXcZsP24wmt8yU3oB09Q6",
+                          url: `${bankImageUrl}`,
                           size: "18px",
                           align: "end",
                           offsetEnd: "5px",
@@ -328,7 +323,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         {
                           type: "text",
                           // <-------------------- [data] ชื่อธนาคาร : กสิกรไทย -------------------->
-                          text: "กสิกรไทย",
+                          text: `${bankName}`,
                           align: "end",
                           size: "sm",
                           flex: 0,
@@ -400,7 +395,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         {
                           type: "text",
                           // <-------------------- [data] balance: 0,000.00 บาท -------------------->
-                          text: `${formattedBalance} บาท`,
+                          text: `${balance} บาท`,
                           align: "end",
                           size: "sm",
                           color: "#06C755",
@@ -424,7 +419,7 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                         type: "uri",
                         label: "ดูรายการเดินบัญชี",
                         // <-------------------- [data] LIFF_URL/history -------------------->
-                        uri: `${LIFF_URL}/history`,
+                        uri: `${liffHistoryUrl}`,
                       },
                       height: "sm",
                       style: "primary",
@@ -766,6 +761,529 @@ export const flexMessage = (mode = null, line_user_id, payload = {}) => {
                   action: {
                     type: "message",
                     label: "ติดต่อเจ้าหน้าที่",
+                    text: "ติดต่อเจ้าหน้าที่",
+                  },
+                  justifyContent: "center",
+                  alignItems: "center",
+                  offsetTop: "5px",
+                },
+              ],
+              paddingAll: "12px",
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  if (mode === "receiver") {
+    const {
+      senderWalletUniqueId,
+      receiverWalletUniqueId,
+      liffUrlHistory,
+      formattedAmount,
+      formattedDate,
+      formattedBalance,
+    } = payload;
+
+    if (
+      !senderWalletUniqueId ||
+      !receiverWalletUniqueId ||
+      !liffUrlHistory ||
+      !formattedAmount ||
+      !formattedDate ||
+      !formattedBalance
+    )
+      throw ApiError(httpStatus.BAD_REQUEST, "Flex data insufficient");
+    return {
+      // <-------------------- FLEX MESSAGE : รับเงินภายใน -------------------->
+      to: `${line_user_id}`,
+      messages: [
+        {
+          type: "flex",
+          altText: `📢 แจ้งเตือน 1 Wallet ได้รับเงินจาก ${senderWalletUniqueId} จำนวน ${formattedAmount} บาท 💵`,
+          contents: {
+            type: "bubble",
+            size: "mega",
+            hero: {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "image",
+                  size: "100%",
+                  animated: true,
+                  url: "https://lh3.googleusercontent.com/d/1iCrztgK6xc9MGAX9riTK6othdrFZoBjp",
+                  aspectRatio: "12:2",
+                  aspectMode: "cover",
+                },
+              ],
+              justifyContent: "flex-end",
+            },
+            body: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "แจ้งเตือน",
+                          size: "xxs",
+                        },
+                        {
+                          type: "text",
+                          text: "รายการเงินเข้า",
+                          size: "sm",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [
+                        {
+                          type: "text",
+                          text: `+${formattedAmount} บาท`,
+                          offsetTop: "10px",
+                          align: "end",
+                          weight: "bold",
+                          size: "lg",
+                          color: "#06C755",
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "separator",
+                  margin: "5px",
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "จาก 1 Wallet ID",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${senderWalletUniqueId}`,
+                          align: "end",
+                          size: "sm",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "ไปยัง 1 Wallet ID",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${receiverWalletUniqueId}`,
+                          align: "end",
+                          size: "sm",
+                          offsetTop: "none",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "วันที่/เวลา",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${formattedDate}`,
+                          align: "end",
+                          size: "sm",
+                          offsetTop: "2px",
+                        },
+                      ],
+                      margin: "none",
+                    },
+                  ],
+                  offsetTop: "5px",
+                },
+                {
+                  type: "separator",
+                  margin: "lg",
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "ยอดเงินคงเหลือ",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${formattedBalance} บาท`,
+                          align: "end",
+                          size: "sm",
+                          color: "#06C755",
+                          weight: "bold",
+                          offsetTop: "1px",
+                        },
+                      ],
+                    },
+                  ],
+                  margin: "md",
+                },
+                {
+                  type: "separator",
+                  margin: "md",
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "button",
+                      action: {
+                        type: "uri",
+                        label: "ดูรายการเดินบัญชี",
+                        uri: `${liffUrlHistory}`,
+                      },
+                      height: "sm",
+                      style: "primary",
+                    },
+                  ],
+                  offsetTop: "5px",
+                  margin: "none",
+                },
+                {
+                  type: "separator",
+                  margin: "md",
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "image",
+                      url: "https://lh3.googleusercontent.com/d/1dgN6-bAYGzwtLQ9nxSLBT_EGHQg0CeHi",
+                      flex: 1,
+                      gravity: "center",
+                      size: "full",
+                      animated: true,
+                    },
+                    {
+                      type: "text",
+                      text: "แจ้งปัญหาการใช้งาน",
+                      flex: 12,
+                      size: "xxs",
+                      color: "#666666",
+                      weight: "bold",
+                      gravity: "center",
+                      wrap: true,
+                      offsetStart: "-5px",
+                    },
+                    {
+                      type: "image",
+                      url: "https://lh3.googleusercontent.com/d/1fCTeujQB4UlIxLHGhDJvQPtfDr3w0Z7F",
+                      flex: 1,
+                      gravity: "center",
+                      size: "200%",
+                    },
+                  ],
+                  spacing: "md",
+                  action: {
+                    type: "message",
+                    label: "ติดต่อเจ้าหน้าที่",
+                    text: "ติดต่อเจ้าหน้าที่",
+                  },
+                  justifyContent: "center",
+                  alignItems: "center",
+                  offsetTop: "5px",
+                },
+              ],
+              paddingAll: "12px",
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  if (mode === "sender") {
+    const {
+      senderWalletUniqueId,
+      receiverWalletUniqueId,
+      liffUrlHistory,
+      formattedAmount,
+      formattedDate,
+      formattedBalance,
+    } = payload;
+
+    if (
+      !senderWalletUniqueId ||
+      !receiverWalletUniqueId ||
+      !liffUrlHistory ||
+      !formattedAmount ||
+      !formattedDate ||
+      !formattedBalance
+    )
+      throw ApiError(httpStatus.BAD_REQUEST, "Flex data insufficient");
+
+    return {
+      // <-------------------- FLEX MESSAGE : โอนเงินภายใน -------------------->
+      to: line_user_id,
+      messages: [
+        {
+          type: "flex",
+          altText: `📢 แจ้งเตือน 1 Wallet โอนเงินไปยังกระเป๋า ${senderWalletUniqueId} จำนวน ${formattedAmount} บาท 💵`,
+          contents: {
+            type: "bubble",
+            size: "mega",
+            hero: {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "image",
+                  size: "100%",
+                  animated: true,
+                  url: "https://lh3.googleusercontent.com/d/1ED-x4qjaoCjMOHObufu-Y1rJqFQe2cQh",
+                  aspectRatio: "12:2",
+                  aspectMode: "cover",
+                },
+              ],
+              justifyContent: "flex-end",
+            },
+            body: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "แจ้งเตือน",
+                          size: "xxs",
+                        },
+                        {
+                          type: "text",
+                          text: "รายการโอน/ถอน",
+                          size: "sm",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [
+                        {
+                          type: "text",
+                          text: `-${formattedAmount} บาท`,
+                          offsetTop: "10px",
+                          align: "end",
+                          weight: "bold",
+                          size: "lg",
+                          color: "#FF3131",
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "separator",
+                  margin: "5px",
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "จาก 1 Wallet ID",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${senderWalletUniqueId}`,
+                          align: "end",
+                          size: "sm",
+                          offsetTop: "none",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "ไปยัง 1 Wallet ID",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${receiverWalletUniqueId}`,
+                          align: "end",
+                          size: "sm",
+                          offsetTop: "1px",
+                        },
+                      ],
+                    },
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "วันที่/เวลา",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${formattedDate}`,
+                          align: "end",
+                          size: "sm",
+                          offsetTop: "none",
+                        },
+                      ],
+                    },
+                  ],
+                  offsetTop: "5px",
+                },
+                {
+                  type: "separator",
+                  margin: "10px",
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "horizontal",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "ยอดเงินคงเหลือ",
+                          flex: 0,
+                          size: "sm",
+                        },
+                        {
+                          type: "text",
+                          text: `${formattedBalance} บาท`,
+                          align: "end",
+                          size: "sm",
+                          color: "#FF3131",
+                          weight: "bold",
+                          offsetTop: "1px",
+                        },
+                      ],
+                    },
+                  ],
+                  margin: "sm",
+                },
+                {
+                  type: "separator",
+                  margin: "sm",
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "button",
+                      action: {
+                        type: "uri",
+                        label: "ดูรายการเดินบัญชี",
+                        uri: `${liffUrlHistory}`,
+                      },
+                      height: "sm",
+                      style: "primary",
+                      color: "#FF3131",
+                    },
+                  ],
+                  offsetTop: "5px",
+                },
+                {
+                  type: "separator",
+                  margin: "10px",
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "image",
+                      url: "https://lh3.googleusercontent.com/d/1dgN6-bAYGzwtLQ9nxSLBT_EGHQg0CeHi",
+                      flex: 1,
+                      gravity: "center",
+                      size: "full",
+                      animated: true,
+                    },
+                    {
+                      type: "text",
+                      text: "แจ้งปัญหาการใช้งาน",
+                      flex: 12,
+                      size: "xxs",
+                      color: "#666666",
+                      weight: "bold",
+                      gravity: "center",
+                      wrap: true,
+                      offsetStart: "-5px",
+                    },
+                    {
+                      type: "image",
+                      url: "https://lh3.googleusercontent.com/d/1fCTeujQB4UlIxLHGhDJvQPtfDr3w0Z7F",
+                      flex: 1,
+                      gravity: "center",
+                      size: "200%",
+                    },
+                  ],
+                  spacing: "md",
+                  action: {
+                    type: "message",
+                    label: "action",
                     text: "ติดต่อเจ้าหน้าที่",
                   },
                   justifyContent: "center",

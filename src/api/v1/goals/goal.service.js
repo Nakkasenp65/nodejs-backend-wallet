@@ -1,5 +1,5 @@
-import prisma from '../../../libs/prisma.js';
-import httpStatus from 'http-status';
+import prisma from "../../../libs/prisma.js";
+import httpStatus from "http-status";
 
 const createGoalForUser = async (userId, data) => {
   const newGoal = await prisma.goal.create({
@@ -7,7 +7,7 @@ const createGoalForUser = async (userId, data) => {
       user: { connect: { id: userId } },
       mobileModel: { connect: { id: data.mobileId } },
       plan: { connect: { id: data.planId } },
-      status: 'ACTIVE',
+      status: "ACTIVE",
     },
     include: {
       mobileModel: true,
@@ -34,10 +34,14 @@ const updateGoalForUser = async (userId, data) => {
   return updatedGoal;
 };
 
-const getUserGoal = async (userId) => {
-  if (!userId) throw new ApiError(httpStatus.BAD_REQUEST);
-  const goal = await prisma.goal.findUnique({
-    where: { userId },
+const getUserGoal = async (line_user_id) => {
+  if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST);
+  const goal = await prisma.goal.findFirst({
+    where: {
+      user: {
+        line_user_id,
+      },
+    },
     select: {
       product: {
         select: {

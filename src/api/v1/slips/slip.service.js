@@ -56,37 +56,47 @@ const verfifySlip = async (slipImageUrl, transactionId) => {
   const verificationApiUrl = process.env.SLIP2_GO_VERIFY_URL;
 
   try {
-    // const slipImageResponse = await axios.get(slipImageUrl, {
-    //   responseType: "arraybuffer",
-    // });
+    const slipImageResponse = await axios.get(slipImageUrl, {
+      responseType: "arraybuffer",
+    });
 
-    // const imageBuffer = slipImageResponse.data;
-    // const mimeType = slipImageResponse.headers["content-type"] || "image/jpeg";
+    const imageBuffer = slipImageResponse.data;
+    const mimeType = slipImageResponse.headers["content-type"] || "image/jpeg";
 
-    // const form = new FormData();
-    // form.append("file", imageBuffer, {
-    //   filename: `slip_${transactionId}.${mimeType.split("/")[1] || "jpg"}`,
-    //   contentType: mimeType,
-    // });
+    const form = new FormData();
+    form.append("file", imageBuffer, {
+      filename: `slip_${transactionId}.${mimeType.split("/")[1] || "jpg"}`,
+      contentType: mimeType,
+    });
 
-    // const verifyResponse = await axios.post(verificationApiUrl, form, {
-    //   headers: {
-    //     ...form.getHeaders(),
-    //   },
-    // });
+    const verifyResponse = await axios.post(verificationApiUrl, form, {
+      headers: {
+        ...form.getHeaders(),
+      },
+    });
 
     // TEST CASE ALWAYS SUCCESS
 
-    // const verifyResult = verifyResponse.data;
+    const verifyResult = verifyResponse.data;
+
     // const verifiedAmount = verifyResult?.data?.amount;
     // const verifiedAmount = mockResponse?.data?.amount;
 
-    // console.log(`[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`);
+    console.log(
+      `[Verify Slip] Successfully verified \n${JSON.stringify(verifyResult)}`,
+    );
 
-    return mockSuccess;
+    return verifyResult;
   } catch (error) {
-    await transactionService.updateTransaction(error.response?.data.code, transactionId, 0);
-    console.error(`[Verify Slip] An error occurred during slip verification for TxID: ${transactionId}`, error.response?.data || error.message);
+    await transactionService.updateTransaction(
+      error.response?.data.code,
+      transactionId,
+      0,
+    );
+    console.error(
+      `[Verify Slip] An error occurred during slip verification for TxID: ${transactionId}`,
+      error.response?.data || error.message,
+    );
     throw error;
   }
 };
@@ -99,7 +109,10 @@ const uploadSlip = async (fileObject, identifier) => {
 
   // 1. ตรวจสอบว่ามีไฟล์และ buffer อยู่จริง
   if (!fileObject || !fileObject.buffer) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "No file buffer provided for upload.");
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "No file buffer provided for upload.",
+    );
   }
 
   // 2. สร้าง instance ของ FormData จาก library
@@ -123,7 +136,9 @@ const uploadSlip = async (fileObject, identifier) => {
       throw new Error("UPLOAD_IMAGE_API_URL is not defined in .env");
     }
 
-    console.log(`Uploading slip for identifier: ${identifier} to ${uploadApiUrl}`);
+    console.log(
+      `Uploading slip for identifier: ${identifier} to ${uploadApiUrl}`,
+    );
 
     // 5. (สำคัญมาก) ส่ง Request ด้วย axios พร้อมกับ Header ที่ถูกต้องจาก FormData
     const { data } = await axios.post(uploadApiUrl, formData, {
@@ -140,8 +155,14 @@ const uploadSlip = async (fileObject, identifier) => {
     // คืนค่าเฉพาะส่วน data ที่มี fileId, fileName, url
     return data.data;
   } catch (error) {
-    console.error("Error uploading slip:", error.response?.data || error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not upload slip image.");
+    console.error(
+      "Error uploading slip:",
+      error.response?.data || error.message,
+    );
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Could not upload slip image.",
+    );
   }
 };
 

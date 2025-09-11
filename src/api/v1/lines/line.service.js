@@ -1,15 +1,18 @@
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
-import { lineAxios } from "../../../utils/axios.js";
+import { pushMessage } from "../../../utils/axios.js";
 import line, { flexMessage } from "../../../utils/line.js";
 import prisma from "../../../libs/prisma.js";
 import getBankIconUrl from "../../../utils/bankIcon.js";
 import { BANK_DATA } from "../../../utils/bankData.js";
+import { Receiver } from "@upstash/qstash";
 
 const FLEX_MODE = {
   SAVE: "save",
   WITHDRAW: "withdraw",
   REGISTER: "register",
+  RECEIVER: "receiver",
+  SENDER: "sender",
 };
 
 const options = {
@@ -21,6 +24,8 @@ const options = {
   timeZone: "Asia/Bangkok",
   locale: "th-TH", // ใช้รูปแบบของภาษาไทย
 };
+
+const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", options);
 
 const formatRecipientDisplay = (fullname, toString) => {
   // --- STAGE 1: การตรวจสอบความสมบูรณ์ของโครงสร้าง (Structural Integrity Check) ---
@@ -93,11 +98,8 @@ const sendRegisterFlexMessage = async (line_user_id) => {
   };
 
   // ส่งไปอีก provider คนละ id กันกับในแอปปัจจุบัน
-  const flexData = flexMessage(FLEX_MODE.WITHDRAW, devId, payload);
-  const response = await lineAxios(
-    "https://api.line.me/v2/bot/message/push",
-    flexData,
-  );
+  const flex = flexMessage(FLEX_MODE.WITHDRAW, devId, payload);
+  const response = await pushMessage(flex);
   console.log(response.data);
   if (!response.status === 200)
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
@@ -105,52 +107,47 @@ const sendRegisterFlexMessage = async (line_user_id) => {
 };
 
 const sendDepositFlexMessage = async (
-  userId,
+  line_user_id,
+  amount,
+  balance,
+  walletUniqueId,
   senderName,
   senderBankNumber,
   senderBankName,
-  amount,
   updatedDate,
 ) => {
-  if ((!userId, !senderName, !senderBankNumber, !senderBankName, !amount))
-    throw new ApiError(httpStatus.BAD_REQUEST);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      line_user_id: true,
-      wallet: {
-        select: {
-          balance: true,
-          walletUniqueId: true,
-        },
-      },
-    },
-  });
-
-  const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", options);
   const formattedDate = thaiDateFormatter.format(updatedDate);
   const bankNumber = "X" + senderBankNumber.slice(-4);
   const formattedBankName = senderBankName.replace("ธนาคาร", "");
   const bankImageUrl = getBankIconUrl(senderBankName);
 
+  const formattedAmount = amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const formattedBalance = balance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   const payload = {
-    amount: amount,
+    amount: formattedAmount,
     fullnameWithBankNumber: senderName + " " + bankNumber,
-    walletUniqueId: user.wallet.walletUniqueId,
+    walletUniqueId,
     date: formattedDate,
-    balance: user.wallet.balance,
+    balance: formattedBalance,
     bankName: formattedBankName,
-    bankIcon: bankImageUrl,
+    bankImageUrl,
+    liffHistoryUrl: `${process.env.LIFF_URL}/history`,
   };
 
-  const flexData = line.flexMessage(FLEX_MODE.SAVE, user.line_user_id, payload);
-  const response = await lineAxios(
-    "https://api.line.me/v2/bot/message/push",
-    flexData,
-  );
+  // ON PRODUCTION DELETE DEVID AND USE line_user_id
+  // (RULE) MESSAGING API && LIFF (SAME PROVIDER!!)
+  const flex = line.flexMessage(FLEX_MODE.SAVE, devId, payload);
+  const { data } = await pushMessage(flex);
   console.log(response.data);
-  if (!response.status === 200)
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
+  if (!data)
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
   return response.data;
 };
 
@@ -178,14 +175,14 @@ const sendWithdrawSuccessFlex = async (
   });
   const toDisplay = formatRecipientDisplay(fullname, to);
   const bankLogoUrl = getBankIconUrl(bank);
-  const bankName = bank.replace("ธนาคาร", "").trim();
+  const formattedBankName = senderBankName.replace("ธนาคาร", "");
 
   const payload = {
     amount: formattedAmount,
     walletUniqueId,
     toDisplay,
     bankImageUrl: bankLogoUrl,
-    bankName,
+    bankName: formattedBankName,
     date: formattedDate,
     balance: formattedBalance,
     liffHistoryUrl: `${process.env.LIFF_URL}/history`,
@@ -193,17 +190,78 @@ const sendWithdrawSuccessFlex = async (
   // case จริงจะใช้ line_user_id
   // line_user_id ต้องอยู่ใน provider เดียวกับ messaging api
   const flex = line.flexMessage(FLEX_MODE.WITHDRAW, devId, payload);
-  const response = await lineAxios(
-    "https://api.line.me/v2/bot/message/push",
-    flex,
-  );
+  const response = await pushMessage(flex);
   if (!response.status === 200)
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
   return response.data;
+};
+
+const sendSenderFlex = async (
+  senderLineId,
+  sendingAmount,
+  senderWalletUniqueId,
+  receiverWalletUniqueId,
+  updatedDate,
+  senderBalance,
+  liffUrlHistory,
+) => {
+  const formattedAmount = sendingAmount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const formattedDate = thaiDateFormatter.format(updatedDate);
+  const formattedBalance = senderBalance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const flex = line.flexMessage(FLEX_MODE.SENDER, devId, {
+    senderWalletUniqueId,
+    receiverWalletUniqueId,
+    liffUrlHistory,
+    formattedAmount,
+    formattedDate,
+    formattedBalance,
+  });
+
+  await pushMessage(flex);
+};
+
+const sendReceiverFlex = async (
+  receiverLineId,
+  receivingAmount,
+  senderWalletUniqueId,
+  receiverWalletUniqueId,
+  updatedDate,
+  receiverBalance,
+  liffUrlHistory,
+) => {
+  const formattedAmount = receivingAmount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const formattedDate = thaiDateFormatter.format(updatedDate);
+  const formattedBalance = receiverBalance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const flex = line.flexMessage(FLEX_MODE.RECEIVER, devId, {
+    senderWalletUniqueId,
+    receiverWalletUniqueId,
+    liffUrlHistory,
+    formattedAmount,
+    formattedDate,
+    formattedBalance,
+  });
+
+  await pushMessage(flex);
 };
 
 export default {
   sendRegisterFlexMessage,
   sendDepositFlexMessage,
   sendWithdrawSuccessFlex,
+  sendSenderFlex,
+  sendReceiverFlex,
 };

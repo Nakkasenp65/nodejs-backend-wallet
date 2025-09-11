@@ -46,6 +46,7 @@ enum TransactionType {
   WITHDRAW
   DEPOSIT
   REWARD
+  TRANSFER
 }
 
 enum TransactionStatus {

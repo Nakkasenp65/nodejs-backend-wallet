@@ -1,6 +1,9 @@
 // src/services/user.service.ts
 
-import { MissionType, TransactionStatus } from "../../../generated/prisma/index.js";
+import {
+  MissionType,
+  TransactionStatus,
+} from "../../../generated/prisma/index.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
 import axios from "axios";
@@ -8,7 +11,10 @@ import crypto from "crypto";
 import notificationService from "../notifications/notification.service.js";
 import transactionService from "../transactions/transaction.service.js";
 import prisma from "../../../libs/prisma.js";
-import { generateUniqueReferralCode, generateUniqueWalletId } from "../../../utils/random.js";
+import {
+  generateUniqueReferralCode,
+  generateUniqueWalletId,
+} from "../../../utils/random.js";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -26,20 +32,26 @@ const checkUserStatus = async (line_user_id) => {
     const user = await prisma.user.findUnique({
       where: { line_user_id: line_user_id },
       select: {
-        id: true,
+        isLocked: true,
       },
     });
 
     if (user === null) {
       // สถานการณ์ B: ไม่พบผู้ใช้ (User Not Found)
-      return { isNewUser: true, userId: null };
+      return { isNewUser: true };
     }
 
     // สถานการณ์ A: พบผู้ใช้ (User Found)
-    return { isNewUser: false, userId: user.id };
+    return { isNewUser: false, isLocked: user.isLocked };
   } catch (error) {
-    console.error(`[CRITICAL_DB_ERROR] Failed to check user status for line_user_id: ${line_user_id}`, error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not verify user status due to a database error.");
+    console.error(
+      `[CRITICAL_DB_ERROR] Failed to check user status for line_user_id: ${line_user_id}`,
+      error,
+    );
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Could not verify user status due to a database error.",
+    );
   }
 };
 
@@ -104,7 +116,10 @@ const getUsers = async (options = {}) => {
   const whereClause = {};
   if (search) {
     // ค้นหาแบบ case-insensitive ในหลายฟิลด์
-    whereClause.OR = [{ line_display_name: { contains: search, mode: "insensitive" } }, { fullname: { contains: search, mode: "insensitive" } }];
+    whereClause.OR = [
+      { line_display_name: { contains: search, mode: "insensitive" } },
+      { fullname: { contains: search, mode: "insensitive" } },
+    ];
   }
   if (role) {
     whereClause.role = role;
@@ -183,7 +198,10 @@ const getUsers = async (options = {}) => {
 const findUserByPhone = async (phoneNumber) => {
   // --- 1. Input Validation ---
   if (!phoneNumber || typeof phoneNumber !== "string") {
-    throw new ApiError(httpStatus.BAD_REQUEST, "กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง");
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง",
+    );
   }
 
   // --- 2. Database Query ---
@@ -203,7 +221,10 @@ const findUserByPhone = async (phoneNumber) => {
   // --- 3. Post-Query Validation ---
   // Case 1: User not found
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้");
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้",
+    );
   }
 
   // --- 4. Return successful result ---
@@ -211,7 +232,10 @@ const findUserByPhone = async (phoneNumber) => {
 };
 
 const getUserFirstTimeById = async (userId) => {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstTime: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { firstTime: true },
+  });
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบผู้ใช้ที่มี id นี้");
   }
@@ -224,7 +248,21 @@ const getUserFirstTimeById = async (userId) => {
  * @returns {Promise<object>} - Object ของ User พร้อม relations
  */
 const createUserWithGoal = async (userData) => {
-  const { mobileId, planId, line_user_id, line_display_name, line_profile_url, occupation, ageRange, monthlyPayment, fullname, chat_url, phone, pin, referToCode } = userData;
+  const {
+    mobileId,
+    planId,
+    line_user_id,
+    line_display_name,
+    line_profile_url,
+    occupation,
+    ageRange,
+    monthlyPayment,
+    fullname,
+    chat_url,
+    phone,
+    pin,
+    referToCode,
+  } = userData;
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
 
@@ -293,7 +331,9 @@ const createUserWithGoal = async (userData) => {
       userId: newUser.id,
       missionId: mission.id,
       status: "ENROLLED",
-      userExpiresAt: new Date(Date.now() + mission.durationDays * 24 * 60 * 60 * 1000),
+      userExpiresAt: new Date(
+        Date.now() + mission.durationDays * 24 * 60 * 60 * 1000,
+      ),
       completeProgress: mission.completeProgress,
     }));
 
@@ -305,18 +345,22 @@ const createUserWithGoal = async (userData) => {
   }
 
   // สร้าง Transaction สำเร็จเพื่อให้ขึ้น 100 บาทในประวัติสำหรับ User ใหม่
-  const welcomeTransaction = await transactionService.createSuccessedTransaction(
-    "💰รับโบนัสฟรี 100 บาท!",
-    100,
-    TransactionStatus.SUCCESS,
-    "One Wallet",
-    line_display_name,
-    "ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้",
-    newUser.wallet.id,
-  );
+  const welcomeTransaction =
+    await transactionService.createSuccessedTransaction(
+      "💰รับโบนัสฟรี 100 บาท!",
+      100,
+      TransactionStatus.SUCCESS,
+      "One Wallet",
+      line_display_name,
+      "ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้",
+      newUser.wallet.id,
+    );
 
   // แจ้งเตือนรับเงินโบนัส User ใหม่
-  await notificationService.createWelcomeNotifications(newUser.id, welcomeTransaction.id);
+  await notificationService.createWelcomeNotifications(
+    newUser.id,
+    welcomeTransaction.id,
+  );
 
   const createdUser = await prisma.user.findUnique({
     where: { id: newUser.id },
@@ -414,11 +458,17 @@ const updateUser = async (line_user_id, updateData) => {
     // 4. จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma
     // P2025 คือ error code เมื่อไม่พบ record ที่ต้องการจะอัปเดต
     if (error.code === "P2025") {
-      throw new ApiError(httpStatus.NOT_FOUND, `ไม่พบผู้ใช้ที่มี ID: ${userId}`);
+      throw new ApiError(
+        httpStatus.NOT_FOUND,
+        `ไม่พบผู้ใช้ที่มี ID: ${userId}`,
+      );
     }
     // โยน Error อื่นๆ ต่อไป
     console.error("Error updating user:", error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้");
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้",
+    );
   }
 };
 
@@ -475,7 +525,10 @@ const getReferralHistory = async (line_user_id) => {
 
   // กรณีไม่พบ User ID ดังกล่าวในระบบ
   if (!userWithReferrals) {
-    throw new ApiError(httpStatus.NOT_FOUND, `User with ID ${line_user_id} not found.`);
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      `User with ID ${line_user_id} not found.`,
+    );
   }
 
   // 5. แปลงข้อมูลให้อยู่ในรูปแบบ DTO ที่ใช้งานง่าย
@@ -529,7 +582,9 @@ const createReferral = async (newcomerId, referralCode) => {
   }
 
   // 4. ถ้าทุกอย่างถูกต้อง, สร้าง Referral record ใหม่
-  console.log(`กำลังสร้าง Referral: ผู้แนะนำ (${referrer.id}) -> ผู้ใช้ใหม่ (${newcomerId})`);
+  console.log(
+    `กำลังสร้าง Referral: ผู้แนะนำ (${referrer.id}) -> ผู้ใช้ใหม่ (${newcomerId})`,
+  );
 
   const newReferral = await prisma.referral.create({
     data: {
@@ -567,7 +622,9 @@ const setLocked = async (line_user_id) => {
 };
 
 const unlock = async (line_user_id, pin) => {
-  const response = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
+  const response = await axios.get(
+    `https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`,
+  );
   const serverPin = response.data.pin;
 
   const userPinBuffer = Buffer.from(String(pin));
@@ -577,7 +634,10 @@ const unlock = async (line_user_id, pin) => {
     // If lengths don't match, they can't be equal.
     // We still run a dummy comparison on the serverPin to prevent leaking length information.
     crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
-    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
+    throw new ApiError(
+      httpStatus.UNAUTHORIZED,
+      "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
+    );
   }
 
   const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
@@ -592,7 +652,10 @@ const unlock = async (line_user_id, pin) => {
     // It's good practice to return something to indicate success
     return { message: "User unlocked successfully." };
   } else {
-    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
+    throw new ApiError(
+      httpStatus.UNAUTHORIZED,
+      "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
+    );
   }
 };
 
@@ -604,17 +667,25 @@ const getLockStatus = async (line_user_id) => {
     });
 
     if (userStatus === null) {
-      console.warn(`[AUTH] Lock status check: User not found for line_user_id: ${line_user_id}. Defaulting to locked.`);
+      console.warn(
+        `[AUTH] Lock status check: User not found for line_user_id: ${line_user_id}. Defaulting to locked.`,
+      );
       return { isLocked: true };
     }
 
     return userStatus;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error(`[PRISMA_ERROR] Known Prisma Error on getLockStatus: ${error.code}`, error.message);
+      console.error(
+        `[PRISMA_ERROR] Known Prisma Error on getLockStatus: ${error.code}`,
+        error.message,
+      );
     } else {
       // สถานการณ์ C: ฐานข้อมูลล่ม หรือข้อผิดพลาดอื่นๆ (System Failure)
-      console.error(`[CRITICAL_DB_ERROR] Failed to get lock status for line_user_id: ${line_user_id}`, error);
+      console.error(
+        `[CRITICAL_DB_ERROR] Failed to get lock status for line_user_id: ${line_user_id}`,
+        error,
+      );
     }
 
     return { isLocked: true };
