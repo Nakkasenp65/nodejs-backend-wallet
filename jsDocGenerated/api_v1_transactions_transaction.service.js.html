@@ -1,0 +1,1209 @@
+<!DOCTYPE html><html lang="en" style="font-size:16px"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Source: api/v1/transactions/transaction.service.js</title><!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]--><script src="scripts/third-party/hljs.js" defer="defer"></script><script src="scripts/third-party/hljs-line-num.js" defer="defer"></script><script src="scripts/third-party/popper.js" defer="defer"></script><script src="scripts/third-party/tippy.js" defer="defer"></script><script src="scripts/third-party/tocbot.min.js"></script><script>var baseURL="/",locationPathname="";baseURL=(locationPathname=document.location.pathname).substr(0,locationPathname.lastIndexOf("/")+1)</script><link rel="stylesheet" href="styles/clean-jsdoc-theme.min.css"><svg aria-hidden="true" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="display:none"><defs><symbol id="copy-icon" viewbox="0 0 488.3 488.3"><g><path d="M314.25,85.4h-227c-21.3,0-38.6,17.3-38.6,38.6v325.7c0,21.3,17.3,38.6,38.6,38.6h227c21.3,0,38.6-17.3,38.6-38.6V124    C352.75,102.7,335.45,85.4,314.25,85.4z M325.75,449.6c0,6.4-5.2,11.6-11.6,11.6h-227c-6.4,0-11.6-5.2-11.6-11.6V124    c0-6.4,5.2-11.6,11.6-11.6h227c6.4,0,11.6,5.2,11.6,11.6V449.6z"/><path d="M401.05,0h-227c-21.3,0-38.6,17.3-38.6,38.6c0,7.5,6,13.5,13.5,13.5s13.5-6,13.5-13.5c0-6.4,5.2-11.6,11.6-11.6h227    c6.4,0,11.6,5.2,11.6,11.6v325.7c0,6.4-5.2,11.6-11.6,11.6c-7.5,0-13.5,6-13.5,13.5s6,13.5,13.5,13.5c21.3,0,38.6-17.3,38.6-38.6    V38.6C439.65,17.3,422.35,0,401.05,0z"/></g></symbol><symbol id="search-icon" viewBox="0 0 512 512"><g><g><path d="M225.474,0C101.151,0,0,101.151,0,225.474c0,124.33,101.151,225.474,225.474,225.474    c124.33,0,225.474-101.144,225.474-225.474C450.948,101.151,349.804,0,225.474,0z M225.474,409.323    c-101.373,0-183.848-82.475-183.848-183.848S124.101,41.626,225.474,41.626s183.848,82.475,183.848,183.848    S326.847,409.323,225.474,409.323z"/></g></g><g><g><path d="M505.902,476.472L386.574,357.144c-8.131-8.131-21.299-8.131-29.43,0c-8.131,8.124-8.131,21.306,0,29.43l119.328,119.328    c4.065,4.065,9.387,6.098,14.715,6.098c5.321,0,10.649-2.033,14.715-6.098C514.033,497.778,514.033,484.596,505.902,476.472z"/></g></g></symbol><symbol id="font-size-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M11.246 15H4.754l-2 5H.6L7 4h2l6.4 16h-2.154l-2-5zm-.8-2L8 6.885 5.554 13h4.892zM21 12.535V12h2v8h-2v-.535a4 4 0 1 1 0-6.93zM19 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></symbol><symbol id="add-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"/></symbol><symbol id="minus-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M5 11h14v2H5z"/></symbol><symbol id="dark-theme-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M10 7a7 7 0 0 0 12 4.9v.1c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2h.1A6.979 6.979 0 0 0 10 7zm-6 5a8 8 0 0 0 15.062 3.762A9 9 0 0 1 8.238 4.938 7.999 7.999 0 0 0 4 12z"/></symbol><symbol id="light-theme-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/></symbol><symbol id="reset-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M18.537 19.567A9.961 9.961 0 0 1 12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 2.136-.67 4.116-1.81 5.74L17 12h3a8 8 0 1 0-2.46 5.772l.997 1.795z"/></symbol><symbol id="down-icon" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.7803 6.21967C13.0732 6.51256 13.0732 6.98744 12.7803 7.28033L8.53033 11.5303C8.23744 11.8232 7.76256 11.8232 7.46967 11.5303L3.21967 7.28033C2.92678 6.98744 2.92678 6.51256 3.21967 6.21967C3.51256 5.92678 3.98744 5.92678 4.28033 6.21967L8 9.93934L11.7197 6.21967C12.0126 5.92678 12.4874 5.92678 12.7803 6.21967Z"></path></symbol><symbol id="codepen-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M16.5 13.202L13 15.535v3.596L19.197 15 16.5 13.202zM14.697 12L12 10.202 9.303 12 12 13.798 14.697 12zM20 10.869L18.303 12 20 13.131V10.87zM19.197 9L13 4.869v3.596l3.5 2.333L19.197 9zM7.5 10.798L11 8.465V4.869L4.803 9 7.5 10.798zM4.803 15L11 19.131v-3.596l-3.5-2.333L4.803 15zM4 13.131L5.697 12 4 10.869v2.262zM2 9a1 1 0 0 1 .445-.832l9-6a1 1 0 0 1 1.11 0l9 6A1 1 0 0 1 22 9v6a1 1 0 0 1-.445.832l-9 6a1 1 0 0 1-1.11 0l-9-6A1 1 0 0 1 2 15V9z"/></symbol><symbol id="close-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636z"/></symbol><symbol id="menu-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/></symbol></defs></svg></head><body data-theme="dark"><div class="sidebar-container"><div class="sidebar" id="sidebar"><div class="sidebar-items-container"><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-modules"><div>Modules</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-controllers_admin.html">controllers/admin</a></div><div class="sidebar-section-children"><a href="module-controllers_broadcast.html">controllers/broadcast</a></div><div class="sidebar-section-children"><a href="module-controllers_cron.html">controllers/cron</a></div><div class="sidebar-section-children"><a href="module-controllers_goal.html">controllers/goal</a></div><div class="sidebar-section-children"><a href="module-controllers_mission.html">controllers/mission</a></div><div class="sidebar-section-children"><a href="module-controllers_notification.html">controllers/notification</a></div><div class="sidebar-section-children"><a href="module-controllers_product.html">controllers/product</a></div><div class="sidebar-section-children"><a href="module-controllers_slip.html">controllers/slip</a></div><div class="sidebar-section-children"><a href="module-controllers_transaction.html">controllers/transaction</a></div><div class="sidebar-section-children"><a href="module-controllers_user.html">controllers/user</a></div><div class="sidebar-section-children"><a href="module-controllers_user-mission.html">controllers/user-mission</a></div><div class="sidebar-section-children"><a href="module-controllers_wallet.html">controllers/wallet</a></div><div class="sidebar-section-children"><a href="module-routes_admin.html">routes/admin</a></div><div class="sidebar-section-children"><a href="module-routes_cron.html">routes/cron</a></div><div class="sidebar-section-children"><a href="module-routes_goal.html">routes/goal</a></div><div class="sidebar-section-children"><a href="module-routes_mission.html">routes/mission</a></div><div class="sidebar-section-children"><a href="module-routes_notification.html">routes/notification</a></div><div class="sidebar-section-children"><a href="module-routes_product.html">routes/product</a></div><div class="sidebar-section-children"><a href="module-routes_slip.html">routes/slip</a></div><div class="sidebar-section-children"><a href="module-routes_transaction.html">routes/transaction</a></div><div class="sidebar-section-children"><a href="module-routes_user.html">routes/user</a></div><div class="sidebar-section-children"><a href="module-routes_user-mission.html">routes/user-mission</a></div><div class="sidebar-section-children"><a href="module-routes_wallet.html">routes/wallet</a></div><div class="sidebar-section-children"><a href="module-services_admin.html">services/admin</a></div><div class="sidebar-section-children"><a href="module-services_broadcast.html">services/broadcast</a></div><div class="sidebar-section-children"><a href="module-services_goal.html">services/goal</a></div><div class="sidebar-section-children"><a href="module-services_image.html">services/image</a></div><div class="sidebar-section-children"><a href="module-services_line.html">services/line</a></div><div class="sidebar-section-children"><a href="module-services_mission.html">services/mission</a></div><div class="sidebar-section-children"><a href="module-services_notification.html">services/notification</a></div><div class="sidebar-section-children"><a href="module-services_product.html">services/product</a></div><div class="sidebar-section-children"><a href="module-services_qstash.html">services/qstash</a></div><div class="sidebar-section-children"><a href="module-services_slip.html">services/slip</a></div><div class="sidebar-section-children"><a href="module-services_transaction.html">services/transaction</a></div><div class="sidebar-section-children"><a href="module-services_user.html">services/user</a></div><div class="sidebar-section-children"><a href="module-services_user-mission.html">services/user-mission</a></div><div class="sidebar-section-children"><a href="module-services_wallet.html">services/wallet</a></div><div class="sidebar-section-children"><a href="module-utils_ApiError.html">utils/ApiError</a></div><div class="sidebar-section-children"><a href="module-utils_axios.html">utils/axios</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-classes"><div>Classes</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-utils_ApiError-ApiError.html">ApiError</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-global"><div>Global</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="global.html#translateTerm">translateTerm</a></div></div></div></div></div><div class="navbar-container" id="VuAckcnZhf"><nav class="navbar"><div class="navbar-left-items"></div><div class="navbar-right-items"><div class="navbar-right-item"><button class="icon-button search-button" aria-label="open-search"><svg><use xlink:href="#search-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button theme-toggle" aria-label="toggle-theme"><svg><use class="theme-svg-use" xlink:href="#light-theme-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button font-size" aria-label="change-font-size"><svg><use xlink:href="#font-size-icon"></use></svg></button></div></div><nav></nav></nav></div><div class="toc-container"><div class="toc-content"><span class="bold">On this page</span><div id="eed4d2a0bfd64539bb9df78095dec881"></div></div></div><div class="body-wrapper"><div class="main-content"><div class="main-wrapper"><section id="source-page" class="source-page"><header><h1 id="title" class="has-anchor">api_v1_transactions_transaction.service.js</h1></header><article><pre class="prettyprint source lang-js"><code>/**
+ * @file เซอร์วิสสำหรับจัดการตรรกะทางธุรกิจ (Business Logic) ที่เกี่ยวข้องกับธุรกรรม (Transaction) ทั้งหมด
+ * @description ไฟล์นี้เป็นศูนย์กลางการจัดการข้อมูลธุรกรรม ครอบคลุมการสร้าง, การประมวลผล (อนุมัติ/ปฏิเสธ),
+ * การโอน, การถอน, และการส่งออกข้อมูล โดยเน้นความถูกต้องของข้อมูลทางการเงินผ่าน Atomic Operations
+ * @module services/transaction
+ * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
+ * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
+ * @requires services/user-mission.service - Service สำหรับอัปเดตความคืบหน้าภารกิจ
+ * @requires services/notification.service - Service สำหรับส่งการแจ้งเตือน
+ * @requires services/line.service - Service สำหรับส่ง Flex Messages ผ่าน LINE
+ */
+import prisma from "../../../libs/prisma.js";
+// IMPORTANT: We now need JWT from the library
+import ApiError from "../../../utils/ApiError.js";
+import httpStatus from "http-status";
+import { TransactionStatus, TransactionType } from "../../../generated/prisma/index.js";
+import axios from "axios";
+import sendEmail from "../../../utils/email.js";
+import crypto from "crypto";
+import userMissionService from "../user-missions/user-mission.service.js";
+import buildTransactionsPdf from "../../../utils/pdf.js";
+import slipService from "../slips/slip.service.js";
+import notificationService from "../notifications/notification.service.js";
+import lineService from "../lines/line.service.js";
+
+/**
+ * สร้างธุรกรรมการออมเงิน (ฝากเงิน) ใหม่ในสถานะ 'รอตรวจสอบ' (PENDING)
+ * @description ฟังก์ชันนี้ใช้สำหรับบันทึกรายการฝากเงินเริ่มต้นที่ผู้ใช้แจ้งเข้ามา โดยจะแนบ URL ของรูปสลิปไปด้วย
+ * @async
+ * @param {object} transactionBody - อ็อบเจกต์ข้อมูลธุรกรรมจากผู้ใช้
+ * @param {string} imageUrl - URL ของรูปสลิปที่อัปโหลดแล้ว
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ Transaction ที่ถูกสร้างขึ้นใหม่
+ * @throws {ApiError} หากไม่ได้ระบุ `walletId` หรือไม่พบ Wallet ดังกล่าวในระบบ
+ */
+const createSavingTransaction = async (transactionBody, imageUrl) => {
+  const { name, type, status, from, walletId, walletUniqueId } = transactionBody;
+
+  if (!walletId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Wallet ID is required to create a transaction.");
+  }
+
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: walletId },
+    select: { walletUniqueId: true },
+  });
+
+  try {
+    const dataToSave = {
+      name: name,
+      type: TransactionType.DEPOSIT,
+      status: TransactionStatus.PENDING,
+      from: from,
+      to: wallet.walletUniqueId,
+      slipImageUrl: imageUrl,
+      toWallet: { connect: { walletUniqueId: walletUniqueId } },
+      amount: null,
+      verified: false,
+      verifiedAmount: null,
+    };
+
+    const newTransaction = await prisma.transaction.create({
+      data: dataToSave,
+    });
+
+    // 5. คืนค่า Transaction ที่สร้างเสร็จแล้ว
+    return newTransaction;
+  } catch (error) {
+    // จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma (เช่น walletId ไม่ถูกต้อง)
+    console.error("Prisma error creating transaction:", error);
+
+    if (error.code === "P2025") {
+      // Prisma error code for "Record to connect not found"
+      throw new ApiError(httpStatus.NOT_FOUND, `Wallet with ID ${walletId} not found.`);
+    }
+
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to create saving transaction in database.");
+  }
+};
+
+/**
+ * (Helper) สร้างธุรกรรมประเภท REWARD ที่มีสถานะเป็น SUCCESS ทันที
+ * @description ใช้สำหรับสร้างรายการธุรกรรมที่เป็นผลสำเร็จโดยสมบูรณ์แล้ว เช่น การให้โบนัส
+ * @async
+ * @param {string} name - ชื่อธุรกรรม
+ * @param {number} amount - จำนวนเงิน
+ * @param {string} status - สถานะ (ปกติคือ 'SUCCESS')
+ * @param {string} from - แหล่งที่มาของเงิน (เช่น 'SYSTEM_BONUS')
+ * @param {string} to - ชื่อผู้รับ
+ * @param {string} description - คำอธิบายธุรกรรม
+ * @param {string} walletId - ID ของ Wallet ผู้รับ
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ Transaction ที่ถูกสร้างขึ้น
+ */
+const createSuccessedTransaction = async (name, amount, status, from, to, description, walletId) => {
+  if (!name || !amount || !from || !to || !description || !walletId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Information required.");
+  }
+
+  const successedTransaction = await prisma.transaction.create({
+    data: {
+      name,
+      amount,
+      type: TransactionType.REWARD,
+      status: TransactionStatus.SUCCESS,
+      from,
+      to,
+      description,
+      toWallet: {
+        connect: {
+          id: walletId,
+        },
+      },
+    },
+    include: true,
+  });
+
+  return successedTransaction;
+};
+
+const updateTransaction = async (code, transactionId, verifyAmount = 0, senderName = "", sendBankName = "") => {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    select: {
+      walletId: true,
+      status: true,
+      toWallet: {
+        select: {
+          id: true,
+          walletUniqueId: true,
+          userId: true,
+          balance: true,
+          user: {
+            select: {
+              firstTime: true,
+              line_display_name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!transaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+  }
+
+  // สถานะที่ไม่ใช่ PENDING แสดงว่าเคยถูกประมวลผลไปแล้ว
+  if (transaction.status !== "PENDING") {
+    console.warn(
+      `Attempted to update an already processed transaction (ID: ${transactionId}, Status: ${transaction.status})`,
+    );
+    return transaction;
+  }
+
+  // อัพเดทตามสถานะจากการตรวจสอบ
+  switch (code) {
+    // --- CASE 3: SUCCESS ---
+    case "200000": {
+      const floatAmount = parseFloat(verifyAmount);
+
+      if (isNaN(floatAmount) || floatAmount &lt;= 0) {
+        throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for SUCCESS case: ${verifyAmount}`);
+      }
+
+      const isFirstTimeDeposit = transaction.wallet.user.firstTime;
+      const updatedTransaction = await prisma.$transaction(async (tx) => {
+        // ข้อมูลที่จะนำไปอัพเดท
+        const walletUpdateData = {
+          balance: { increment: floatAmount },
+        };
+
+        // Initialize description here to be modified later if needed
+        let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท\nชื่อผู้โอน: ${senderName}\nเลขบัญชี: ${sendBankName}`;
+
+        // โบนัสเติมเงินครั้งแรก 2 เท่า
+        if (isFirstTimeDeposit) {
+          const maxBonus = 100; // Define the maximum bonus amount
+          const bonusAmount = Math.min(floatAmount, maxBonus); // The bonus is the smaller of the deposit or the cap
+
+          // Add the calculated bonus to the update payload
+          walletUpdateData.bonusBalance = { increment: bonusAmount };
+
+          // Update the transaction description to reflect the actual bonus given
+          description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
+
+          // สร้างรายการสำหรับโบนัส
+          await createSuccessedTransaction(
+            `คุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`,
+            bonusAmount,
+            TransactionStatus.SUCCESS,
+            "One Wallet",
+            transaction.toWallet.user.line_display_name,
+            `💵 พิเศษ! ออมครั้งแรก รับโบนัส 2 เท่า\n\nโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`,
+            transaction.wallet.id,
+          );
+
+          // Set firstTime to false so they don't get the bonus again
+          await tx.user.update({
+            where: { id: transaction.wallet.userId },
+            data: { firstTime: false },
+          });
+        }
+
+        // อัพเดทรายการ
+        await tx.wallet.update({
+          where: { id: transaction.walletId },
+          data: walletUpdateData,
+        });
+
+        return tx.transaction.update({
+          where: { id: transactionId },
+          data: {
+            from: senderName + " " + sendBankName,
+            amount: floatAmount,
+            verified: true,
+            verifiedAmount: floatAmount,
+            status: "SUCCESS",
+            description: description, // Use the potentially modified description
+          },
+          include: {
+            wallet: true,
+          },
+        });
+      });
+
+      try {
+        const newcomerId = updatedTransaction.wallet.userId;
+        const newUserWalletId = updatedTransaction.wallet.id;
+        // 1. Check if this is the newcomer's first successful deposit.
+        const successfulTxCount = await prisma.transaction.count({
+          where: {
+            walletId: newUserWalletId,
+            status: "SUCCESS",
+            type: "INCOME",
+          },
+        });
+
+        // มีแค่รายการเดียว
+        if (successfulTxCount === 1) {
+          await prisma.user.update({
+            where: { id: newcomerId },
+            data: { firstTime: false },
+          });
+
+          const referralRecord = await prisma.referral.findUnique({
+            where: { newcomerId: newcomerId },
+          });
+
+          if (referralRecord) {
+            const referrerId = referralRecord.referrerId;
+            console.log(
+              `[Referral Trigger] Newcomer was referred by ${referrerId}. Triggering mission update for referrer.`,
+            );
+
+            await userMissionService.checkAndUpdateMissionProgress(
+              referrerId,
+              "NEWCOMER_FIRST_DEPOSIT",
+              { newcomerId: newcomerId }, // Pass extra data in case it's needed
+            );
+          } else {
+            console.log(
+              `[Referral Trigger] Newcomer ${newcomerId} was not referred. No referral mission update needed.`,
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[Referral Trigger] Failed to process post-deposit referral check for TxID ${transactionId}:`,
+          error,
+        );
+      }
+      return updatedTransaction;
+    }
+
+    // --- CASE 1: UNAUTHORIZED ---
+    case "403001": {
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: "รายการถูกปฏิเสธ: ไม่พบชื่อบัญชีผู้รับที่ตรงกับที่ระบุไว้",
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+      });
+    }
+
+    // --- CASE 2: DUPLICATE ---
+    case "200001": {
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: "รายการถูกปฏิเสธ: สลิปนี้เคยถูกใช้งานในระบบแล้ว",
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+        include: true,
+      });
+    }
+
+    // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
+    default: {
+      console.error(`Unknown transaction verification code: ${code}`);
+      return await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: `รายการถูกปฏิเสธ: สลิปไม่ถูกต้องกรุณาลองใหม่อีกครั้ง ERROR:${code}`,
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+        include: true,
+      });
+    }
+  }
+};
+
+/**
+ * สร้างคำขอถอนเงินใหม่ในสถานะ 'รอเจ้าหน้าที่ดำเนินการ' (PENDING)
+ * @description ดำเนินการภายใน Database Transaction เพื่อความปลอดภัย แม้จะเป็นการสร้างรายการเดียวก็ตาม
+ * @async
+ * @param {string} userId - ID ของผู้ใช้ที่ต้องการถอนเงิน
+ * @param {number|string} amount - จำนวนเงินที่ต้องการถอน
+ * @param {object} withdrawalDetails - อ็อบเจกต์ข้อมูลบัญชีธนาคารสำหรับรับเงิน
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมการถอนเงินที่สร้างขึ้นใหม่
+ * @throws {ApiError} หากข้อมูลนำเข้าไม่ถูกต้อง หรือไม่พบ Wallet ของผู้ใช้
+ */
+const createWithdrawTransaction = async (userId, amount, withdrawalDetails) => {
+  // --- 1. ตรวจสอบและแปลงข้อมูลนำเข้า ---
+  const floatAmount = parseFloat(amount);
+  if (isNaN(floatAmount) || floatAmount &lt;= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "จำนวนเงินที่ต้องการถอนไม่ถูกต้อง");
+  }
+  if (
+    !withdrawalDetails ||
+    !withdrawalDetails.bank ||
+    !withdrawalDetails.accountNumber ||
+    !withdrawalDetails.accountName
+  ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "กรุณาระบุข้อมูลบัญชีธนาคารให้ครบถ้วน");
+  }
+
+  // --- 3. ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัยสูงสุด ---
+  const newWithdrawalTransaction = await prisma.$transaction(async (tx) => {
+    // 3.1 ค้นหา Wallet ของผู้ใช้
+    const wallet = await tx.wallet.findUnique({
+      where: { userId: userId },
+    });
+
+    if (!wallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบ Wallet ของผู้ใช้");
+    }
+
+    const createdTransaction = await tx.transaction.create({
+      data: {
+        name: "ถอนเงิน",
+        type: TransactionType.WITHDRAW,
+        status: TransactionStatus.PENDING, // สถานะเริ่มต้นคือ "รอเจ้าหน้าที่ดำเนินการ"
+        amount: floatAmount, // 'amount' คือยอดที่ผู้ใช้จะได้รับ
+        from: `${wallet.walletUniqueId}`, // หรือชื่อผู้ใช้
+        to: `${withdrawalDetails.bank} - ${withdrawalDetails.accountNumber}`,
+        description: `ถอนเงิน ${floatAmount.toFixed(2)} บาท`,
+        bank: withdrawalDetails.bank,
+        fromWallet: {
+          connect: { id: wallet.id },
+        },
+      },
+    });
+    console.log(
+      `Withdraw successfully: on process to withdraw ${createdTransaction.amount}฿ - ${withdrawalDetails.bank}`,
+    );
+    return createdTransaction;
+  });
+
+  return newWithdrawalTransaction;
+};
+
+/**
+ * ดำเนินการโอนเงินระหว่างผู้ใช้สองคนภายในระบบแบบ Atomic Operation
+ * @description เป็นกระบวนการที่สำคัญซึ่งมีการตรวจสอบ PIN, อัปเดตยอดเงินของผู้ส่งและผู้รับ,
+ * สร้างบันทึกธุรกรรม, และส่งการแจ้งเตือน (Notification และ LINE Flex Message) ทั้งหมดพร้อมกัน
+ * @async
+ * @param {string} senderUserId - ID ของผู้ส่ง
+ * @param {object} transferData - อ็อบเจกต์ข้อมูลการโอน (recipientUserId, amount, pin)
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมการโอนที่สร้างขึ้น
+ * @throws {ApiError} หากข้อมูลไม่ถูกต้อง, ยอดเงินไม่เพียงพอ, ไม่พบผู้ใช้, หรือ PIN ไม่ถูกต้อง
+ */
+const createInternalTransfer = async (senderUserId, transferData) => {
+  const { line_user_id, recipientUserId, amount, pin } = transferData;
+  const floatAmount = parseFloat(amount);
+
+  // --- Input Validation ---
+  if (isNaN(floatAmount) || floatAmount &lt;= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "จำนวนเงินไม่ถูกต้อง");
+  }
+  if (senderUserId === recipientUserId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "ไม่สามารถโอนเงินให้ตัวเองได้");
+  }
+
+  const [sender, recipient] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: senderUserId },
+      include: { wallet: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: recipientUserId },
+      include: { wallet: true },
+    }),
+  ]);
+
+  if (!sender || !sender.wallet) {
+    // This check will now work correctly.
+    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้ส่ง");
+  }
+  if (!recipient || !recipient.wallet) {
+    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบข้อมูลผู้รับ");
+  }
+  if (sender.wallet.balance &lt; floatAmount) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "ยอดเงินคงเหลือไม่เพียงพอ");
+  }
+
+  let serverPin;
+  try {
+    const response = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
+    serverPin = response.data.pin;
+  } catch (error) {
+    console.error("[PIN_FETCH_ERROR]", error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "ไม่สามารถตรวจสอบข้อมูล PIN ได้ในขณะนี้");
+  }
+
+  const userPinBuffer = Buffer.from(String(pin));
+  const serverPinBuffer = Buffer.from(String(serverPin));
+  const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
+  if (!pinsMatch) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัส PIN ไม่ถูกต้อง");
+  }
+
+  const { transaction: outcomeTransaction, flexData: flexData } = await prisma.$transaction(async (tx) => {
+    await Promise.all([
+      tx.wallet.update({
+        where: { id: sender.wallet.id },
+        data: { balance: { decrement: floatAmount } },
+      }),
+      tx.wallet.update({
+        where: { id: recipient.wallet.id },
+        data: { balance: { increment: floatAmount } },
+      }),
+    ]);
+
+    const transaction = await tx.transaction.create({
+      data: {
+        name: "โอนเงินภายในระบบ",
+        type: TransactionType.TRANSFER,
+        status: TransactionStatus.SUCCESS,
+        amount: floatAmount,
+        from: sender.line_display_name || sender.fullname,
+        to: recipient.line_display_name || recipient.fullname,
+        fromWalletId: sender.wallet.id,
+        toWalletId: recipient.wallet.id,
+      },
+      include: {
+        toWallet: {
+          include: {
+            user: true,
+          },
+        },
+        fromWallet: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    try {
+      await notificationService.sendTransferReceived(recipient.id, {
+        amount: transaction.amount,
+        fromName: transaction.fromWallet.user.line_display_name,
+        fromPhone: transaction.toWallet.user.phone,
+      });
+
+      await notificationService.sendTransferSent(sender.id, {
+        amount: transaction.amount,
+        toName: transaction.toWallet.user.line_display_name,
+        toPhone: transaction.toWallet.user.phone,
+      });
+    } catch (error) {
+      console.error("[CREATE_NOTIFICATION_FAIL]", error);
+    }
+
+    const flexData = {
+      sendingAmount: transaction.amount,
+      senderWalletUniqueId: transaction.fromWallet.walletUniqueId,
+      senderBalance: transaction.fromWallet.balance,
+      senderLineId: transaction.fromWallet.user.line_user_id,
+      receiverWalletUniqueId: transaction.toWallet.walletUniqueId,
+      receiverBalance: transaction.toWallet.balance,
+      receiverLineId: transaction.toWallet.user.line_user_id,
+      updatedDate: transaction.updatedAt,
+      liffUrlHistory: `${process.env.LIFF_URL}/history`,
+    };
+
+    return { transaction, flexData };
+  });
+
+  await lineService.sendSenderFlex(
+    flexData.senderLineId,
+    flexData.sendingAmount,
+    flexData.senderWalletUniqueId,
+    flexData.receiverWalletUniqueId,
+    flexData.updatedDate,
+    flexData.senderBalance,
+    flexData.liffUrlHistory,
+  );
+
+  await lineService.sendReceiverFlex(
+    flexData.receiverLineId,
+    flexData.sendingAmount,
+    flexData.senderWalletUniqueId,
+    flexData.receiverWalletUniqueId,
+    flexData.updatedDate,
+    flexData.receiverBalance,
+    flexData.liffUrlHistory,
+  );
+
+  return outcomeTransaction;
+};
+
+/**
+ * ดึงประวัติธุรกรรมทั้งหมดที่เกี่ยวข้องกับ Wallet ที่ระบุ พร้อมตัวเลือกในการกรองตามเดือนและปี
+ * @async
+ * @param {string} walletId - ID ของ Wallet ที่ต้องการดูประวัติ
+ * @param {object} [options={}] - อ็อบเจกต์ตัวเลือกเพิ่มเติม
+ * @param {number|string} [options.year] - ปีที่ต้องการกรองข้อมูล (ค.ศ.)
+ * @param {number|string} [options.month] - เดือนที่ต้องการกรองข้อมูล (0-11)
+ * @returns {Promise&lt;Array&lt;object>>} Promise ที่ resolve เป็นอาร์เรย์ของธุรกรรม
+ */
+const getWalletTransaction = async (walletId, options = {}) => {
+  const whereClause = {
+    OR: [{ fromWalletId: walletId }, { toWalletId: walletId }],
+  };
+
+  if (options.year &amp;&amp; options.month !== undefined) {
+    const year = parseInt(options.year, 10);
+    const month = parseInt(options.month, 10);
+
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 1);
+
+    whereClause.createdAt = {
+      gte: startDate,
+      lt: endDate,
+    };
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: whereClause,
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: {
+      fromWallet: {
+        select: { user: { select: { line_display_name: true } } },
+      },
+      toWallet: {
+        select: { user: { select: { line_display_name: true } } },
+      },
+    },
+  });
+
+  return transactions;
+};
+
+const getSuccessTransaction = async (walletId, options = {}) => {
+  const whereClause = {
+    status: "SUCCESS",
+    OR: [{ fromWalletId: walletId }, { toWalletId: walletId }],
+  };
+
+  if (options.year &amp;&amp; options.month !== undefined) {
+    const year = parseInt(options.year, 10);
+    const month = parseInt(options.month, 10);
+
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 1);
+
+    whereClause.createdAt = {
+      gte: startDate,
+      lt: endDate,
+    };
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: whereClause,
+    take: 5,
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: {
+      fromWallet: {
+        select: { user: { select: { line_display_name: true } } },
+      },
+      toWallet: {
+        select: { user: { select: { line_display_name: true } } },
+      },
+    },
+  });
+
+  return transactions;
+};
+
+const getTransactionsWithThaiStatus = async (walletId) => {
+  // สร้าง Aggregation Pipeline Array
+  const pipeline = [
+    // ขั้นตอนที่ 1: คัดกรองเอกสารตาม walletId ที่ต้องการ
+    {
+      $match: {
+        walletId: walletId,
+      },
+    },
+
+    // ขั้นตอนที่ 2: เพิ่ม field ใหม่ชื่อ statusInThai โดยใช้ $switch
+    {
+      $addFields: {
+        statusInThai: {
+          $switch: {
+            branches: [
+              {
+                case: { $eq: ["$status", "SUCCESS"] }, // ถ้า status เท่ากับ 'SUCCESS'
+                then: "สำเร็จ",
+              },
+              {
+                case: { $eq: ["$status", "PENDING"] }, // ถ้า status เท่ากับ 'PENDING'
+                then: "กำลังตรวจสอบ",
+              },
+            ],
+            default: "ยกเลิก", // นอกจากนั้นทั้งหมด (CANCELLED หรือ REJECTED)
+          },
+        },
+      },
+    },
+
+    // ขั้นตอนที่ 3: เรียงลำดับข้อมูล
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
+  ];
+
+  // เรียกใช้ aggregation pipeline ด้วย Prisma aggregateRaw()
+  try {
+    const transactions = await prisma.transaction.aggregateRaw({ pipeline });
+    return transactions;
+  } catch (error) {
+    console.error("Error running aggregation pipeline:", error);
+    throw new Error("Failed to get transactions with Thai status.");
+  }
+};
+
+/**
+ * สร้างไฟล์ PDF รายการเดินบัญชีสำหรับ Wallet ที่ระบุ และส่งไปยังอีเมลของผู้ใช้
+ * @async
+ * @param {string} email - อีเมลของผู้รับ
+ * @param {string} walletId - ID ของ Wallet ที่ต้องการสร้างรายการ
+ * @param {string} [startDate] - วันที่เริ่มต้น (ISO format)
+ * @param {string} [endDate] - วันที่สิ้นสุด (ISO format)
+ * @returns {Promise&lt;{count: number, emailId: string|null}>} Promise ที่ resolve เป็นอ็อบเจกต์สรุปผลการส่ง
+ * @throws {Error} หากไม่พบ Wallet
+ */
+const exportToPdf = async (email, walletId, startDate, endDate) => {
+  if (!walletId) throw new Error("walletId is required");
+  if (!email) throw new Error("email is required");
+
+  // Optional date filters
+  const createdAtFilter =
+    startDate || endDate
+      ? {
+          gte: startDate ? new Date(startDate) : undefined,
+          lte: endDate ? new Date(endDate) : undefined,
+        }
+      : undefined;
+
+  // Fetch wallet + user (for header) and transactions
+  const [wallet, transactions] = await Promise.all([
+    prisma.wallet.findUnique({
+      where: { id: walletId },
+      include: { user: true },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        OR: [{ fromWalletId: walletId }, { toWalletId: walletId }],
+        status: "SUCCESS",
+        ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        fromWallet: { include: { user: true } },
+        toWallet: { include: { user: true } },
+      },
+    }),
+  ]);
+
+  if (!wallet) throw new Error("Wallet not found");
+
+  // Build PDF
+  const buffer = await buildTransactionsPdf({
+    currentWalletId: walletId,
+    wallet,
+    transactions,
+    startDate: createdAtFilter?.gte,
+    endDate: createdAtFilter?.lte,
+  });
+
+  // Email via Resend
+  const result = await sendEmail({
+    to: email,
+    subject: "รายการเดินบัญชี (PDF)",
+    text: "แนบไฟล์รายการเดินบัญชีของคุณในรูปแบบ PDF",
+    attachments: [
+      {
+        filename: `statement_${walletId}.pdf`,
+        content: buffer, // Buffer from pdfkit/pdf-lib
+        contentType: "application/pdf",
+      },
+    ],
+  });
+  console.log("Email sent: ", result);
+
+  return { count: transactions.length, emailId: result?.data?.id ?? null };
+};
+
+/**
+ * ดึงรายการธุรกรรมทั้งหมด (สำหรับ Admin) พร้อมระบบแบ่งหน้า, จัดเรียง, และกรองตามสถานะ
+ * @async
+ * @param {object} [options={}] - อ็อบเจกต์ตัวเลือก
+ * @param {number} [options.page=1] - เลขหน้า
+ * @param {number} [options.pageSize=10] - จำนวนรายการต่อหน้า
+ * @param {string} [options.status] - สถานะที่ต้องการกรอง (เช่น 'PENDING', 'SUCCESS')
+ * @returns {Promise&lt;{data: Array&lt;object>, paging: object}>} Promise ที่ resolve เป็นอ็อบเจกต์ข้อมูลและสถานะการแบ่งหน้า
+ */
+const getTransactions = async (options = {}) => {
+  const {
+    // pagination
+    page = 1,
+    pageSize = 10,
+    // sort
+    sort = "createdAt",
+    order = "desc",
+    // [MODIFIED] รับค่า status มาจาก options
+    status,
+  } = options;
+
+  const orderBy = sort === "amount" ? { amount: order } : { createdAt: order };
+  const ps = Math.min(Number(pageSize) || 20, 100);
+  const p = Math.max(Number(page) || 1, 1);
+  const skip = (p - 1) * ps;
+
+  // [MODIFIED] สร้าง where clause แบบไดนามิก
+  const whereClause = {};
+  if (status &amp;&amp; status !== "ALL") {
+    whereClause.status = status;
+  }
+
+  // [MODIFIED] ใช้ whereClause ทั้งใน findMany และ count
+  const [data, total] = await prisma.$transaction([
+    prisma.transaction.findMany({
+      where: whereClause, // &lt;--- เพิ่มตรงนี้
+      orderBy,
+      skip,
+      take: ps,
+      include: { toWallet: true, fromWallet: true },
+    }),
+    prisma.transaction.count({
+      where: whereClause, // &lt;--- และเพิ่มตรงนี้เพื่อให้ Pagination ถูกต้อง
+    }),
+  ]);
+
+  return {
+    data,
+    paging: {
+      mode: "offset",
+      page: p,
+      pageSize: ps,
+      total,
+      totalPages: Math.ceil(total / ps),
+      hasNextPage: skip + data.length &lt; total,
+      hasPrevPage: p > 1,
+    },
+  };
+};
+
+/**
+ * (Helper) จัดการตรรกะการอนุมัติธุรกรรมแบบ Atomic สำหรับ `editTransaction`
+ * @description ฟังก์ชันภายในที่รับผิดชอบการอัปเดต Wallet และ Transaction พร้อมกันใน `$transaction`
+ * และเรียกใช้ Service อื่นๆ ที่เกี่ยวข้อง (Notification, LINE) หลังการอนุมัติสำเร็จ
+ * @async
+ * @param {string} transactionId - ID ธุรกรรม
+ * @param {object} existingTransaction - อ็อบเจกต์ธุรกรรมเดิมที่ดึงมาจากฐานข้อมูล
+ * @param {object} dataToUpdate - Payload ที่ผ่านการกรองและเตรียมข้อมูลแล้ว
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่อัปเดตแล้ว
+ */
+const handleApproval = async (transactionId, existingTransaction, dataToUpdate) => {
+  const floatAmount = dataToUpdate.amount;
+
+  // กำหนดเป้าหมาย Wallet และประเภทปฏิบัติการ
+  let targetWalletId;
+  let walletOperation;
+
+  switch (existingTransaction.type) {
+    case "INCOME":
+    case "REWARD":
+      targetWalletId = existingTransaction.toWalletId;
+      walletOperation = { balance: { increment: floatAmount } };
+      break;
+    case "OUTCOME":
+    case "WITHDRAW":
+      targetWalletId = existingTransaction.fromWalletId;
+      walletOperation = { balance: { decrement: floatAmount } };
+      break;
+    default:
+      throw new ApiError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        `Approval logic not implemented for type: ${existingTransaction.type}`,
+      );
+  }
+
+  if (!targetWalletId) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Transaction type ${existingTransaction.type} is missing the required wallet association.`,
+    );
+  }
+
+  // ปฏิบัติการเชิงปรมาณู: รวมทุกอย่างไว้ในที่เดียว
+  const updatedTransaction = await prisma.$transaction(async (tx) => {
+    // 1. อัปเดต Wallet
+    const updatedWallet = await tx.wallet.update({
+      where: { id: targetWalletId },
+      data: walletOperation,
+      include: { user: true },
+    });
+
+    // 2. อัปเดต Transaction
+    const mainUpdatedTransaction = await tx.transaction.update({
+      where: { id: transactionId },
+      data: {
+        ...dataToUpdate,
+        verified: true,
+        verifiedAmount: floatAmount,
+      },
+    });
+
+    // 3. ปฏิบัติการหลังเกิดเหตุ (อยู่ภายใต้การคุ้มครอง)
+    // เราจะสร้าง payload สำหรับ service อื่นๆ ที่นี่
+    const notificationPayload = {
+      userId: updatedWallet.user.id,
+      amount: mainUpdatedTransaction.verifiedAmount,
+      transactionId: mainUpdatedTransaction.id,
+    };
+
+    // ตัวอย่างการเรียก service อื่นๆ (ควรถูกออกแบบให้รับ payload)
+    await notificationService.sendWithdrawSuccessNotification(
+      updatedWallet.user.id,
+      mainUpdatedTransaction.verifiedAmount,
+      mainUpdatedTransaction.id,
+    );
+    // userId, senderName, senderBankNumber, senderBankName, amount, updatedDate, to, line_user_id
+    await lineService.sendWithdrawSuccessFlex(
+      updatedWallet.user.line_user_id,
+      mainUpdatedTransaction.verifiedAmount,
+      updatedWallet.balance,
+      updatedWallet.walletUniqueId,
+      updatedWallet.user.fullname,
+      mainUpdatedTransaction.to,
+      mainUpdatedTransaction.bank,
+      mainUpdatedTransaction.updatedAt,
+    );
+
+    return mainUpdatedTransaction;
+  });
+
+  console.log(`Transaction ${transactionId} approved. Wallet ${targetWalletId} balance updated.`);
+  return updatedTransaction;
+};
+
+/**
+ * ฟังก์ชันหลักสำหรับแก้ไขธุรกรรมโดย Admin ทำหน้าที่เป็นตัวกระจายงาน (Dispatcher)
+ * @description ทำหน้าที่เตรียมและกรองข้อมูล จากนั้นจะวิเคราะห์เจตนาของการแก้ไข หากเป็นการอนุมัติ
+ * (เปลี่ยนสถานะเป็น SUCCESS) จะส่งต่อไปให้ `handleApproval` เพื่อจัดการแบบ Atomic
+ * หากเป็นการแก้ไขทั่วไป จะส่งต่อไปให้ `handleGenericUpdate`
+ * @async
+ * @param {string} transactionId - ID ของธุรกรรมที่ต้องการแก้ไข
+ * @param {object} [file] - ไฟล์รูปภาพสลิป (ถ้ามี)
+ * @param {object} payload - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่อัปเดตแล้ว
+ */
+const editTransaction = async (transactionId, file, payload) => {
+  // --- STAGE 1: VALIDATION ---
+  if (!transactionId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Transaction ID is required.");
+  }
+  if ((!payload || Object.keys(payload).length === 0) &amp;&amp; !file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Update payload or a slip image file is required.");
+  }
+
+  // --- STAGE 2: DATA PREPARATION &amp; SANITIZATION ---
+  const dataToUpdate = { ...payload }; // &lt;-- ใช้วิธีที่แข็งแกร่งกว่า
+  if (dataToUpdate.amount) {
+    dataToUpdate.amount = parseFloat(dataToUpdate.amount);
+    if (isNaN(dataToUpdate.amount)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Invalid amount format.");
+    }
+  }
+  if (file) {
+    const imageInfo = await slipService.uploadSlip(file, transactionId);
+    dataToUpdate.slipImageUrl = imageInfo.url;
+  }
+
+  // --- STAGE 3: DISPATCHING ---
+  const existingTransaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+  if (!existingTransaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+  }
+
+  // วิเคราะห์เจตนา: การเปลี่ยนแปลงสถานะไปเป็น SUCCESS หรือไม่?
+  const isApproving = dataToUpdate.status === "SUCCESS" &amp;&amp; existingTransaction.status !== "SUCCESS";
+
+  if (isApproving) {
+    // ส่งมอบภารกิจให้หน่วยปฏิบัติการพิเศษด้านการอนุมัติ
+    return handleApproval(transactionId, existingTransaction, dataToUpdate);
+  } else {
+    // ส่งมอบภารกิจให้หน่วยปฏิบัติการทั่วไป
+    return await prisma.transaction.update({
+      where: { id: transactionId },
+      data: dataToUpdate,
+    });
+  }
+};
+
+/**
+ * ลบธุรกรรมออกจากระบบอย่างถาวร (สำหรับ Admin)
+ * @async
+ * @param {string} transactionId - ID ของธุรกรรมที่ต้องการลบ
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่ถูกลบไป
+ * @throws {ApiError} หากไม่ได้ระบุ `transactionId`
+ */
+const deleteTransaction = async (transactionId) => {
+  if (!transactionId) throw new ApiError(httpStatus.BAD_REQUEST, "transaction id is required");
+
+  const deletedTransaction = await prisma.transaction.delete({
+    where: {
+      id: transactionId,
+    },
+  });
+
+  return deletedTransaction;
+};
+
+/**
+ * อนุมัติรายการฝากเงินที่รอดำเนินการ (PENDING) แบบ Atomic Operation
+ * @description กระบวนการที่สมบูรณ์ซึ่งประกอบด้วย 3 ขั้นตอน:
+ * 1. Pre-condition Validation: ตรวจสอบสถานะและสิทธิ์ก่อนดำเนินการ
+ * 2. Atomic Operation: อัปเดต Wallet, จัดการโบนัสฝากครั้งแรก, อัปเดต Transaction, และกระตุ้นระบบ Referral ทั้งหมดพร้อมกัน
+ * 3. Post-Commit Operations: ส่งการแจ้งเตือนและอัปเดตภารกิจหลังจากที่ Transaction สำเร็จแล้วเท่านั้น
+ * @async
+ * @param {string} transactionId - ID ของธุรกรรมที่ต้องการอนุมัติ
+ * @param {object} approvalData - ข้อมูลการอนุมัติ (userId, amount, sender)
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่อนุมัติแล้ว
+ * @throws {ApiError} หากไม่พบธุรกรรม, สถานะไม่ถูกต้อง, หรือสิทธิ์ไม่ตรงกัน
+ */
+const approveDeposit = async (transactionId, approvalData) => {
+  const { userId, amount, sender } = approvalData;
+  const floatAmount = parseFloat(amount);
+
+  if (isNaN(floatAmount) || floatAmount &lt;= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for approval: ${amount}`);
+  }
+
+  // --- STAGE 1: การตรวจสอบเงื่อนไขเบื้องต้น (Pre-condition Validation) ---
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    select: {
+      status: true,
+      toWallet: {
+        select: {
+          id: true,
+          userId: true,
+          user: { select: { firstTime: true, line_display_name: true } },
+        },
+      },
+    },
+  });
+
+  if (!transaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+  }
+  if (!transaction.toWallet) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Transaction is not a valid deposit (missing recipient wallet).");
+  }
+  if (transaction.toWallet.userId !== userId) {
+    throw new ApiError(httpStatus.FORBIDDEN, "User ID does not match the transaction's recipient.");
+  }
+  if (transaction.status !== "PENDING") {
+    console.warn(`Attempted to approve an already processed transaction (ID: ${transactionId})`);
+    return prisma.transaction.findUnique({ where: { id: transactionId } });
+  }
+
+  // --- STAGE 2: ปฏิบัติการเชิงปรมาณู (The Atomic Operation) ---
+  // รับประกันความสมบูรณ์ของข้อมูลทางการเงินและตรรกะที่เกี่ยวข้องกัน
+  const { mainUpdatedTransaction: updatedTransaction, flexData: flexData } = await prisma.$transaction(async (tx) => {
+    const walletId = transaction.toWallet.id;
+    const isFirstTimeDeposit = transaction.toWallet.user.firstTime;
+
+    const walletUpdateData = { balance: { increment: floatAmount } };
+    let description = `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount.toFixed(2)} บาท\nชื่อผู้โอน: ${sender.account.name}\nธนาคาร: ${sender.bank.name}`;
+
+    // 2.1 ตรรกะโบนัสเงินฝากครั้งแรก
+    if (isFirstTimeDeposit) {
+      const maxBonus = 100;
+      const bonusAmount = Math.min(floatAmount, maxBonus);
+      walletUpdateData.bonusBalance = { increment: bonusAmount };
+      description += `\nคุณได้รับโบนัสเงินฝากครั้งแรก ${bonusAmount} บาท!`;
+
+      await createSuccessedTransaction(
+        `โบนัสเงินฝากครั้งแรก`,
+        bonusAmount,
+        TransactionStatus.SUCCESS,
+        "SYSTEM_BONUS",
+        transaction.toWallet.user.line_display_name,
+        `โบนัสเงินฝากครั้งแรก ${bonusAmount} บาท`,
+        walletId,
+      );
+    }
+
+    // 2.2 อัปเดต Wallet หลัก
+    await tx.wallet.update({
+      where: { id: walletId },
+      data: walletUpdateData,
+    });
+
+    // 2.3 อัปเดต Transaction หลัก
+    const mainUpdatedTransaction = await tx.transaction.update({
+      where: { id: transactionId },
+      data: {
+        from: `${sender.bank.name} - ${sender.account.bank.account}`,
+        externalSource: `${sender.account.name} (${sender.bank.name})`,
+        amount: floatAmount,
+        verified: true,
+        verifiedAmount: floatAmount,
+        status: "SUCCESS",
+        description: description,
+      },
+      include: { toWallet: { include: { user: true } } }, // include wallet เพื่อส่งข้อมูลกลับ
+    });
+
+    const flexData = {
+      line_user_id: mainUpdatedTransaction.toWallet.user.line_user_id,
+      amount: mainUpdatedTransaction.verifiedAmount,
+      balance: mainUpdatedTransaction.toWallet.balance,
+      walletUniqueId: mainUpdatedTransaction.toWallet.walletUniqueId,
+      accountName: sender.account.name,
+      accountNumber: sender.account.bank.account,
+      bankName: sender.bank.name,
+      updatedDate: mainUpdatedTransaction.updatedAt,
+    };
+
+    // 2.4 ตรรกะ Referral (อยู่ภายใต้การคุ้มครองของ Transaction)
+    if (isFirstTimeDeposit) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { firstTime: false },
+      });
+      const referralRecord = await tx.referral.findUnique({
+        where: { newcomerId: userId },
+      });
+      if (referralRecord) {
+        console.log(`[Referral Trigger] Updating mission for referrer ${referralRecord.referrerId}`);
+        await userMissionService.checkAndUpdateMissionProgress(referralRecord.referrerId, "NEWCOMER_FIRST_DEPOSIT", {
+          newcomerId: userId,
+        });
+      }
+    }
+
+    return { mainUpdatedTransaction, flexData };
+  });
+
+  // --- STAGE 3: ปฏิบัติการหลังการยืนยันข้อมูล (Post-Commit Operations) ---
+  // ส่วนนี้จะทำงานก็ต่อเมื่อ STAGE 2 สำเร็จทั้งหมดแล้วเท่านั้น
+  try {
+    // ส่งแจ้งเตือนการอัพเดท
+    await notificationService.sendDepositSuccess(
+      updatedTransaction.toWallet.userId,
+      updatedTransaction.verifiedAmount,
+      updatedTransaction.id,
+    );
+
+    // ตรวจสอบภารกิจ
+    await userMissionService.checkAndUpdateMissionProgress(userId, "DEPOSIT_SUCCESS", {
+      amount: updatedTransaction.verifiedAmount,
+    });
+
+    // ส่ง Flex message รายการสำเร็จ
+    await lineService.sendDepositFlexMessage(
+      flexData.line_user_id,
+      flexData.amount,
+      flexData.balance,
+      flexData.walletUniqueId,
+      flexData.accountName,
+      flexData.accountNumber,
+      flexData.bankName,
+      flexData.updatedDate,
+    );
+  } catch (error) {
+    console.error(`[POST_APPROVAL_FAILURE] Failed to execute post-approval tasks for TxID ${transactionId}:`, error);
+  }
+
+  return updatedTransaction;
+};
+
+/**
+ * ปฏิเสธรายการฝากเงินที่รอดำเนินการ (PENDING)
+ * @description ตรวจสอบสถานะก่อนดำเนินการ จากนั้นอัปเดตสถานะเป็น 'REJECTED' พร้อมบันทึกเหตุผล
+ * @async
+ * @param {string} transactionId - ID ของธุรกรรมที่ต้องการปฏิเสธ
+ * @param {object} rejectionData - ข้อมูลการปฏิเสธ (code, reason)
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่ปฏิเสธแล้ว
+ */
+const rejectDeposit = async (transactionId, rejectionData) => {
+  const { code, reason } = rejectionData;
+
+  const existingTransaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    select: { status: true },
+  });
+
+  if (!existingTransaction) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+  }
+
+  if (existingTransaction.status !== "PENDING") {
+    console.warn(
+      `Attempted to reject an already processed transaction (ID: ${transactionId}, Status: ${existingTransaction.status})`,
+    );
+    return prisma.transaction.findUnique({ where: { id: transactionId } });
+  }
+
+  let description;
+  switch (code) {
+    case "403001":
+      description = "รายการถูกปฏิเสธ: ไม่พบชื่อบัญชีผู้รับที่ตรงกับที่ระบุไว้";
+      break;
+    case "200001":
+      description = "รายการถูกปฏิเสธ: สลิปนี้เคยถูกใช้งานในระบบแล้ว";
+      break;
+    default:
+      description = `รายการถูกปฏิเสธ: ${reason} (Code: ${code})`;
+      break;
+  }
+
+  return await prisma.transaction.update({
+    where: { id: transactionId },
+    data: {
+      status: "REJECTED",
+      description: description,
+      verified: true,
+      verifiedAmount: 0,
+    },
+  });
+};
+
+export default {
+  // ดึงข้อมูลรายการตาม query (สำหรับผู้ใช้)
+  getWalletTransaction,
+  // สร้างรายการโอนเงินภายใน
+  createInternalTransfer,
+  // ดึงข้อมูลเป็นภาษาไทย
+  getTransactionsWithThaiStatus,
+  // สร้างรายการสำหรับออมเงิน
+  createSavingTransaction,
+  // สร้างรายการที่มีสถานะเป็นสำเร็จ
+  createSuccessedTransaction,
+  // สร้างรายการสำหรับถอนเงิน
+  createWithdrawTransaction,
+  // ดึงข้อมูลรายการที่มีสถานะสำเร็จ
+  getSuccessTransaction,
+  // อัพเดทรายการ หลังตรวจสลิป
+  updateTransaction,
+  // ส่ง Statement ให้ผู้ใช้
+  exportToPdf,
+  // ดึงข้อมูลรายการตาม query (สำหรับ admin ไม่มี walletId)
+  getTransactions,
+  // แก้ไข หรือ อัพเดทรายการสำหรับ admin
+  editTransaction,
+  // ลบรายการสำหรับแอดมิน
+  deleteTransaction,
+  // อนุมัติการเติมเงิน
+  approveDeposit,
+  // ปิเสธการเติมเงิน
+  rejectDeposit,
+};
+</code></pre></article></section></div></div></div><div class="search-container" id="PkfLWpAbet" style="display:none"><div class="wrapper" id="iCxFxjkHbP"><button class="icon-button search-close-button" id="VjLlGakifb" aria-label="close search"><svg><use xlink:href="#close-icon"></use></svg></button><div class="search-box-c"><svg><use xlink:href="#search-icon"></use></svg> <input type="text" id="vpcKVYIppa" class="search-input" placeholder="Search..." autofocus></div><div class="search-result-c" id="fWwVHRuDuN"><span class="search-result-c-text">Type anything to view search result</span></div></div></div><div class="mobile-menu-icon-container"><button class="icon-button" id="mobile-menu" data-isopen="false" aria-label="menu"><svg><use xlink:href="#menu-icon"></use></svg></button></div><div id="mobile-sidebar" class="mobile-sidebar-container"><div class="mobile-sidebar-wrapper"><div class="mobile-nav-links"></div><div class="mobile-sidebar-items-c"><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-modules"><div>Modules</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-controllers_admin.html">controllers/admin</a></div><div class="sidebar-section-children"><a href="module-controllers_broadcast.html">controllers/broadcast</a></div><div class="sidebar-section-children"><a href="module-controllers_cron.html">controllers/cron</a></div><div class="sidebar-section-children"><a href="module-controllers_goal.html">controllers/goal</a></div><div class="sidebar-section-children"><a href="module-controllers_mission.html">controllers/mission</a></div><div class="sidebar-section-children"><a href="module-controllers_notification.html">controllers/notification</a></div><div class="sidebar-section-children"><a href="module-controllers_product.html">controllers/product</a></div><div class="sidebar-section-children"><a href="module-controllers_slip.html">controllers/slip</a></div><div class="sidebar-section-children"><a href="module-controllers_transaction.html">controllers/transaction</a></div><div class="sidebar-section-children"><a href="module-controllers_user.html">controllers/user</a></div><div class="sidebar-section-children"><a href="module-controllers_user-mission.html">controllers/user-mission</a></div><div class="sidebar-section-children"><a href="module-controllers_wallet.html">controllers/wallet</a></div><div class="sidebar-section-children"><a href="module-routes_admin.html">routes/admin</a></div><div class="sidebar-section-children"><a href="module-routes_cron.html">routes/cron</a></div><div class="sidebar-section-children"><a href="module-routes_goal.html">routes/goal</a></div><div class="sidebar-section-children"><a href="module-routes_mission.html">routes/mission</a></div><div class="sidebar-section-children"><a href="module-routes_notification.html">routes/notification</a></div><div class="sidebar-section-children"><a href="module-routes_product.html">routes/product</a></div><div class="sidebar-section-children"><a href="module-routes_slip.html">routes/slip</a></div><div class="sidebar-section-children"><a href="module-routes_transaction.html">routes/transaction</a></div><div class="sidebar-section-children"><a href="module-routes_user.html">routes/user</a></div><div class="sidebar-section-children"><a href="module-routes_user-mission.html">routes/user-mission</a></div><div class="sidebar-section-children"><a href="module-routes_wallet.html">routes/wallet</a></div><div class="sidebar-section-children"><a href="module-services_admin.html">services/admin</a></div><div class="sidebar-section-children"><a href="module-services_broadcast.html">services/broadcast</a></div><div class="sidebar-section-children"><a href="module-services_goal.html">services/goal</a></div><div class="sidebar-section-children"><a href="module-services_image.html">services/image</a></div><div class="sidebar-section-children"><a href="module-services_line.html">services/line</a></div><div class="sidebar-section-children"><a href="module-services_mission.html">services/mission</a></div><div class="sidebar-section-children"><a href="module-services_notification.html">services/notification</a></div><div class="sidebar-section-children"><a href="module-services_product.html">services/product</a></div><div class="sidebar-section-children"><a href="module-services_qstash.html">services/qstash</a></div><div class="sidebar-section-children"><a href="module-services_slip.html">services/slip</a></div><div class="sidebar-section-children"><a href="module-services_transaction.html">services/transaction</a></div><div class="sidebar-section-children"><a href="module-services_user.html">services/user</a></div><div class="sidebar-section-children"><a href="module-services_user-mission.html">services/user-mission</a></div><div class="sidebar-section-children"><a href="module-services_wallet.html">services/wallet</a></div><div class="sidebar-section-children"><a href="module-utils_ApiError.html">utils/ApiError</a></div><div class="sidebar-section-children"><a href="module-utils_axios.html">utils/axios</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-classes"><div>Classes</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-utils_ApiError-ApiError.html">ApiError</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-global"><div>Global</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="global.html#translateTerm">translateTerm</a></div></div></div><div class="mobile-navbar-actions"><div class="navbar-right-item"><button class="icon-button search-button" aria-label="open-search"><svg><use xlink:href="#search-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button theme-toggle" aria-label="toggle-theme"><svg><use class="theme-svg-use" xlink:href="#light-theme-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button font-size" aria-label="change-font-size"><svg><use xlink:href="#font-size-icon"></use></svg></button></div></div></div></div><script type="text/javascript" src="scripts/core.min.js"></script><script src="scripts/search.min.js" defer="defer"></script><script src="scripts/third-party/fuse.js" defer="defer"></script><script type="text/javascript">var tocbotInstance=tocbot.init({tocSelector:"#eed4d2a0bfd64539bb9df78095dec881",contentSelector:".main-content",headingSelector:"h1, h2, h3",hasInnerContainers:!0,scrollContainer:".main-content",headingsOffset:130,onClick:bringLinkToView})</script></body></html>

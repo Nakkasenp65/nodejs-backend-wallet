@@ -1,19 +1,33 @@
-import { customAlphabet } from 'nanoid';
+import { customAlphabet } from "nanoid";
+
+// --- STAGE 1: สร้าง "โรงงานผลิต ID" ที่ด้านบนสุดของไฟล์ ---
+// เราสร้าง "พิมพ์เขียว" สำหรับ ID แต่ละประเภทเพียงครั้งเดียว
+
+// พิมพ์เขียวสำหรับ Wallet ID: ตัวเลข 6 หลัก
+const walletIdGenerator = customAlphabet("0123456789", 6);
+
+// พิมพ์เขียวสำหรับ Referral Code: ตัวอักษรพิมพ์ใหญ่และตัวเลข (ไม่มีตัวที่สับสน เช่น O, 0, I, l)
+const referralCodeGenerator = customAlphabet(
+  "ABCDEFGHJKMNPQRSTUVWXYZ23456789",
+  8,
+);
+
+// --- STAGE 2: สร้าง "หน่วยปฏิบัติการ" ที่ใช้โรงงานเหล่านี้ ---
 
 export const generateUniqueWalletId = async (prisma) => {
   let walletId;
   let isUnique = false;
-  const alphabet = '0123456789';
-  const generateSixDigitId = customAlphabet(alphabet, 6);
 
   while (!isUnique) {
-    const generatedId = generateSixDigitId();
+    // ใช้ "โรงงาน" ที่สร้างไว้แล้ว
+    const generatedId = walletIdGenerator();
     walletId = `1WL-${generatedId}`;
-    const existingId = await prisma.wallet.findUnique({
-      where: { walletId: walletId },
+
+    const existingWallet = await prisma.wallet.findUnique({
+      where: { walletUniqueId: walletId }, // <-- [MINOR FIX] แก้ไขให้ตรงกับ schema
     });
 
-    if (!existingId) {
+    if (!existingWallet) {
       isUnique = true;
     }
   }
@@ -25,8 +39,8 @@ export const generateUniqueReferralCode = async (prisma) => {
   let isUnique = false;
 
   while (!isUnique) {
-    // สร้างรหัสด้วย nanoid (ปรับขนาดได้ เช่น 8 ตัว)
-    referralCode = nanoid(8).toUpperCase(); // สร้างรหัส 8 ตัว
+    // [CRITICAL FIX] ใช้ "โรงงาน" ที่สร้างไว้แล้ว
+    referralCode = referralCodeGenerator(); // ไม่จำเป็นต้อง .toUpperCase() อีกต่อไป
 
     const existingUser = await prisma.user.findUnique({
       where: { referralCode: referralCode },

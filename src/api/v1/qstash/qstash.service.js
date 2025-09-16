@@ -1,8 +1,20 @@
-import { Client } from '@upstash/qstash';
+/**
+ * @file เซอร์วิสสำหรับจัดการการเชื่อมต่อกับ QStash (Background Job Scheduler)
+ * @description ไฟล์นี้ทำหน้าที่เป็นตัวกลางในการสื่อสารกับ Upstash QStash API
+ * เพื่อมอบหมายงานที่ใช้เวลานาน (เช่น การตรวจสอบสลิป) ไปประมวลผลในเบื้องหลัง (asynchronously)
+ * @module services/qstash
+ * @requires @upstash/qstash - Client library อย่างเป็นทางการสำหรับ QStash
+ * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
+ */
+
+import { Client } from "@upstash/qstash";
 
 /**
- * จัดตารางงานตรวจสอบสลิปกับ QStash โดยใช้ Best Practices
- * @param {string} userUd - ID ของ user ที่ต้องการตรวจสอบ
+ * จัดตารางงานตรวจสอบสลิปกับ QStash
+ * @description ฟังก์ชันนี้จะทำการตรวจสอบการตั้งค่าที่จำเป็น (Token, Webhook URL) ก่อนส่ง Payload
+ * ไปยัง QStash เพื่อจัดตารางงานสำหรับการตรวจสอบสลิปในเบื้องหลัง
+ * @async
+ * @param {string} userId - ID ของ user ที่เป็นเจ้าของธุรกรรม
  * @param {string} transactionId - ID ของ Transaction ที่ต้องการตรวจสอบ
  * @param {string} slipImageUrl - URL ของรูปภาพสลิป
  * @returns {Promise<object|void>} - ข้อมูลการตอบกลับจาก QStash หรือ void ถ้า service ไม่ได้ตั้งค่าไว้
@@ -13,7 +25,7 @@ async function scheduleSlipVerification(userId, transactionId, slipImageUrl) {
   const qstashClient = qstashToken ? new Client({ token: qstashToken }) : null;
 
   if (!qstashClient) {
-    console.error('CRITICAL: QSTASH_TOKEN is not defined. QStash service will be disabled.');
+    console.error("CRITICAL: QSTASH_TOKEN is not defined. QStash service will be disabled.");
   }
 
   if (!qstashClient) {
@@ -25,8 +37,8 @@ async function scheduleSlipVerification(userId, transactionId, slipImageUrl) {
   // ดึงค่า URL จาก Environment Variables ---
   const webhookUrl = process.env.QSTASH_WEBHOOK_URL;
   if (!webhookUrl) {
-    console.error('CRITICAL: QSTASH_WEBHOOK_URL is not defined in .env file.');
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'QStash webhook URL is not configured.');
+    console.error("CRITICAL: QSTASH_WEBHOOK_URL is not defined in .env file.");
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "QStash webhook URL is not configured.");
   }
 
   const payload = { userId, slipImageUrl, transactionId };
@@ -41,12 +53,12 @@ async function scheduleSlipVerification(userId, transactionId, slipImageUrl) {
       // ไม่จำเป็นต้องระบุ method หรือ headers อีกต่อไป
     });
 
-    console.log('QStash task scheduled successfully:', qstashResponse);
+    console.log("QStash task scheduled successfully:", qstashResponse);
     return qstashResponse;
   } catch (error) {
     // --- Best Practice 5: จัดการ Error ให้ชัดเจน ---
     // Log error ที่ได้จาก QStash เพื่อการดีบักที่ง่ายขึ้น
-    const errorMessage = error.message || 'An unknown error occurred';
+    const errorMessage = error.message || "An unknown error occurred";
     console.error(`Failed to schedule task with QStash for TxID ${transactionId}:`, errorMessage);
 
     // โยน Error ที่มีความหมายชัดเจนกลับไป

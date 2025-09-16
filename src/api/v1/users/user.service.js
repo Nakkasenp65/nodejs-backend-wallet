@@ -1,28 +1,33 @@
-// src/services/user.service.ts
-
-import {
-  MissionType,
-  TransactionStatus,
-} from "../../../generated/prisma/index.js";
+/**
+ * @file เซอร์วิสสำหรับจัดการตรรกะทางธุรกิจ (Business Logic) ทั้งหมดที่เกี่ยวข้องกับผู้ใช้ (User)
+ * @description ไฟล์นี้เป็นศูนย์กลางการจัดการข้อมูลผู้ใช้, การลงทะเบียน, การตรวจสอบสถานะ,
+ * การค้นหา, และการดำเนินการที่ซับซ้อน เช่น การลบผู้ใช้แบบ Atomic Operation
+ * และการจัดการเกี่ยวกับระบบผู้แนะนำ (Referral)
+ * @module services/user
+ * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
+ * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
+ */
+import { MissionType, TransactionStatus } from "../../../generated/prisma/index.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
 import axios from "axios";
 import crypto from "crypto";
+import { NotificationType } from "../../../generated/prisma/index.js";
 import notificationService from "../notifications/notification.service.js";
 import transactionService from "../transactions/transaction.service.js";
 import prisma from "../../../libs/prisma.js";
-import {
-  generateUniqueReferralCode,
-  generateUniqueWalletId,
-} from "../../../utils/random.js";
+import { generateUniqueReferralCode, generateUniqueWalletId } from "../../../utils/random.js";
 import { Prisma } from "@prisma/client";
+import lineService from "../lines/line.service.js";
 
 /**
- * ตรวจสอบว่าผู้ใช้มีข้อมูลอยู่ในระบบแล้วหรือไม่จาก Line User ID เพื่อระบุว่าเป็นผู้ใช้ใหม่หรือผู้ใช้ปัจจุบัน
- * เป็นการตรวจสอบแบบ lightweight ที่ไม่ดึงข้อมูลผู้ใช้ทั้งหมดกลับมา
- * @param {string} userId - Line User ID ของผู้ใช้ที่ต้องการตรวจสอบ
- * @returns {Promise<{isNewUser: boolean}>} Promise ที่จะ resolve เป็น object ที่ระบุสถานะของผู้ใช้ เช่น { isNewUser: true }
- * @throws {ApiError} โยน ApiError หากไม่มีการส่ง `userId` (Line User ID) เข้ามา
+ * ตรวจสอบสถานะของผู้ใช้จาก line_user_id เพื่อระบุว่าเป็นผู้ใช้ใหม่หรือไม่ และสถานะการล็อก
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE ที่ต้องการตรวจสอบ
+ * @returns {Promise<({isNewUser: true, isLocked: undefined}|{isNewUser: false, isLocked: boolean})>} Promise ที่ resolve เป็นอ็อบเจกต์
+ * - `{ isNewUser: true }` หากไม่พบผู้ใช้
+ * - `{ isNewUser: false, isLocked: boolean }` หากพบผู้ใช้
+ * @throws {ApiError} หากไม่ได้ระบุ `line_user_id` หรือเกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล
  */
 const checkUserStatus = async (line_user_id) => {
   if (!line_user_id) {
@@ -44,23 +49,16 @@ const checkUserStatus = async (line_user_id) => {
     // สถานการณ์ A: พบผู้ใช้ (User Found)
     return { isNewUser: false, isLocked: user.isLocked };
   } catch (error) {
-    console.error(
-      `[CRITICAL_DB_ERROR] Failed to check user status for line_user_id: ${line_user_id}`,
-      error,
-    );
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "Could not verify user status due to a database error.",
-    );
+    console.error(`[CRITICAL_DB_ERROR] Failed to check user status for line_user_id: ${line_user_id}`, error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not verify user status due to a database error.");
   }
 };
 
 /**
- * ดึงข้อมูลผู้ใช้หนึ่งคนพร้อมกับข้อมูลที่เกี่ยวข้องทั้งหมด ได้แก่ wallet, goal (พร้อมรายละเอียด product และ plan),
- * notifications (พร้อมรายละเอียด transaction), และ userMissions โดยใช้ Line User ID
- * โดยทั่วไปจะใช้ฟังก์ชันนี้เพื่อดึงข้อมูลที่จำเป็นทั้งหมดสำหรับหน้าหลักของแอปพลิเคชันหลังจากผู้ใช้ล็อกอินสำเร็จ
- * @param {string} userId - Line User ID ของผู้ใช้
- * @returns {Promise<object|null>} Promise ที่จะ resolve เป็น object ของผู้ใช้พร้อมข้อมูล relations ทั้งหมดหากพบข้อมูล, หรือ resolve เป็น `null` หากไม่พบ
+ * ดึงข้อมูลผู้ใช้ตาม `line_user_id` พร้อมข้อมูลที่จำเป็นสำหรับหน้าโปรไฟล์
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @returns {Promise<object|null>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้พร้อมข้อมูล Wallet หรือ `null` หากไม่พบ
  */
 const getUser = async (line_user_id) => {
   return await prisma.user.findUnique({
@@ -91,22 +89,18 @@ const getUser = async (line_user_id) => {
 };
 
 /**
- * ดึงข้อมูลผู้ใช้ทั้งหมดพร้อมข้อมูลสรุปของ Wallet และ Goal สำหรับหน้า Admin
- * - ใช้ 'select' เพื่อเลือกเฉพาะฟิลด์ที่จำเป็น ทำให้ได้ประสิทธิภาพสูงสุดและลดขนาดข้อมูล
- * - รองรับ Pagination, การค้นหา (Search), และการกรองตาม Role
- *
- * @param {object} options - ตัวเลือกสำหรับ Query
- * @param {number} [options.page=1] - หน้าปัจจุบัน
- * @param {number} [options.pageSize=10] - จำนวนรายการต่อหน้า
- * @param {string} [options.search] - คำค้นหาสำหรับชื่อผู้ใช้
- * @param {string} [options.role] - กรองตามบทบาท (USER, ADMIN)
- * @returns {Promise<object>} - Object ที่มีข้อมูลผู้ใช้ (data) และข้อมูลการแบ่งหน้า (paging)
+ * ดึงรายการผู้ใช้ทั้งหมดพร้อมระบบแบ่งหน้า (Pagination) และการกรองข้อมูล
+ * @async
+ * @param {object} [options={}] - อ็อบเจกต์สำหรับกำหนดเงื่อนไขการค้นหา
+ * @param {number|string} [options.page=1] - เลขหน้าปัจจุบัน
+ * @param {number|string} [options.pageSize=10] - จำนวนรายการต่อหน้า
+ * @param {string} [options.search] - คำค้นหาสำหรับชื่อที่แสดงใน LINE หรือชื่อเต็ม
+ * @param {string} [options.role] - กรองตามบทบาทของผู้ใช้ (Role)
+ * @returns {Promise<{data: Array<object>, paging: object}>} Promise ที่ resolve เป็นอ็อบเจกต์ที่ประกอบด้วยข้อมูลผู้ใช้และข้อมูลการแบ่งหน้า
  */
 const getUsers = async (options = {}) => {
-  // 1. ดึงค่า options พร้อมกำหนดค่าเริ่มต้น
   const { page = 1, pageSize = 10, search, role } = options;
 
-  // 2. เตรียมค่าสำหรับ Pagination
   const ps = Math.min(Number(pageSize) || 10, 100); // ป้องกันการดึงข้อมูลเยอะเกินไป
   const p = Math.max(Number(page) || 1, 1);
   const skip = (p - 1) * ps;
@@ -133,31 +127,12 @@ const getUsers = async (options = {}) => {
       where: whereClause,
       // ---- นี่คือส่วนที่สำคัญที่สุดเพื่อประสิทธิภาพ ----
       // เราใช้ `select` เพื่อเลือกเฉพาะข้อมูลที่ต้องใช้ใน "ตาราง" เท่านั้น
-      select: {
-        id: true,
-        line_user_id: true,
-        line_display_name: true,
-        fullname: true,
-        line_profile_url: true,
-        role: true,
-        createdAt: true,
-        // ดึงข้อมูล Wallet ที่เกี่ยวข้อง (เฉพาะฟิลด์ที่ต้องการ)
-        wallet: {
-          select: {
-            id: true,
-            balance: true,
-          },
-        },
-        // ดึงข้อมูล Goal ที่เกี่ยวข้อง (เฉพาะฟิลด์ที่ต้องการ)
+      include: {
+        wallet: true,
         goal: {
-          select: {
-            status: true,
-            // ดึงข้อมูล Plan ที่ซ้อนอยู่ข้างในอีกที
-            plan: {
-              select: {
-                displayName: true,
-              },
-            },
+          include: {
+            plan: true,
+            product: true,
           },
         },
       },
@@ -188,49 +163,62 @@ const getUsers = async (options = {}) => {
 };
 
 /**
- * ค้นหาผู้ใช้ด้วยเบอร์โทรศัพท์สำหรับฟีเจอร์การโอนเงิน
- * ฟังก์ชันนี้จะคืนค่าเฉพาะข้อมูลที่จำเป็นและปลอดภัยสำหรับแสดงผล (Public-facing data) เท่านั้น
- * @param {string} phoneNumber - เบอร์โทรศัพท์ที่ต้องการค้นหา
- * @param {string} currentUserId - ID ของผู้ใช้ที่กำลังทำการค้นหา (เพื่อป้องกันการค้นหาตัวเอง)
- * @returns {Promise<object>} - Object ของผู้ใช้ที่พบ (ประกอบด้วย id, line_display_name, line_profile_url, phone)
- * @throws {ApiError} - หากไม่พบผู้ใช้, พยายามค้นหาตัวเอง, หรือข้อมูลนำเข้าไม่ถูกต้อง
+ * ค้นหาผู้รับ (Recipient) โดยใช้เบอร์โทรศัพท์หรือรหัส Wallet
+ * @async
+ * @param {object} criteria - อ็อบเจกต์เงื่อนไขการค้นหา
+ * @param {'phone'|'walletId'} criteria.type - ประเภทการค้นหา
+ * @param {string} criteria.value - ค่าที่ใช้ค้นหา
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ข้อมูลผู้ใช้ที่ค้นพบ
+ * @throws {ApiError} หากข้อมูลนำเข้าไม่ถูกต้อง, ประเภทการค้นหาไม่รองรับ, หรือไม่พบผู้ใช้
  */
-const findUserByPhone = async (phoneNumber) => {
-  // --- 1. Input Validation ---
-  if (!phoneNumber || typeof phoneNumber !== "string") {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "กรุณาระบุเบอร์โทรศัพท์ที่ถูกต้อง",
-    );
+const findRecipient = async ({ type, value }) => {
+  // --- STAGE 1: การตรวจสอบความสมบูรณ์ของโครงสร้าง (Structural Integrity Check) ---
+  if (!type || !value) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Search type and value are required.");
   }
 
-  // --- 2. Database Query ---
-  // We use `findFirst` because `phone` is not a unique field.
+  // --- STAGE 2: การสร้างเงื่อนไขการ Query (Dynamic Where Clause Construction) ---
+  let whereClause = {};
+
+  switch (type) {
+    case "phone":
+      whereClause = { phone: value };
+      break;
+    case "walletId":
+      whereClause = { wallet: { walletUniqueId: value } };
+      break;
+    default:
+      throw new ApiError(httpStatus.BAD_REQUEST, `Invalid search type: ${type}`);
+  }
+
+  // --- STAGE 3: การปฏิบัติการ (The Operation) ---
   const user = await prisma.user.findFirst({
-    where: {
-      phone: phoneNumber.trim(), // Use .trim() to remove accidental whitespace
-    },
+    where: whereClause,
     select: {
       id: true,
       line_display_name: true,
       line_profile_url: true,
       phone: true,
+      wallet: {
+        select: { walletUniqueId: true },
+      },
     },
   });
 
-  // --- 3. Post-Query Validation ---
-  // Case 1: User not found
   if (!user) {
-    throw new ApiError(
-      httpStatus.NOT_FOUND,
-      "ไม่พบผู้ใช้สำหรับเบอร์โทรศัพท์นี้",
-    );
+    throw new ApiError(httpStatus.NOT_FOUND, "ไม่พบผู้ใช้ที่ตรงกับข้อมูลที่คุณระบุ");
   }
 
-  // --- 4. Return successful result ---
   return user;
 };
 
+/**
+ * ดึงสถานะ firstTime ของผู้ใช้จาก ID ภายในของระบบ
+ * @async
+ * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูล
+ * @returns {Promise<{firstTime: boolean}>} Promise ที่ resolve เป็นอ็อบเจกต์สถานะ firstTime
+ * @throws {ApiError} หากไม่พบผู้ใช้
+ */
 const getUserFirstTimeById = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -243,9 +231,13 @@ const getUserFirstTimeById = async (userId) => {
 };
 
 /**
- * สร้างหรืออัปเดตผู้ใช้, สร้าง Goal และ Wallet หากยังไม่มี
- * @param {object} userData - ข้อมูลของผู้ใช้ใหม่
- * @returns {Promise<object>} - Object ของ User พร้อม relations
+ * สร้างผู้ใช้ใหม่พร้อมตั้งค่าเริ่มต้นที่จำเป็นทั้งหมดภายใน Atomic Transaction เดียว
+ * @description กระบวนการนี้จะสร้าง User, Wallet, Goal, UserMissions, Welcome Bonus Transaction,
+ * Notifications, และ Referral record (ถ้ามี) พร้อมกันทั้งหมด
+ * @async
+ * @param {object} userData - อ็อบเจกต์ข้อมูลสำหรับการลงทะเบียนผู้ใช้ใหม่
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่สร้างขึ้นใหม่พร้อมข้อมูลที่เกี่ยวข้องทั้งหมด
+ * @throws {ApiError} หากมีผู้ใช้ที่มี `line_user_id` นี้อยู่แล้วในระบบ (CONFLICT)
  */
 const createUserWithGoal = async (userData) => {
   const {
@@ -254,6 +246,7 @@ const createUserWithGoal = async (userData) => {
     line_user_id,
     line_display_name,
     line_profile_url,
+    email, // <-- เพิ่ม email เข้ามา
     occupation,
     ageRange,
     monthlyPayment,
@@ -266,56 +259,21 @@ const createUserWithGoal = async (userData) => {
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
 
+  // --- STAGE 1: การตรวจสอบเงื่อนไขเบื้องต้น (Pre-condition Validation) ---
+  // ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่ ก่อนที่จะเริ่มกระบวนการที่ซับซ้อน
   const existingUser = await prisma.user.findUnique({
     where: { line_user_id: line_user_id },
     select: { id: true },
   });
-
   if (existingUser) {
-    throw new ApiError(httpStatus.CONFLICT, "User is already exists");
+    throw new ApiError(httpStatus.CONFLICT, "มีผู้ใช้งานนี้ในระบบแล้ว");
   }
 
-  // สร้าง Referral Code ที่ไม่ซ้ำกัน
+  // --- STAGE 2: การเตรียมข้อมูลภายนอก (External Data Preparation) ---
+  // ทำงานที่ไม่ขึ้นกับ Transaction ให้เสร็จสิ้นก่อน
   const referralCode = await generateUniqueReferralCode(prisma);
-  const walletId = await generateUniqueWalletId(prisma);
+  const walletUniqueId = await generateUniqueWalletId(prisma);
 
-  // สร้าง User, Wallet, และ Goal ใหม่ทั้งหมด
-  const newUser = await prisma.user.create({
-    data: {
-      line_user_id: line_user_id,
-      line_display_name: line_display_name,
-      line_profile_url: line_profile_url,
-      occupation: occupation,
-      ageRange: ageRange,
-      monthlyPayment: floatMonthlyPayment,
-      referralCode: referralCode,
-      fullname: fullname,
-      chat_url: chat_url,
-      pin: pin,
-      phone: phone,
-      referToCode: referToCode,
-      wallet: {
-        create: {
-          walletUniqueId: walletId,
-          balance: 0,
-          bonusBalance: 100,
-          // โปรโมชั่น เติมเงินได้ 2 เท่า
-        },
-      },
-      goal: {
-        create: {
-          plan: { connect: { id: planId } },
-          product: { connect: { id: mobileId } },
-        },
-      },
-    },
-    select: {
-      id: true,
-      wallet: true,
-    },
-  });
-
-  // จัดการภารกิจ Onboarding สำหรับ User ใหม่
   const onboardingMissions = await prisma.mission.findMany({
     where: {
       type: MissionType.ONBOARDING,
@@ -323,95 +281,136 @@ const createUserWithGoal = async (userData) => {
     },
   });
 
-  if (onboardingMissions.length > 0) {
-    console.log(`Found ${onboardingMissions.length} onboarding missions.`);
-
-    // Map missions ที่เจอเพื่อเตรียมสร้าง UserMission
-    const userMissionsData = onboardingMissions.map((mission) => ({
-      userId: newUser.id,
-      missionId: mission.id,
-      status: "ENROLLED",
-      userExpiresAt: new Date(
-        Date.now() + mission.durationDays * 24 * 60 * 60 * 1000,
-      ),
-      completeProgress: mission.completeProgress,
-    }));
-
-    // สร้าง UserMission ทั้งหมดในครั้งเดียว
-    await prisma.userMission.createMany({
-      data: userMissionsData,
-    });
-    console.log(`Created ${userMissionsData.length} user missions.`);
-  }
-
-  // สร้าง Transaction สำเร็จเพื่อให้ขึ้น 100 บาทในประวัติสำหรับ User ใหม่
-  const welcomeTransaction =
-    await transactionService.createSuccessedTransaction(
-      "💰รับโบนัสฟรี 100 บาท!",
-      100,
-      TransactionStatus.SUCCESS,
-      "One Wallet",
-      line_display_name,
-      "ยินดีต้อนรับสู่ One Wallet! เราขอมอบเงินโบนัสพิเศษ 100 บาทเข้าสู่บัญชีของคุณทันที!\n\nคุณสามารถใช้โบนัสนี้เป็นส่วนหนึ่งของการออมเพื่อพิชิตเป้าหมายการดาวน์สินค้าที่คุณต้องการได้เลย\n\n**คำเตือน:** \nเงินโบนัสนี้สามารถนำมาแลกสินค้าเพื่อเริ่มการดาวน์ได้ ไม่สามารถถอนเป็นเงินสดได้",
-      newUser.wallet.id,
-    );
-
-  // แจ้งเตือนรับเงินโบนัส User ใหม่
-  await notificationService.createWelcomeNotifications(
-    newUser.id,
-    welcomeTransaction.id,
-  );
-
-  const createdUser = await prisma.user.findUnique({
-    where: { id: newUser.id },
-    include: {
-      goal: {
-        include: {
-          product: true,
-          plan: true,
-        },
-      },
-      wallet: true,
-      notifications: true,
-    },
-  });
-
+  let referrerId = null;
   if (referToCode) {
     const referredUser = await prisma.user.findUnique({
       where: { referralCode: referToCode },
       select: { id: true },
     });
-
-    // 2. IMPORTANT: Check if the referrer was actually found before using it
     if (referredUser) {
-      await prisma.referral.create({
-        data: {
-          newcomer: {
-            connect: { id: newUser.id },
-          },
-          referrer: {
-            connect: {
-              id: referredUser.id,
-            },
-          },
-        },
-      });
+      referrerId = referredUser.id;
     } else {
-      // Optional: Log that an invalid referral code was used
-      console.warn(`Invalid referral code used during signup: ${referToCode}`);
+      console.warn(`[Onboarding] Invalid referral code used: ${referToCode}`);
     }
   }
+
+  // --- STAGE 3: ปฏิบัติการก่อกำเนิดเชิงปรมาณู (The Genesis Atomic Operation) ---
+  // ทุกการ "เขียน" ข้อมูลลงฐานข้อมูลจะเกิดขึ้นภายใน "ห้องนิรภัย" นี้เท่านั้น
+  const createdUser = await prisma.$transaction(async (tx) => {
+    // 1. สร้าง User, Wallet, และ Goal พร้อมกัน
+    const newUser = await tx.user.create({
+      data: {
+        line_user_id,
+        line_display_name,
+        line_profile_url,
+        email,
+        occupation,
+        ageRange,
+        monthlyPayment: floatMonthlyPayment,
+        referralCode,
+        fullname,
+        chat_url,
+        pin,
+        phone,
+        referToCode: referToCode || null, // ตรวจสอบให้แน่ใจว่าเป็น null ถ้าไม่มี
+        wallet: {
+          create: {
+            walletUniqueId: walletUniqueId,
+            balance: 0,
+            bonusBalance: 100,
+          },
+        },
+        goal: {
+          create: {
+            plan: { connect: { id: planId } },
+            product: { connect: { id: mobileId } },
+          },
+        },
+      },
+      select: { id: true, wallet: { select: { id: true } } },
+    });
+
+    // 2. สร้าง UserMissions (ถ้ามี)
+    if (onboardingMissions.length > 0) {
+      const userMissionsData = onboardingMissions.map((mission) => ({
+        userId: newUser.id,
+        missionId: mission.id,
+        status: "ENROLLED",
+        userExpiresAt: new Date(Date.now() + (mission.durationDays || 30) * 24 * 60 * 60 * 1000),
+        completeProgress: mission.completeProgress,
+      }));
+      await tx.userMission.createMany({ data: userMissionsData });
+    }
+
+    // 3. สร้าง Transaction โบนัสต้อนรับ
+    const welcomeTransaction = await tx.transaction.create({
+      data: {
+        name: "💰 รับโบนัสฟรี 100 บาท!",
+        type: "REWARD",
+        status: "SUCCESS",
+        amount: 100,
+        toWalletId: newUser.wallet.id,
+        externalSource: "SYSTEM_WELCOME_BONUS",
+        description: "โบนัสต้อนรับสำหรับสมาชิกใหม่",
+        verified: true,
+        verifiedAmount: 100,
+      },
+    });
+
+    // 4. สร้าง Notifications ต้อนรับ
+    await tx.notification.createMany({
+      data: [
+        {
+          userId: newUser.id,
+          type: NotificationType.REWARD,
+          title: "💰 รับโบนัสฟรี 100 บาท!",
+          body: "ยินดีต้อนรับ! เรามอบโบนัส 100 บาทเข้าบัญชีของคุณทันที",
+          transactionId: welcomeTransaction.id,
+        },
+        {
+          userId: newUser.id,
+          type: NotificationType.SYSTEM,
+          title: "💵 พิเศษ! ออมครั้งแรก รับโบนัส 2 เท่า",
+          body: "เริ่มต้นการออมของคุณอย่างคุ้มค่า! เพียงออมเงินครั้งแรก รับโบนัสเพิ่มสูงสุด 100 บาท",
+        },
+      ],
+    });
+
+    // 5. สร้าง Referral Record (ถ้ามี)
+    if (referrerId) {
+      await tx.referral.create({
+        data: {
+          newcomerId: newUser.id,
+          referrerId: referrerId,
+        },
+      });
+    }
+
+    // 6. [FINAL STEP] ดึงข้อมูลทั้งหมดที่จำเป็นกลับไปในครั้งเดียว
+    // นี่คือปฏิบัติการ "อ่าน" ครั้งสุดท้ายภายใน Transaction
+    return tx.user.findUnique({
+      where: { id: newUser.id },
+      include: {
+        goal: { include: { product: true, plan: true } },
+        wallet: true,
+        notifications: { orderBy: { createdAt: "desc" }, take: 5 }, // เอามาแค่บางส่วนเพื่อประสิทธิภาพ
+        userMissions: true,
+      },
+    });
+  });
+
+  await lineService.sendRegisterFlexMessage(createdUser.line_user_id);
 
   return createdUser;
 };
 
 /**
- * อัปเดตข้อมูลส่วนตัวของผู้ใช้โดยใช้ ID ของผู้ใช้ (ไม่ใช่ Line User ID)
- * ฟังก์ชันนี้ออกแบบมาเพื่อรับข้อมูลที่สามารถแก้ไขได้จากฟอร์ม 'แก้ไขโปรไฟล์'
- * @param {string} userId - ID หลักของผู้ใช้ในฐานข้อมูล (Primary Key, ObjectId)
- * @param {object} updateData - Object ที่มีข้อมูลที่ต้องการอัปเดต เช่น { fullname, phone, occupation, ageRange }
- * @returns {Promise<object>} - Object ของผู้ใช้ที่อัปเดตข้อมูลล่าสุดแล้ว
- * @throws {ApiError} - โยน ApiError หากไม่พบผู้ใช้ด้วย ID ที่ระบุ
+ * อัปเดตข้อมูลโปรไฟล์ของผู้ใช้โดยใช้ `line_user_id`
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE ที่ต้องการอัปเดต
+ * @param {object} updateData - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต (fullname, phone, etc.)
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่อัปเดตแล้วพร้อมข้อมูลที่เกี่ยวข้องทั้งหมด
+ * @throws {ApiError} หากไม่ได้ระบุ `line_user_id`, ไม่พบผู้ใช้, หรือเกิดข้อผิดพลาดจากฐานข้อมูล
  */
 const updateUser = async (line_user_id, updateData) => {
   // 1. ตรวจสอบว่ามี User ID ส่งเข้ามาหรือไม่
@@ -458,25 +457,21 @@ const updateUser = async (line_user_id, updateData) => {
     // 4. จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma
     // P2025 คือ error code เมื่อไม่พบ record ที่ต้องการจะอัปเดต
     if (error.code === "P2025") {
-      throw new ApiError(
-        httpStatus.NOT_FOUND,
-        `ไม่พบผู้ใช้ที่มี ID: ${userId}`,
-      );
+      throw new ApiError(httpStatus.NOT_FOUND, `ไม่พบผู้ใช้ที่มี ID: ${userId}`);
     }
     // โยน Error อื่นๆ ต่อไป
     console.error("Error updating user:", error);
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้",
-    );
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้");
   }
 };
 
 /**
- * อัปเดตข้อมูลผู้ใช้โดย Admin
- * @param {string} userId - Mongo ID ของผู้ใช้ที่จะแก้ไข
- * @param {object} payload - ข้อมูลที่จะอัปเดต
- * @returns {Promise<object>} - User object ที่อัปเดตแล้ว
+ * อัปเดตข้อมูลผู้ใช้โดย Admin (ใช้ ID ภายในระบบ)
+ * @description ฟังก์ชันนี้อนุญาตให้ Admin แก้ไขฟิลด์ที่จำกัด เช่น role
+ * @async
+ * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูล
+ * @param {object} payload - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต (fullname, phone, role, etc.)
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่อัปเดตแล้ว
  */
 const updateUserByAdmin = async (userId, payload) => {
   // เลือกเฉพาะ field ที่อนุญาตให้ Admin แก้ไขได้
@@ -490,9 +485,63 @@ const updateUserByAdmin = async (userId, payload) => {
 };
 
 /**
- * ดึงประวัติการเชิญเพื่อนทั้งหมดของผู้ใช้
- * @param userId - ID ของผู้ใช้ (ผู้แนะนำ)
- * @returns Array ของ ReferralHistoryDto
+ * ลบผู้ใช้ออกจากระบบอย่างถาวรพร้อมข้อมูลที่เกี่ยวข้องทั้งหมดภายใน Atomic Transaction
+ * @description ใช้ Prisma's onDelete: Cascade เพื่อลบข้อมูลที่ผูกกันทั้งหมด เช่น Wallet, Goal, Transactions ฯลฯ
+ * @async
+ * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูลที่ต้องการลบ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ข้อมูลของผู้ใช้ที่ถูกลบไป (สำหรับใช้ในการบันทึก Log)
+ * @throws {ApiError} หากไม่ได้ระบุ `userId` หรือไม่พบผู้ใช้
+ */
+const deleteUser = async (userId) => {
+  // --- STAGE 1: การตรวจสอบความสมบูรณ์ของโครงสร้าง (Structural Integrity Check) ---
+  if (!userId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "User ID is required.");
+  }
+
+  // --- STAGE 2: การปฏิบัติการเชิงปรมาณู (The Atomic Operation) ---
+  // เราใช้ $transaction เพื่อความปลอดภัย แม้ว่า onDelete: Cascade จะทำงานในระดับฐานข้อมูล
+  // แต่นี่เป็นการรับประกันว่าการตรวจสอบและการลบจะเกิดขึ้นในบริบทเดียวกัน
+  // และทำให้ง่ายต่อการเพิ่ม "ปฏิบัติการล้างข้อมูลด้วยมือ" ในอนาคต
+  const deletedUser = await prisma.$transaction(async (tx) => {
+    // 2.1 การสืบสวนเบื้องต้น (Initial Investigation)
+    const userToDelete = await tx.user.findUnique({
+      where: { id: userId },
+    });
+
+    // Structural Safeguard: หากไม่พบเป้าหมาย, ยุติภารกิจและ Rollback
+    if (!userToDelete) {
+      throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
+    }
+
+    // [OPTIONAL BUT RECOMMENDED] ปฏิบัติการล้างข้อมูลด้วยมือ (Manual Cleanup)
+    // สำหรับความสัมพันธ์ที่ซับซ้อนหรือไม่ใช่ Cascade
+    // ตัวอย่าง: หากคุณต้องการยกเลิกการอ้างอิงถึง User นี้ใน Referral record ของคนอื่น
+    // await tx.user.updateMany({
+    //   where: { referToCode: userToDelete.referralCode },
+    //   data: { referToCode: null }
+    // });
+
+    // 2.2 การออกคำสั่งรื้อถอน (The Decommissioning Order)
+    // Prisma จะจัดการ onDelete: Cascade ทั้งหมดโดยอัตโนมัติ
+    await tx.user.delete({
+      where: { id: userId },
+    });
+
+    // คืนค่าข้อมูลของผู้ที่ถูกลบ เพื่อการบันทึก Log
+    return userToDelete;
+  });
+
+  console.log(`[AUDIT] User with ID ${deletedUser.id} and all associated data has been permanently deleted.`);
+
+  return deletedUser;
+};
+
+/**
+ * ดึงประวัติการแนะนำเพื่อนของผู้ใช้ที่ระบุ
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE ของผู้ที่ต้องการดูประวัติ
+ * @returns {Promise<Array<object>>} Promise ที่ resolve เป็นอาร์เรย์ของข้อมูลการแนะนำเพื่อน
+ * @throws {ApiError} หากไม่พบผู้ใช้
  */
 const getReferralHistory = async (line_user_id) => {
   // 1. ค้นหา User และดึงข้อมูล madeReferrals ที่เกี่ยวข้อง
@@ -525,10 +574,7 @@ const getReferralHistory = async (line_user_id) => {
 
   // กรณีไม่พบ User ID ดังกล่าวในระบบ
   if (!userWithReferrals) {
-    throw new ApiError(
-      httpStatus.NOT_FOUND,
-      `User with ID ${line_user_id} not found.`,
-    );
+    throw new ApiError(httpStatus.NOT_FOUND, `User with ID ${line_user_id} not found.`);
   }
 
   // 5. แปลงข้อมูลให้อยู่ในรูปแบบ DTO ที่ใช้งานง่าย
@@ -545,6 +591,14 @@ const getReferralHistory = async (line_user_id) => {
   return history;
 };
 
+/**
+ * สร้างบันทึกการแนะนำ (Referral Record) เพื่อเชื่อมโยงผู้แนะนำและผู้ใช้ใหม่
+ * @async
+ * @param {string} newcomerId - ID ของผู้ใช้ใหม่ (ผู้ถูกแนะนำ)
+ * @param {string} referralCode - โค้ดของผู้แนะนำ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ Referral ที่สร้างขึ้นใหม่
+ * @throws {Error} หากข้อมูลไม่ครบถ้วน, โค้ดไม่ถูกต้อง, แนะนำตัวเอง, หรือผู้ใช้ใหม่เคยถูกแนะนำแล้ว
+ */
 const createReferral = async (newcomerId, referralCode) => {
   // 1. ตรวจสอบว่ามี Input ที่จำเป็นครบถ้วน
   if (!newcomerId || !referralCode) {
@@ -582,9 +636,7 @@ const createReferral = async (newcomerId, referralCode) => {
   }
 
   // 4. ถ้าทุกอย่างถูกต้อง, สร้าง Referral record ใหม่
-  console.log(
-    `กำลังสร้าง Referral: ผู้แนะนำ (${referrer.id}) -> ผู้ใช้ใหม่ (${newcomerId})`,
-  );
+  console.log(`กำลังสร้าง Referral: ผู้แนะนำ (${referrer.id}) -> ผู้ใช้ใหม่ (${newcomerId})`);
 
   const newReferral = await prisma.referral.create({
     data: {
@@ -598,6 +650,13 @@ const createReferral = async (newcomerId, referralCode) => {
   return newReferral;
 };
 
+/**
+ * ตั้งค่าหรืออัปเดตโค้ดผู้แนะนำที่ผู้ใช้คนนี้ถูกแนะนำมา (referToCode)
+ * @async
+ * @param {string} userId - ID ของผู้ใช้
+ * @param {string} referCode - โค้ดของผู้แนะนำ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่อัปเดตแล้ว
+ */
 const setUserReferCode = async (userId, referCode) => {
   const referSet = await prisma.user.update({
     where: {
@@ -610,6 +669,12 @@ const setUserReferCode = async (userId, referCode) => {
   return referSet;
 };
 
+/**
+ * ตั้งสถานะของผู้ใช้เป็นล็อก (isLocked = true)
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่อัปเดตแล้ว
+ */
 const setLocked = async (line_user_id) => {
   const locked = await prisma.user.update({
     where: { line_user_id: line_user_id },
@@ -621,10 +686,17 @@ const setLocked = async (line_user_id) => {
   return locked;
 };
 
+/**
+ * ปลดล็อกผู้ใช้โดยการเปรียบเทียบ PIN ที่ส่งมากับ PIN ที่จัดเก็บไว้อย่างปลอดภัย
+ * @description ใช้ `crypto.timingSafeEqual` เพื่อป้องกัน Timing Attacks
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @param {string|number} pin - PIN ที่ผู้ใช้ป้อนเข้ามาเพื่อปลดล็อก
+ * @returns {Promise<{message: string}>} Promise ที่ resolve เป็นข้อความยืนยันการปลดล็อกสำเร็จ
+ * @throws {ApiError} หาก PIN ไม่ถูกต้อง
+ */
 const unlock = async (line_user_id, pin) => {
-  const response = await axios.get(
-    `https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`,
-  );
+  const response = await axios.get(`https://checkuserdb.vercel.app/api/get-pin/${line_user_id}`);
   const serverPin = response.data.pin;
 
   const userPinBuffer = Buffer.from(String(pin));
@@ -634,10 +706,7 @@ const unlock = async (line_user_id, pin) => {
     // If lengths don't match, they can't be equal.
     // We still run a dummy comparison on the serverPin to prevent leaking length information.
     crypto.timingSafeEqual(serverPinBuffer, serverPinBuffer);
-    throw new ApiError(
-      httpStatus.UNAUTHORIZED,
-      "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
-    );
+    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
   }
 
   const pinsMatch = crypto.timingSafeEqual(userPinBuffer, serverPinBuffer);
@@ -652,13 +721,17 @@ const unlock = async (line_user_id, pin) => {
     // It's good practice to return something to indicate success
     return { message: "User unlocked successfully." };
   } else {
-    throw new ApiError(
-      httpStatus.UNAUTHORIZED,
-      "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่",
-    );
+    throw new ApiError(httpStatus.UNAUTHORIZED, "รหัสผ่านไม่ถูกต้องกรุณาลองใหม่");
   }
 };
 
+/**
+ * ดึงสถานะการล็อก (isLocked) ของผู้ใช้
+ * @description ออกแบบมาให้ทำงานอย่างปลอดภัย โดยจะคืนค่า isLocked: true หากไม่พบผู้ใช้หรือเกิดข้อผิดพลาด
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @returns {Promise<{isLocked: boolean}>} Promise ที่ resolve เป็นอ็อบเจกต์สถานะการล็อก
+ */
 const getLockStatus = async (line_user_id) => {
   try {
     const userStatus = await prisma.user.findUnique({
@@ -667,25 +740,17 @@ const getLockStatus = async (line_user_id) => {
     });
 
     if (userStatus === null) {
-      console.warn(
-        `[AUTH] Lock status check: User not found for line_user_id: ${line_user_id}. Defaulting to locked.`,
-      );
+      console.warn(`[AUTH] Lock status check: User not found for line_user_id: ${line_user_id}. Defaulting to locked.`);
       return { isLocked: true };
     }
 
     return userStatus;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error(
-        `[PRISMA_ERROR] Known Prisma Error on getLockStatus: ${error.code}`,
-        error.message,
-      );
+      console.error(`[PRISMA_ERROR] Known Prisma Error on getLockStatus: ${error.code}`, error.message);
     } else {
       // สถานการณ์ C: ฐานข้อมูลล่ม หรือข้อผิดพลาดอื่นๆ (System Failure)
-      console.error(
-        `[CRITICAL_DB_ERROR] Failed to get lock status for line_user_id: ${line_user_id}`,
-        error,
-      );
+      console.error(`[CRITICAL_DB_ERROR] Failed to get lock status for line_user_id: ${line_user_id}`, error);
     }
 
     return { isLocked: true };
@@ -693,20 +758,19 @@ const getLockStatus = async (line_user_id) => {
 };
 
 export default {
-  getUsers,
-  // ดึงข้อมูล user ด้วย line_user_id
-  getUser,
-  // ดึงข้อมูล user ด้วย เบอร์
-  findUserByPhone,
-  getUserFirstTimeById,
-  updateUserByAdmin,
-  updateUser,
   checkUserStatus,
+  getUsers,
+  getUser,
+  findRecipient,
+  getUserFirstTimeById,
   createUserWithGoal,
+  updateUser,
+  updateUserByAdmin,
+  deleteUser,
+  getReferralHistory,
   createReferral,
   setUserReferCode,
-  getReferralHistory,
-  getLockStatus,
   setLocked,
   unlock,
+  getLockStatus,
 };

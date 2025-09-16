@@ -1,0 +1,409 @@
+<!DOCTYPE html><html lang="en" style="font-size:16px"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Source: api/v1/missions/mission.service.js</title><!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]--><script src="scripts/third-party/hljs.js" defer="defer"></script><script src="scripts/third-party/hljs-line-num.js" defer="defer"></script><script src="scripts/third-party/popper.js" defer="defer"></script><script src="scripts/third-party/tippy.js" defer="defer"></script><script src="scripts/third-party/tocbot.min.js"></script><script>var baseURL="/",locationPathname="";baseURL=(locationPathname=document.location.pathname).substr(0,locationPathname.lastIndexOf("/")+1)</script><link rel="stylesheet" href="styles/clean-jsdoc-theme.min.css"><svg aria-hidden="true" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="display:none"><defs><symbol id="copy-icon" viewbox="0 0 488.3 488.3"><g><path d="M314.25,85.4h-227c-21.3,0-38.6,17.3-38.6,38.6v325.7c0,21.3,17.3,38.6,38.6,38.6h227c21.3,0,38.6-17.3,38.6-38.6V124    C352.75,102.7,335.45,85.4,314.25,85.4z M325.75,449.6c0,6.4-5.2,11.6-11.6,11.6h-227c-6.4,0-11.6-5.2-11.6-11.6V124    c0-6.4,5.2-11.6,11.6-11.6h227c6.4,0,11.6,5.2,11.6,11.6V449.6z"/><path d="M401.05,0h-227c-21.3,0-38.6,17.3-38.6,38.6c0,7.5,6,13.5,13.5,13.5s13.5-6,13.5-13.5c0-6.4,5.2-11.6,11.6-11.6h227    c6.4,0,11.6,5.2,11.6,11.6v325.7c0,6.4-5.2,11.6-11.6,11.6c-7.5,0-13.5,6-13.5,13.5s6,13.5,13.5,13.5c21.3,0,38.6-17.3,38.6-38.6    V38.6C439.65,17.3,422.35,0,401.05,0z"/></g></symbol><symbol id="search-icon" viewBox="0 0 512 512"><g><g><path d="M225.474,0C101.151,0,0,101.151,0,225.474c0,124.33,101.151,225.474,225.474,225.474    c124.33,0,225.474-101.144,225.474-225.474C450.948,101.151,349.804,0,225.474,0z M225.474,409.323    c-101.373,0-183.848-82.475-183.848-183.848S124.101,41.626,225.474,41.626s183.848,82.475,183.848,183.848    S326.847,409.323,225.474,409.323z"/></g></g><g><g><path d="M505.902,476.472L386.574,357.144c-8.131-8.131-21.299-8.131-29.43,0c-8.131,8.124-8.131,21.306,0,29.43l119.328,119.328    c4.065,4.065,9.387,6.098,14.715,6.098c5.321,0,10.649-2.033,14.715-6.098C514.033,497.778,514.033,484.596,505.902,476.472z"/></g></g></symbol><symbol id="font-size-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M11.246 15H4.754l-2 5H.6L7 4h2l6.4 16h-2.154l-2-5zm-.8-2L8 6.885 5.554 13h4.892zM21 12.535V12h2v8h-2v-.535a4 4 0 1 1 0-6.93zM19 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></symbol><symbol id="add-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"/></symbol><symbol id="minus-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M5 11h14v2H5z"/></symbol><symbol id="dark-theme-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M10 7a7 7 0 0 0 12 4.9v.1c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2h.1A6.979 6.979 0 0 0 10 7zm-6 5a8 8 0 0 0 15.062 3.762A9 9 0 0 1 8.238 4.938 7.999 7.999 0 0 0 4 12z"/></symbol><symbol id="light-theme-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/></symbol><symbol id="reset-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M18.537 19.567A9.961 9.961 0 0 1 12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 2.136-.67 4.116-1.81 5.74L17 12h3a8 8 0 1 0-2.46 5.772l.997 1.795z"/></symbol><symbol id="down-icon" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.7803 6.21967C13.0732 6.51256 13.0732 6.98744 12.7803 7.28033L8.53033 11.5303C8.23744 11.8232 7.76256 11.8232 7.46967 11.5303L3.21967 7.28033C2.92678 6.98744 2.92678 6.51256 3.21967 6.21967C3.51256 5.92678 3.98744 5.92678 4.28033 6.21967L8 9.93934L11.7197 6.21967C12.0126 5.92678 12.4874 5.92678 12.7803 6.21967Z"></path></symbol><symbol id="codepen-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M16.5 13.202L13 15.535v3.596L19.197 15 16.5 13.202zM14.697 12L12 10.202 9.303 12 12 13.798 14.697 12zM20 10.869L18.303 12 20 13.131V10.87zM19.197 9L13 4.869v3.596l3.5 2.333L19.197 9zM7.5 10.798L11 8.465V4.869L4.803 9 7.5 10.798zM4.803 15L11 19.131v-3.596l-3.5-2.333L4.803 15zM4 13.131L5.697 12 4 10.869v2.262zM2 9a1 1 0 0 1 .445-.832l9-6a1 1 0 0 1 1.11 0l9 6A1 1 0 0 1 22 9v6a1 1 0 0 1-.445.832l-9 6a1 1 0 0 1-1.11 0l-9-6A1 1 0 0 1 2 15V9z"/></symbol><symbol id="close-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636z"/></symbol><symbol id="menu-icon" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/></symbol></defs></svg></head><body data-theme="dark"><div class="sidebar-container"><div class="sidebar" id="sidebar"><div class="sidebar-items-container"><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-modules"><div>Modules</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-controllers_admin.html">controllers/admin</a></div><div class="sidebar-section-children"><a href="module-controllers_broadcast.html">controllers/broadcast</a></div><div class="sidebar-section-children"><a href="module-controllers_cron.html">controllers/cron</a></div><div class="sidebar-section-children"><a href="module-controllers_goal.html">controllers/goal</a></div><div class="sidebar-section-children"><a href="module-controllers_mission.html">controllers/mission</a></div><div class="sidebar-section-children"><a href="module-controllers_notification.html">controllers/notification</a></div><div class="sidebar-section-children"><a href="module-controllers_product.html">controllers/product</a></div><div class="sidebar-section-children"><a href="module-controllers_slip.html">controllers/slip</a></div><div class="sidebar-section-children"><a href="module-controllers_transaction.html">controllers/transaction</a></div><div class="sidebar-section-children"><a href="module-controllers_user.html">controllers/user</a></div><div class="sidebar-section-children"><a href="module-controllers_user-mission.html">controllers/user-mission</a></div><div class="sidebar-section-children"><a href="module-controllers_wallet.html">controllers/wallet</a></div><div class="sidebar-section-children"><a href="module-routes_admin.html">routes/admin</a></div><div class="sidebar-section-children"><a href="module-routes_cron.html">routes/cron</a></div><div class="sidebar-section-children"><a href="module-routes_goal.html">routes/goal</a></div><div class="sidebar-section-children"><a href="module-routes_mission.html">routes/mission</a></div><div class="sidebar-section-children"><a href="module-routes_notification.html">routes/notification</a></div><div class="sidebar-section-children"><a href="module-routes_product.html">routes/product</a></div><div class="sidebar-section-children"><a href="module-routes_slip.html">routes/slip</a></div><div class="sidebar-section-children"><a href="module-routes_transaction.html">routes/transaction</a></div><div class="sidebar-section-children"><a href="module-routes_user.html">routes/user</a></div><div class="sidebar-section-children"><a href="module-routes_user-mission.html">routes/user-mission</a></div><div class="sidebar-section-children"><a href="module-routes_wallet.html">routes/wallet</a></div><div class="sidebar-section-children"><a href="module-services_admin.html">services/admin</a></div><div class="sidebar-section-children"><a href="module-services_broadcast.html">services/broadcast</a></div><div class="sidebar-section-children"><a href="module-services_goal.html">services/goal</a></div><div class="sidebar-section-children"><a href="module-services_image.html">services/image</a></div><div class="sidebar-section-children"><a href="module-services_line.html">services/line</a></div><div class="sidebar-section-children"><a href="module-services_mission.html">services/mission</a></div><div class="sidebar-section-children"><a href="module-services_notification.html">services/notification</a></div><div class="sidebar-section-children"><a href="module-services_product.html">services/product</a></div><div class="sidebar-section-children"><a href="module-services_qstash.html">services/qstash</a></div><div class="sidebar-section-children"><a href="module-services_slip.html">services/slip</a></div><div class="sidebar-section-children"><a href="module-services_transaction.html">services/transaction</a></div><div class="sidebar-section-children"><a href="module-services_user.html">services/user</a></div><div class="sidebar-section-children"><a href="module-services_user-mission.html">services/user-mission</a></div><div class="sidebar-section-children"><a href="module-services_wallet.html">services/wallet</a></div><div class="sidebar-section-children"><a href="module-utils_ApiError.html">utils/ApiError</a></div><div class="sidebar-section-children"><a href="module-utils_axios.html">utils/axios</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-classes"><div>Classes</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-utils_ApiError-ApiError.html">ApiError</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-global"><div>Global</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="global.html#translateTerm">translateTerm</a></div></div></div></div></div><div class="navbar-container" id="VuAckcnZhf"><nav class="navbar"><div class="navbar-left-items"></div><div class="navbar-right-items"><div class="navbar-right-item"><button class="icon-button search-button" aria-label="open-search"><svg><use xlink:href="#search-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button theme-toggle" aria-label="toggle-theme"><svg><use class="theme-svg-use" xlink:href="#light-theme-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button font-size" aria-label="change-font-size"><svg><use xlink:href="#font-size-icon"></use></svg></button></div></div><nav></nav></nav></div><div class="toc-container"><div class="toc-content"><span class="bold">On this page</span><div id="eed4d2a0bfd64539bb9df78095dec881"></div></div></div><div class="body-wrapper"><div class="main-content"><div class="main-wrapper"><section id="source-page" class="source-page"><header><h1 id="title" class="has-anchor">api_v1_missions_mission.service.js</h1></header><article><pre class="prettyprint source lang-js"><code>/**
+ * @file เซอร์วิสสำหรับจัดการตรรกะทางธุรกิจ (Business Logic) ที่เกี่ยวข้องกับภารกิจหลัก (Mission)
+ * @description ไฟล์นี้รวบรวมฟังก์ชันสำหรับผู้ดูแลระบบในการสร้าง, แก้ไข, และดูข้อมูลเชิงลึกของภารกิจ
+ * รวมถึงฟังก์ชันสำหรับผู้ใช้ในการดึงข้อมูลภารกิจที่สามารถเข้าร่วมได้
+ * @module services/mission
+ * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
+ * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
+ * @requires zod - Library สำหรับการตรวจสอบความถูกต้องของข้อมูล (Schema Validation)
+ */
+import httpStatus from "http-status";
+import prisma from "../../../libs/prisma.js";
+import ApiError from "../../../utils/ApiError.js";
+import { z } from "zod";
+
+/**
+ * สร้างภารกิจใหม่ในระบบ (สำหรับ Admin)
+ * @description ใช้ Zod Schema ในการตรวจสอบความถูกต้องของข้อมูล (Validation) ที่ส่งเข้ามาอย่างเข้มงวด
+ * ก่อนที่จะสร้างข้อมูลลงในฐานข้อมูล
+ * @async
+ * @param {object} payload - อ็อบเจกต์ข้อมูลของภารกิจที่ต้องการสร้าง
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่สร้างขึ้นใหม่
+ * @throws {Error} หากข้อมูลไม่ถูกต้องตาม Schema (ZodError) หรือเกิดข้อผิดพลาดจากฐานข้อมูล
+ */
+const createMission = async (payload) => {
+  const MissionSchema = z.object({
+    title: z.string().min(1, "กรุณาระบุชื่อภารกิจ"),
+    description: z.string().optional(),
+    type: z.enum(["ONBOARDING", "ACCUMULATION", "STREAK", "REFERRAL", "DELETE"]), // ต้องเป็นค่าใน Enum นี้เท่านั้น
+    rewardAmount: z.number().min(0, "รางวัลต้องไม่เป็นค่าติดลบ"),
+    durationDays: z.number().int().positive("ระยะเวลาต้องเป็นจำนวนเต็มบวก"),
+    completeProgress: z.number().int().positive("เป้าหมายต้องเป็นจำนวนเต็มบวก").optional().default(1),
+    // เราสามารถกำหนดค่า default ได้ด้วย
+  });
+
+  try {
+    const validatedData = MissionSchema.parse(payload);
+
+    const missionDataToCreate = {
+      title: validatedData.title,
+      description: validatedData.description,
+      type: validatedData.type,
+      rewardAmount: validatedData.rewardAmount,
+      durationDays: validatedData.durationDays,
+      completeProgress: validatedData.completeProgress,
+      // เราสามารถเพิ่ม Business Logic ที่นี่ได้ เช่น:
+      webExpiresAt: new Date(Date.now() + validatedData.durationDays * 24 * 60 * 60 * 1000),
+    };
+
+    // --- 5. Create the mission in the database ---
+    const newMission = await prisma.mission.create({
+      data: missionDataToCreate,
+    });
+
+    // (Optional) สามารถเพิ่ม Logic อื่นๆ หลังสร้างสำเร็จได้ที่นี่
+    // await sendNotificationToAdmins('New Mission Created!');
+
+    return newMission;
+  } catch (error) {
+    // --- 6. Robust Error Handling ---
+    if (error instanceof z.ZodError) {
+      // ถ้าเป็น Error จาก Zod (ข้อมูลไม่ถูกต้อง)
+      console.error("Validation Error:", error);
+      // เราสามารถโยน Error ที่มีความหมายมากขึ้นเพื่อให้ Layer บน (เช่น Controller) นำไปใช้ได้
+      throw new Error(`ข้อมูลไม่ถูกต้อง: ${error}`);
+    }
+    // ถ้าเป็น Error อื่นๆ (เช่น Database down)
+    console.error("Error creating mission:", error);
+    throw new Error("ไม่สามารถสร้างภารกิจได้ในขณะนี้");
+  }
+};
+
+/**
+ * แก้ไขรายละเอียดของภารกิจที่มีอยู่ (สำหรับ Admin)
+ * @async
+ * @param {string} missionId - ID ของภารกิจที่ต้องการแก้ไข
+ * @param {object} updateData - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่อัปเดตแล้ว
+ */
+const updateMission = async (missionId, updateData) => {
+  const updatedMission = await prisma.mission.update({
+    where: { id: missionId },
+    data: updateData,
+  });
+  return updatedMission;
+};
+
+/**
+ * ดึงข้อมูลภารกิจทั้งหมดสำหรับหน้า Admin พร้อมรองรับการกรอง, จัดเรียง, แบ่งหน้า, และสถิติ
+ * @description ฟังก์ชันนี้ถูกปรับปรุงประสิทธิภาพโดยการใช้ `_count` เพื่อนับจำนวนผู้เข้าร่วมแทนการดึงข้อมูลทั้งหมด
+ * และใช้ `$transaction` เพื่อดึงข้อมูลสถิติสรุป (total, active, soon) พร้อมกันในครั้งเดียว
+ * @async
+ * @param {object} [options={}] - ตัวเลือกสำหรับ Query
+ * @returns {Promise&lt;{data: Array&lt;object>, paging: object, stats: object}>} Promise ที่ resolve เป็นอ็อบเจกต์ที่ประกอบด้วยข้อมูลภารกิจ, การแบ่งหน้า, และสถิติ
+ */
+const getAllMissionsForAdmin = async (options = {}) => {
+  // 1. กำหนดค่าเริ่มต้นและดึงค่าจาก options
+  const { page = 1, pageSize = 10, search, type, status, sort = "latest" } = options;
+
+  // 2. เตรียมตัวแปรสำหรับ Pagination
+  const take = parseInt(pageSize, 10);
+  const skip = (parseInt(page, 10) - 1) * take;
+  const now = new Date();
+
+  // 3. สร้างเงื่อนไขการค้นหา (Where Clause) แบบไดนามิก
+  const where = {};
+  if (search) {
+    // ค้นหาแบบ case-insensitive ทั้งใน title และ description
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (type &amp;&amp; type !== "ALL") {
+    where.type = type;
+  }
+  if (status &amp;&amp; status !== "ALL") {
+    if (status === "ACTIVE") {
+      where.webExpiresAt = { gt: now }; // gt = Greater Than (มากกว่า)
+    } else if (status === "EXPIRED") {
+      where.webExpiresAt = { lte: now }; // lte = Less Than or Equal (น้อยกว่าหรือเท่ากับ)
+    }
+  }
+
+  // 4. สร้างเงื่อนไขการเรียงลำดับ (Order By Clause)
+  let orderBy = {};
+  switch (sort) {
+    case "expiresSoon":
+      orderBy = { webExpiresAt: "asc" }; // เรียงจากน้อยไปมาก (ใกล้หมดอายุก่อน)
+      where.webExpiresAt = { gt: now }; // การเรียงแบบนี้ควรใช้กับภารกิจที่ยังไม่หมดอายุเท่านั้น
+      break;
+    case "rewardHigh":
+      orderBy = { rewardAmount: "desc" }; // เรียงจากมากไปน้อย
+      break;
+    case "latest":
+    default:
+      orderBy = { createdAt: "desc" }; // เรียงจากมากไปน้อย (สร้างล่าสุดก่อน)
+      break;
+  }
+
+  // 5. ดึงข้อมูลภารกิจและนับจำนวนทั้งหมดพร้อมกันเพื่อประสิทธิภาพสูงสุด
+  const [missions, totalMissions] = await prisma.$transaction([
+    prisma.mission.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+      // ---- ส่วนสำคัญเพื่อประสิทธิภาพ ----
+      // ใช้ `include` กับ `_count` เพื่อดึงแค่ "จำนวน" ผู้ใช้ที่เข้าร่วม
+      // แทนที่จะดึงข้อมูล User object ทั้งหมดซึ่งอาจมีขนาดใหญ่มาก
+      include: {
+        _count: {
+          select: { enrolledBy: true },
+        },
+      },
+    }),
+    prisma.mission.count({ where }),
+  ]);
+
+  // 6. [Optional but Recommended] คำนวณค่า Stats ที่ฝั่ง Backend
+  // เพื่อลดภาระ Frontend และส่งข้อมูลที่จำเป็นเท่านั้น
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const [total, active, soon] = await prisma.$transaction([
+    prisma.mission.count(), // นับทั้งหมดแบบไม่มีเงื่อนไข
+    prisma.mission.count({ where: { webExpiresAt: { gt: now } } }), // นับที่ยัง Active
+    prisma.mission.count({
+      where: { webExpiresAt: { gt: now, lte: sevenDaysFromNow } },
+    }), // นับที่ใกล้หมดอายุใน 7 วัน
+  ]);
+
+  const stats = { total, active, soon };
+
+  // 7. จัดรูปแบบข้อมูลให้ตรงกับที่ Frontend คาดหวัง
+  // Frontend เดิมใช้ `m.enrolledBy.length`, เราจะแปลง `_count.enrolledBy` ให้เป็นแบบนั้น
+  const formattedMissions = missions.map((mission) => {
+    const { _count, ...restOfMission } = mission;
+    return {
+      ...restOfMission,
+      enrolledByCount: _count.enrolledBy, // สร้าง key ใหม่ที่ชัดเจน
+      // หรือถ้าอยากให้เหมือนเดิมเป๊ะๆ ก็ทำแบบนี้ได้ (แต่ไม่แนะนำ)
+      // enrolledBy: { length: _count.enrolledBy }
+    };
+  });
+
+  // 8. สร้าง Object สำหรับ Pagination
+  const paging = {
+    page,
+    pageSize: take,
+    total: totalMissions,
+    totalPages: Math.ceil(totalMissions / take),
+  };
+
+  // 9. คืนค่าข้อมูลทั้งหมดในโครงสร้างที่ Frontend ต้องการ
+  return {
+    data: formattedMissions,
+    paging,
+    stats,
+  };
+};
+
+/**
+ * (Admin) ดึงข้อมูลภารกิจเชิงลึก (Mission Details)
+ * @description ใช้ `prisma.$transaction` เพื่อดึงข้อมูล 4 ส่วนพร้อมกันอย่างมีประสิทธิภาพ:
+ * 1. ข้อมูลหลักของภารกิจ
+ * 2. สถิติสรุป (จำนวนผู้เข้าร่วมทั้งหมด, แยกตามสถานะ) โดยใช้ `groupBy`
+ * 3. รายชื่อผู้เข้าร่วมแบบแบ่งหน้า (Paginated)
+ * @async
+ * @param {string} missionId - ID ของภารกิจที่ต้องการดูรายละเอียด
+ * @param {object} [options={}] - ตัวเลือกสำหรับ Query (ใช้สำหรับ Pagination ของรายชื่อผู้เข้าร่วม)
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ที่ประกอบด้วยข้อมูลเชิงลึกทั้งหมดของภารกิจ
+ * @throws {ApiError} หากไม่พบภารกิจ
+ */
+const getDetailsMission = async (missionId, options = {}) => {
+  // 1. กำหนดค่าเริ่มต้นสำหรับ Pagination ของ "รายชื่อผู้เข้าร่วม"
+  const { page = 1, pageSize = 10 } = options;
+  const take = parseInt(pageSize, 10);
+  const skip = (parseInt(page, 10) - 1) * take;
+
+  // 2. ใช้ prisma.$transaction เพื่อรันทุก Query ที่จำเป็นพร้อมกัน ทำให้ได้ประสิทธิภาพสูงสุด
+  const [
+    mission, // Query 1: ดึงข้อมูลหลักของภารกิจ
+    participantsData, // Query 2: ดึงรายชื่อผู้เข้าร่วมแบบแบ่งหน้า
+    totalParticipants, // Query 3: นับจำนวนผู้เข้าร่วมทั้งหมด (สำหรับ Pagination)
+    statusStats, // Query 4: คำนวณสถิติตามสถานะ (วิธีที่เร็วที่สุด)
+  ] = await prisma.$transaction([
+    // Query 1: ดึงข้อมูล Mission หลัก
+    prisma.mission.findUnique({
+      where: { id: missionId },
+    }),
+
+    // Query 2: ดึงรายชื่อผู้เข้าร่วม (UserMission) พร้อมข้อมูล User ที่เกี่ยวข้อง
+    prisma.userMission.findMany({
+      where: { missionId: missionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            line_display_name: true,
+            line_profile_url: true,
+          },
+        },
+      },
+      orderBy: { enrolledAt: "desc" },
+      take,
+      skip,
+    }),
+
+    // Query 3: นับจำนวนผู้เข้าร่วมทั้งหมดในภารกิจนี้
+    prisma.userMission.count({
+      where: { missionId },
+    }),
+
+    // Query 4: ใช้ `groupBy` เพื่อให้ Database คำนวณสถิติตามสถานะให้เรา
+    // นี่คือวิธีที่มีประสิทธิภาพสูงสุดสำหรับการทำ Aggregation
+    prisma.userMission.groupBy({
+      by: ["status"], // จัดกลุ่มตามฟิลด์ 'status'
+      where: { missionId },
+      _count: {
+        status: true, // นับจำนวนรายการในแต่ละกลุ่ม
+      },
+    }),
+  ]);
+
+  // 3. ตรวจสอบว่าภารกิจมีอยู่จริงหรือไม่
+  if (!mission) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Mission not found.");
+  }
+
+  // 4. จัดรูปแบบข้อมูลสถิติที่ได้จาก `groupBy` ให้อยู่ในรูปแบบที่ใช้งานง่าย
+  // จาก: [{ status: 'ENROLLED', _count: { status: 5 } }]
+  // เป็น: { ENROLLED: 5, CLAIMED: 0, ... }
+  const statistics = {
+    totalEnrolled: totalParticipants,
+    byStatus: {
+      ENROLLED: 0,
+      AWAITING_CLAIM: 0,
+      CLAIMED: 0,
+      EXPIRED: 0,
+      CLAIM_EXPIRED: 0,
+    },
+  };
+  statusStats.forEach((stat) => {
+    statistics.byStatus[stat.status] = stat._count.status;
+  });
+
+  // 5. สร้าง Object สำหรับ Pagination ของรายชื่อผู้เข้าร่วม
+  const participantsPaging = {
+    page: parseInt(page, 10),
+    pageSize: take,
+    total: totalParticipants,
+    totalPages: Math.ceil(totalParticipants / take),
+  };
+
+  // 6. ประกอบร่างข้อมูลทั้งหมดเพื่อส่งกลับไปให้ Frontend
+  return {
+    mission,
+    statistics,
+    participants: {
+      data: participantsData,
+      paging: participantsPaging,
+    },
+  };
+};
+
+/**
+ * ดึงข้อมูลภารกิจที่ผู้ใช้ "สามารถเข้าร่วมได้"
+ * @description ตรวจสอบเงื่อนไข 3 ชั้นเพื่อกรองภารกิจ:
+ * 1. ภารกิจยังไม่หมดเขต
+ * 2. ผู้ใช้ยังไม่เคยเข้าร่วมภารกิจนี้มาก่อน
+ * 3. ผู้ใช้ไม่มีภารกิจประเภท (type) เดียวกันที่กำลังดำเนินอยู่ (ENROLLED หรือ AWAITING_CLAIM)
+ * @async
+ * @param {string} userId - ID ของผู้ใช้
+ * @returns {Promise&lt;Array&lt;object>>} Promise ที่ resolve เป็นอาร์เรย์ของภารกิจที่ผู้ใช้สามารถเข้าร่วมได้
+ */
+const getAvailableMissions = async (userId) => {
+  const now = new Date();
+
+  // 1) ภารกิจทั้งหมดที่ user เคยรับ (กันรับซ้ำ mission เดิม)
+  const enrolledMissionIds = (
+    await prisma.userMission.findMany({
+      where: { userId },
+      select: { missionId: true },
+    })
+  )
+    .map((um) => um.missionId)
+    .filter(Boolean); // กัน null
+
+  // 2) ประเภท (type) ที่ user "กำลังมีภารกิจอยู่" (กันรับภารกิจคนละอันแต่ type เดียวกัน)
+  const activeUserMissions = await prisma.userMission.findMany({
+    where: {
+      userId,
+      status: { in: ["ENROLLED", "AWAITING_CLAIM"] },
+    },
+    include: {
+      mission: { select: { type: true } },
+    },
+  });
+
+  const blockedTypes = Array.from(new Set(activeUserMissions.map((um) => um.mission?.type).filter(Boolean)));
+
+  // 3) หา mission ที่ยังสมัครได้
+  const availableMissions = await prisma.mission.findMany({
+    where: {
+      AND: [
+        // ยังไม่หมดเขต (หรือไม่มีวันหมดอายุ)
+        { OR: [{ webExpiresAt: null }, { webExpiresAt: { gte: now } }] },
+
+        // ยังไม่เคยรับ mission นี้มาก่อน
+        { id: { notIn: enrolledMissionIds } },
+
+        // ไม่มีภารกิจ type เดียวกันค้างอยู่
+        blockedTypes.length ? { type: { notIn: blockedTypes } } : {},
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return availableMissions;
+};
+
+/**
+ * ลบภารกิจออกจากระบบ (สำหรับ Admin)
+ * @async
+ * @param {string} missionId - ID ของภารกิจที่ต้องการลบ
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ของภารกิจที่ถูกลบไป
+ * @throws {ApiError} หากไม่ได้ระบุ `missionId`
+ */
+const deleteMission = async (missionId) => {
+  if (!missionId) throw new ApiError(httpStatus.BAD_REQUEST);
+  return await prisma.mission.delete({
+    where: { id: missionId },
+  });
+};
+
+/**
+ * แก้ไขรายละเอียดของภารกิจที่มีอยู่ (สำหรับ Admin) - (เวอร์ชันรับ Payload เต็ม)
+ * @async
+ * @param {object} payload - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต ซึ่งต้องมี `id` ของภารกิจอยู่ด้วย
+ * @returns {Promise&lt;object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่อัปเดตแล้ว
+ * @throws {ApiError} หากไม่ได้ระบุ `id` หรือ `title` ใน payload
+ */
+const editMission = async (payload) => {
+  if (!payload.id || !payload.title) throw new ApiError(httpStatus.BAD_REQUEST);
+  const { id, title, description, type, rewardAmount, webExpiresAt, durationDays, completeProgress } = payload;
+  return await prisma.mission.update({
+    where: { id },
+    data: {
+      title,
+      description,
+      type,
+      rewardAmount,
+      webExpiresAt,
+      durationDays,
+      completeProgress,
+    },
+  });
+};
+
+export default {
+  createMission,
+  updateMission,
+  getAllMissionsForAdmin,
+  getAvailableMissions,
+  getDetailsMission,
+  deleteMission,
+  editMission,
+};
+</code></pre></article></section></div></div></div><div class="search-container" id="PkfLWpAbet" style="display:none"><div class="wrapper" id="iCxFxjkHbP"><button class="icon-button search-close-button" id="VjLlGakifb" aria-label="close search"><svg><use xlink:href="#close-icon"></use></svg></button><div class="search-box-c"><svg><use xlink:href="#search-icon"></use></svg> <input type="text" id="vpcKVYIppa" class="search-input" placeholder="Search..." autofocus></div><div class="search-result-c" id="fWwVHRuDuN"><span class="search-result-c-text">Type anything to view search result</span></div></div></div><div class="mobile-menu-icon-container"><button class="icon-button" id="mobile-menu" data-isopen="false" aria-label="menu"><svg><use xlink:href="#menu-icon"></use></svg></button></div><div id="mobile-sidebar" class="mobile-sidebar-container"><div class="mobile-sidebar-wrapper"><div class="mobile-nav-links"></div><div class="mobile-sidebar-items-c"><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-modules"><div>Modules</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-controllers_admin.html">controllers/admin</a></div><div class="sidebar-section-children"><a href="module-controllers_broadcast.html">controllers/broadcast</a></div><div class="sidebar-section-children"><a href="module-controllers_cron.html">controllers/cron</a></div><div class="sidebar-section-children"><a href="module-controllers_goal.html">controllers/goal</a></div><div class="sidebar-section-children"><a href="module-controllers_mission.html">controllers/mission</a></div><div class="sidebar-section-children"><a href="module-controllers_notification.html">controllers/notification</a></div><div class="sidebar-section-children"><a href="module-controllers_product.html">controllers/product</a></div><div class="sidebar-section-children"><a href="module-controllers_slip.html">controllers/slip</a></div><div class="sidebar-section-children"><a href="module-controllers_transaction.html">controllers/transaction</a></div><div class="sidebar-section-children"><a href="module-controllers_user.html">controllers/user</a></div><div class="sidebar-section-children"><a href="module-controllers_user-mission.html">controllers/user-mission</a></div><div class="sidebar-section-children"><a href="module-controllers_wallet.html">controllers/wallet</a></div><div class="sidebar-section-children"><a href="module-routes_admin.html">routes/admin</a></div><div class="sidebar-section-children"><a href="module-routes_cron.html">routes/cron</a></div><div class="sidebar-section-children"><a href="module-routes_goal.html">routes/goal</a></div><div class="sidebar-section-children"><a href="module-routes_mission.html">routes/mission</a></div><div class="sidebar-section-children"><a href="module-routes_notification.html">routes/notification</a></div><div class="sidebar-section-children"><a href="module-routes_product.html">routes/product</a></div><div class="sidebar-section-children"><a href="module-routes_slip.html">routes/slip</a></div><div class="sidebar-section-children"><a href="module-routes_transaction.html">routes/transaction</a></div><div class="sidebar-section-children"><a href="module-routes_user.html">routes/user</a></div><div class="sidebar-section-children"><a href="module-routes_user-mission.html">routes/user-mission</a></div><div class="sidebar-section-children"><a href="module-routes_wallet.html">routes/wallet</a></div><div class="sidebar-section-children"><a href="module-services_admin.html">services/admin</a></div><div class="sidebar-section-children"><a href="module-services_broadcast.html">services/broadcast</a></div><div class="sidebar-section-children"><a href="module-services_goal.html">services/goal</a></div><div class="sidebar-section-children"><a href="module-services_image.html">services/image</a></div><div class="sidebar-section-children"><a href="module-services_line.html">services/line</a></div><div class="sidebar-section-children"><a href="module-services_mission.html">services/mission</a></div><div class="sidebar-section-children"><a href="module-services_notification.html">services/notification</a></div><div class="sidebar-section-children"><a href="module-services_product.html">services/product</a></div><div class="sidebar-section-children"><a href="module-services_qstash.html">services/qstash</a></div><div class="sidebar-section-children"><a href="module-services_slip.html">services/slip</a></div><div class="sidebar-section-children"><a href="module-services_transaction.html">services/transaction</a></div><div class="sidebar-section-children"><a href="module-services_user.html">services/user</a></div><div class="sidebar-section-children"><a href="module-services_user-mission.html">services/user-mission</a></div><div class="sidebar-section-children"><a href="module-services_wallet.html">services/wallet</a></div><div class="sidebar-section-children"><a href="module-utils_ApiError.html">utils/ApiError</a></div><div class="sidebar-section-children"><a href="module-utils_axios.html">utils/axios</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-classes"><div>Classes</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="module-utils_ApiError-ApiError.html">ApiError</a></div></div><div class="sidebar-section-title with-arrow" data-isopen="false" id="sidebar-global"><div>Global</div><svg><use xlink:href="#down-icon"></use></svg></div><div class="sidebar-section-children-container"><div class="sidebar-section-children"><a href="global.html#translateTerm">translateTerm</a></div></div></div><div class="mobile-navbar-actions"><div class="navbar-right-item"><button class="icon-button search-button" aria-label="open-search"><svg><use xlink:href="#search-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button theme-toggle" aria-label="toggle-theme"><svg><use class="theme-svg-use" xlink:href="#light-theme-icon"></use></svg></button></div><div class="navbar-right-item"><button class="icon-button font-size" aria-label="change-font-size"><svg><use xlink:href="#font-size-icon"></use></svg></button></div></div></div></div><script type="text/javascript" src="scripts/core.min.js"></script><script src="scripts/search.min.js" defer="defer"></script><script src="scripts/third-party/fuse.js" defer="defer"></script><script type="text/javascript">var tocbotInstance=tocbot.init({tocSelector:"#eed4d2a0bfd64539bb9df78095dec881",contentSelector:".main-content",headingSelector:"h1, h2, h3",hasInnerContainers:!0,scrollContainer:".main-content",headingsOffset:130,onClick:bringLinkToView})</script></body></html>

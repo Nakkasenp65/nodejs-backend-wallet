@@ -1,29 +1,80 @@
-import httpStatus from 'http-status';
-import prisma from '../../../libs/prisma.js';
-import ApiError from '../../../utils/ApiError.js';
-
 /**
- * -----------------------------------------
- * Mission Service
- * จัดการเฉพาะภารกิจต้นแบบ (Mission Templates)
- * -----------------------------------------
+ * @file เซอร์วิสสำหรับจัดการตรรกะทางธุรกิจ (Business Logic) ที่เกี่ยวข้องกับภารกิจหลัก (Mission)
+ * @description ไฟล์นี้รวบรวมฟังก์ชันสำหรับผู้ดูแลระบบในการสร้าง, แก้ไข, และดูข้อมูลเชิงลึกของภารกิจ
+ * รวมถึงฟังก์ชันสำหรับผู้ใช้ในการดึงข้อมูลภารกิจที่สามารถเข้าร่วมได้
+ * @module services/mission
+ * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
+ * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
+ * @requires zod - Library สำหรับการตรวจสอบความถูกต้องของข้อมูล (Schema Validation)
  */
+import httpStatus from "http-status";
+import prisma from "../../../libs/prisma.js";
+import ApiError from "../../../utils/ApiError.js";
+import { z } from "zod";
 
 /**
- * สร้าง Mission ใหม่ในระบบ (สำหรับ Admin)
- * @param {object} missionData - ข้อมูลของ Mission ที่จะสร้าง
- * @returns {Promise<object>} Object ของ Mission ที่ถูกสร้างขึ้น
+ * สร้างภารกิจใหม่ในระบบ (สำหรับ Admin)
+ * @description ใช้ Zod Schema ในการตรวจสอบความถูกต้องของข้อมูล (Validation) ที่ส่งเข้ามาอย่างเข้มงวด
+ * ก่อนที่จะสร้างข้อมูลลงในฐานข้อมูล
+ * @async
+ * @param {object} payload - อ็อบเจกต์ข้อมูลของภารกิจที่ต้องการสร้าง
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่สร้างขึ้นใหม่
+ * @throws {Error} หากข้อมูลไม่ถูกต้องตาม Schema (ZodError) หรือเกิดข้อผิดพลาดจากฐานข้อมูล
  */
 const createMission = async (payload) => {
-  const newMission = await prisma.mission.create({ data: payload });
-  return newMission;
+  const MissionSchema = z.object({
+    title: z.string().min(1, "กรุณาระบุชื่อภารกิจ"),
+    description: z.string().optional(),
+    type: z.enum(["ONBOARDING", "ACCUMULATION", "STREAK", "REFERRAL", "DELETE"]), // ต้องเป็นค่าใน Enum นี้เท่านั้น
+    rewardAmount: z.number().min(0, "รางวัลต้องไม่เป็นค่าติดลบ"),
+    durationDays: z.number().int().positive("ระยะเวลาต้องเป็นจำนวนเต็มบวก"),
+    completeProgress: z.number().int().positive("เป้าหมายต้องเป็นจำนวนเต็มบวก").optional().default(1),
+    // เราสามารถกำหนดค่า default ได้ด้วย
+  });
+
+  try {
+    const validatedData = MissionSchema.parse(payload);
+
+    const missionDataToCreate = {
+      title: validatedData.title,
+      description: validatedData.description,
+      type: validatedData.type,
+      rewardAmount: validatedData.rewardAmount,
+      durationDays: validatedData.durationDays,
+      completeProgress: validatedData.completeProgress,
+      // เราสามารถเพิ่ม Business Logic ที่นี่ได้ เช่น:
+      webExpiresAt: new Date(Date.now() + validatedData.durationDays * 24 * 60 * 60 * 1000),
+    };
+
+    // --- 5. Create the mission in the database ---
+    const newMission = await prisma.mission.create({
+      data: missionDataToCreate,
+    });
+
+    // (Optional) สามารถเพิ่ม Logic อื่นๆ หลังสร้างสำเร็จได้ที่นี่
+    // await sendNotificationToAdmins('New Mission Created!');
+
+    return newMission;
+  } catch (error) {
+    // --- 6. Robust Error Handling ---
+    if (error instanceof z.ZodError) {
+      // ถ้าเป็น Error จาก Zod (ข้อมูลไม่ถูกต้อง)
+      console.error("Validation Error:", error);
+      // เราสามารถโยน Error ที่มีความหมายมากขึ้นเพื่อให้ Layer บน (เช่น Controller) นำไปใช้ได้
+      throw new Error(`ข้อมูลไม่ถูกต้อง: ${error}`);
+    }
+    // ถ้าเป็น Error อื่นๆ (เช่น Database down)
+    console.error("Error creating mission:", error);
+    throw new Error("ไม่สามารถสร้างภารกิจได้ในขณะนี้");
+  }
 };
 
 /**
- * แก้ไขรายละเอียดของ Mission ที่มีอยู่ (สำหรับ Admin)
- * @param {string} missionId - ID ของ Mission ที่จะแก้ไข
- * @param {object} updateData - ข้อมูลที่ต้องการอัปเดต
- * @returns {Promise<object>} Object ของ Mission ที่อัปเดตแล้ว
+ * แก้ไขรายละเอียดของภารกิจที่มีอยู่ (สำหรับ Admin)
+ * @async
+ * @param {string} missionId - ID ของภารกิจที่ต้องการแก้ไข
+ * @param {object} updateData - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่อัปเดตแล้ว
  */
 const updateMission = async (missionId, updateData) => {
   const updatedMission = await prisma.mission.update({
@@ -34,27 +85,16 @@ const updateMission = async (missionId, updateData) => {
 };
 
 /**
- * ดึงข้อมูล Mission ทั้งหมดในระบบ (สำหรับ Admin Panel)
- * @param {object} [options={}] - ตัวเลือกสำหรับ pagination
- * @returns {Promise<Array<object>>} Array ของ Missions
- */
-/**
  * ดึงข้อมูลภารกิจทั้งหมดสำหรับหน้า Admin พร้อมรองรับการกรอง, จัดเรียง, แบ่งหน้า, และสถิติ
- * @param {object} options - ตัวเลือกสำหรับ Query
- * @param {string} [options.search] - คำค้นหาสำหรับชื่อภารกิจหรือคำอธิบาย
- * @param {string} [options.type] - กรองตามประเภทภารกิจ (เช่น 'STREAK', 'REFERRAL')
- * @param {string} [options.status] - กรองตามสถานะ ('ACTIVE', 'EXPIRED')
- * @param {string} [options.sort] - รูปแบบการเรียงลำดับ ('latest', 'expiresSoon', 'rewardHigh')
- * @param {number} [options.page=1] - หน้าปัจจุบันสำหรับการแบ่งหน้า
- * @param {number} [options.pageSize=10] - จำนวนรายการต่อหน้า
- * @returns {Promise<object>} Object ที่มี:
- *                            - `data`: Array ของ Mission objects
- *                            - `paging`: ข้อมูลการแบ่งหน้า
- *                            - `stats`: ข้อมูลสถิติสรุป (total, active, soon)
+ * @description ฟังก์ชันนี้ถูกปรับปรุงประสิทธิภาพโดยการใช้ `_count` เพื่อนับจำนวนผู้เข้าร่วมแทนการดึงข้อมูลทั้งหมด
+ * และใช้ `$transaction` เพื่อดึงข้อมูลสถิติสรุป (total, active, soon) พร้อมกันในครั้งเดียว
+ * @async
+ * @param {object} [options={}] - ตัวเลือกสำหรับ Query
+ * @returns {Promise<{data: Array<object>, paging: object, stats: object}>} Promise ที่ resolve เป็นอ็อบเจกต์ที่ประกอบด้วยข้อมูลภารกิจ, การแบ่งหน้า, และสถิติ
  */
 const getAllMissionsForAdmin = async (options = {}) => {
   // 1. กำหนดค่าเริ่มต้นและดึงค่าจาก options
-  const { page = 1, pageSize = 10, search, type, status, sort = 'latest' } = options;
+  const { page = 1, pageSize = 10, search, type, status, sort = "latest" } = options;
 
   // 2. เตรียมตัวแปรสำหรับ Pagination
   const take = parseInt(pageSize, 10);
@@ -65,15 +105,18 @@ const getAllMissionsForAdmin = async (options = {}) => {
   const where = {};
   if (search) {
     // ค้นหาแบบ case-insensitive ทั้งใน title และ description
-    where.OR = [{ title: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }];
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
   }
-  if (type && type !== 'ALL') {
+  if (type && type !== "ALL") {
     where.type = type;
   }
-  if (status && status !== 'ALL') {
-    if (status === 'ACTIVE') {
+  if (status && status !== "ALL") {
+    if (status === "ACTIVE") {
       where.webExpiresAt = { gt: now }; // gt = Greater Than (มากกว่า)
-    } else if (status === 'EXPIRED') {
+    } else if (status === "EXPIRED") {
       where.webExpiresAt = { lte: now }; // lte = Less Than or Equal (น้อยกว่าหรือเท่ากับ)
     }
   }
@@ -81,16 +124,16 @@ const getAllMissionsForAdmin = async (options = {}) => {
   // 4. สร้างเงื่อนไขการเรียงลำดับ (Order By Clause)
   let orderBy = {};
   switch (sort) {
-    case 'expiresSoon':
-      orderBy = { webExpiresAt: 'asc' }; // เรียงจากน้อยไปมาก (ใกล้หมดอายุก่อน)
+    case "expiresSoon":
+      orderBy = { webExpiresAt: "asc" }; // เรียงจากน้อยไปมาก (ใกล้หมดอายุก่อน)
       where.webExpiresAt = { gt: now }; // การเรียงแบบนี้ควรใช้กับภารกิจที่ยังไม่หมดอายุเท่านั้น
       break;
-    case 'rewardHigh':
-      orderBy = { rewardAmount: 'desc' }; // เรียงจากมากไปน้อย
+    case "rewardHigh":
+      orderBy = { rewardAmount: "desc" }; // เรียงจากมากไปน้อย
       break;
-    case 'latest':
+    case "latest":
     default:
-      orderBy = { createdAt: 'desc' }; // เรียงจากมากไปน้อย (สร้างล่าสุดก่อน)
+      orderBy = { createdAt: "desc" }; // เรียงจากมากไปน้อย (สร้างล่าสุดก่อน)
       break;
   }
 
@@ -119,7 +162,9 @@ const getAllMissionsForAdmin = async (options = {}) => {
   const [total, active, soon] = await prisma.$transaction([
     prisma.mission.count(), // นับทั้งหมดแบบไม่มีเงื่อนไข
     prisma.mission.count({ where: { webExpiresAt: { gt: now } } }), // นับที่ยัง Active
-    prisma.mission.count({ where: { webExpiresAt: { gt: now, lte: sevenDaysFromNow } } }), // นับที่ใกล้หมดอายุใน 7 วัน
+    prisma.mission.count({
+      where: { webExpiresAt: { gt: now, lte: sevenDaysFromNow } },
+    }), // นับที่ใกล้หมดอายุใน 7 วัน
   ]);
 
   const stats = { total, active, soon };
@@ -154,16 +199,15 @@ const getAllMissionsForAdmin = async (options = {}) => {
 
 /**
  * (Admin) ดึงข้อมูลภารกิจเชิงลึก (Mission Details)
- * ประกอบด้วย:
+ * @description ใช้ `prisma.$transaction` เพื่อดึงข้อมูล 4 ส่วนพร้อมกันอย่างมีประสิทธิภาพ:
  * 1. ข้อมูลหลักของภารกิจ
- * 2. สถิติสรุป (จำนวนผู้เข้าร่วมทั้งหมด, แยกตามสถานะ)
- * 3. รายชื่อผู้เข้าร่วมแบบแบ่งหน้า (Paginated) พร้อม Progress และ Status
- *
+ * 2. สถิติสรุป (จำนวนผู้เข้าร่วมทั้งหมด, แยกตามสถานะ) โดยใช้ `groupBy`
+ * 3. รายชื่อผู้เข้าร่วมแบบแบ่งหน้า (Paginated)
+ * @async
  * @param {string} missionId - ID ของภารกิจที่ต้องการดูรายละเอียด
- * @param {object} options - ตัวเลือกสำหรับ Query (ใช้สำหรับ Pagination ของรายชื่อผู้เข้าร่วม)
- * @param {number} [options.page=1] - หน้าปัจจุบันของรายชื่อผู้เข้าร่วม
- * @param {number} [options.pageSize=10] - จำนวนผู้เข้าร่วมต่อหน้า
- * @returns {Promise<object>} Object ที่มีข้อมูลเชิงลึกทั้งหมดของภารกิจ
+ * @param {object} [options={}] - ตัวเลือกสำหรับ Query (ใช้สำหรับ Pagination ของรายชื่อผู้เข้าร่วม)
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ที่ประกอบด้วยข้อมูลเชิงลึกทั้งหมดของภารกิจ
+ * @throws {ApiError} หากไม่พบภารกิจ
  */
 const getDetailsMission = async (missionId, options = {}) => {
   // 1. กำหนดค่าเริ่มต้นสำหรับ Pagination ของ "รายชื่อผู้เข้าร่วม"
@@ -195,7 +239,7 @@ const getDetailsMission = async (missionId, options = {}) => {
           },
         },
       },
-      orderBy: { enrolledAt: 'desc' },
+      orderBy: { enrolledAt: "desc" },
       take,
       skip,
     }),
@@ -208,7 +252,7 @@ const getDetailsMission = async (missionId, options = {}) => {
     // Query 4: ใช้ `groupBy` เพื่อให้ Database คำนวณสถิติตามสถานะให้เรา
     // นี่คือวิธีที่มีประสิทธิภาพสูงสุดสำหรับการทำ Aggregation
     prisma.userMission.groupBy({
-      by: ['status'], // จัดกลุ่มตามฟิลด์ 'status'
+      by: ["status"], // จัดกลุ่มตามฟิลด์ 'status'
       where: { missionId },
       _count: {
         status: true, // นับจำนวนรายการในแต่ละกลุ่ม
@@ -218,7 +262,7 @@ const getDetailsMission = async (missionId, options = {}) => {
 
   // 3. ตรวจสอบว่าภารกิจมีอยู่จริงหรือไม่
   if (!mission) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Mission not found.');
+    throw new ApiError(httpStatus.NOT_FOUND, "Mission not found.");
   }
 
   // 4. จัดรูปแบบข้อมูลสถิติที่ได้จาก `groupBy` ให้อยู่ในรูปแบบที่ใช้งานง่าย
@@ -259,8 +303,13 @@ const getDetailsMission = async (missionId, options = {}) => {
 
 /**
  * ดึงข้อมูลภารกิจที่ผู้ใช้ "สามารถเข้าร่วมได้"
+ * @description ตรวจสอบเงื่อนไข 3 ชั้นเพื่อกรองภารกิจ:
+ * 1. ภารกิจยังไม่หมดเขต
+ * 2. ผู้ใช้ยังไม่เคยเข้าร่วมภารกิจนี้มาก่อน
+ * 3. ผู้ใช้ไม่มีภารกิจประเภท (type) เดียวกันที่กำลังดำเนินอยู่ (ENROLLED หรือ AWAITING_CLAIM)
+ * @async
  * @param {string} userId - ID ของผู้ใช้
- * @returns {Promise<Array<object>>} Array ของ Missions ที่ผู้ใช้ยังไม่เคยเข้าร่วมและยังไม่หมดเขต
+ * @returns {Promise<Array<object>>} Promise ที่ resolve เป็นอาร์เรย์ของภารกิจที่ผู้ใช้สามารถเข้าร่วมได้
  */
 const getAvailableMissions = async (userId) => {
   const now = new Date();
@@ -279,7 +328,7 @@ const getAvailableMissions = async (userId) => {
   const activeUserMissions = await prisma.userMission.findMany({
     where: {
       userId,
-      status: { in: ['ENROLLED', 'AWAITING_CLAIM'] },
+      status: { in: ["ENROLLED", "AWAITING_CLAIM"] },
     },
     include: {
       mission: { select: { type: true } },
@@ -302,12 +351,19 @@ const getAvailableMissions = async (userId) => {
         blockedTypes.length ? { type: { notIn: blockedTypes } } : {},
       ],
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
 
   return availableMissions;
 };
 
+/**
+ * ลบภารกิจออกจากระบบ (สำหรับ Admin)
+ * @async
+ * @param {string} missionId - ID ของภารกิจที่ต้องการลบ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ของภารกิจที่ถูกลบไป
+ * @throws {ApiError} หากไม่ได้ระบุ `missionId`
+ */
 const deleteMission = async (missionId) => {
   if (!missionId) throw new ApiError(httpStatus.BAD_REQUEST);
   return await prisma.mission.delete({
@@ -315,6 +371,13 @@ const deleteMission = async (missionId) => {
   });
 };
 
+/**
+ * แก้ไขรายละเอียดของภารกิจที่มีอยู่ (สำหรับ Admin) - (เวอร์ชันรับ Payload เต็ม)
+ * @async
+ * @param {object} payload - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต ซึ่งต้องมี `id` ของภารกิจอยู่ด้วย
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ภารกิจที่อัปเดตแล้ว
+ * @throws {ApiError} หากไม่ได้ระบุ `id` หรือ `title` ใน payload
+ */
 const editMission = async (payload) => {
   if (!payload.id || !payload.title) throw new ApiError(httpStatus.BAD_REQUEST);
   const { id, title, description, type, rewardAmount, webExpiresAt, durationDays, completeProgress } = payload;

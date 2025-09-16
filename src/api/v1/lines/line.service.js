@@ -1,3 +1,13 @@
+/**
+ * @file เซอร์วิสสำหรับจัดการการส่งข้อความผ่าน LINE Messaging API
+ * @description ไฟล์นี้รวบรวมฟังก์ชันที่ใช้ในการเตรียมข้อมูล, สร้าง Payload ของ Flex Message,
+ * และส่งข้อความไปยังผู้ใช้ในสถานการณ์ต่างๆ เช่น การลงทะเบียน, การฝากเงิน, การถอนเงิน, และการโอนเงิน
+ * @module services/line
+ * @requires utils/axios - Custom Axios instance for LINE Messaging API
+ * @requires utils/line - Helper functions for creating Flex Message JSON
+ * @requires libs/prisma - Prisma Client instance
+ * @requires utils/ApiError - Custom Error class
+ */
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
 import { pushMessage } from "../../../utils/axios.js";
@@ -41,9 +51,7 @@ const formatRecipientDisplay = (fullname, toString) => {
   // แยกส่วนข้อความอย่างแม่นยำ
   const parts = toString.split(" - ");
   if (parts.length < 2) {
-    console.warn(
-      `Warning: Malformed 'toString': '${toString}'. Returning fullname as fallback.`,
-    );
+    console.warn(`Warning: Malformed 'toString': '${toString}'. Returning fullname as fallback.`);
     return fullname;
   }
   const accountNumberRaw = parts[1].trim();
@@ -52,9 +60,7 @@ const formatRecipientDisplay = (fullname, toString) => {
   // เกราะป้องกัน: กรองเอาเฉพาะตัวเลขและตรวจสอบความยาว
   const digitsOnly = accountNumberRaw.replace(/\D/g, "");
   if (digitsOnly.length < 5) {
-    console.warn(
-      `Warning: Account number '${digitsOnly}' is too short for masking. Returning fullname as fallback.`,
-    );
+    console.warn(`Warning: Account number '${digitsOnly}' is too short for masking. Returning fullname as fallback.`);
     return fullname;
   }
 
@@ -65,27 +71,39 @@ const formatRecipientDisplay = (fullname, toString) => {
 
   return `${fullname} ${maskedPart}`;
 };
+// const devId = process.env.DEV_LINE_USER_ID;
 
-const devId = process.env.DEV_LINE_USER_ID;
-
+/**
+ * ส่ง Flex Message ต้อนรับผู้ใช้ใหม่หลังลงทะเบียนสำเร็จ
+ * @description ดึงข้อมูลผู้ใช้จากฐานข้อมูล, จัดรูปแบบข้อมูล, สร้าง Flex Message,
+ * และส่งไปยังผู้ใช้ผ่าน LINE Messaging API
+ * @async
+ * @param {string} line_user_id - Line User ID ของผู้ใช้ใหม่
+ * @returns {Promise<object>} Promise ที่ resolve เป็นข้อมูลการตอบกลับจาก LINE API
+ * @throws {ApiError} หากไม่พบผู้ใช้หรือการส่งข้อความล้มเหลว
+ */
 const sendRegisterFlexMessage = async (line_user_id) => {
-  if (!line_user_id)
-    throw new ApiError(httpStatus.BAD_REQUEST, "line user id is required");
+  if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "line user id is required");
 
   const user = await prisma.user.findUnique({
     where: {
-      line_user_id: line_user_id,
+      line_user_id,
     },
     select: {
       phone: true,
       fullname: true,
       wallet: {
         select: {
-          balance: true,
           walletUniqueId: true,
+          balance: true,
         },
       },
     },
+  });
+
+  const formattedBalance = user.wallet.balance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 
   if (!user) throw new ApiError(httpStatus.NOT_FOUND, "user not found");
@@ -94,18 +112,31 @@ const sendRegisterFlexMessage = async (line_user_id) => {
     walletUniqueId: user.wallet.walletUniqueId,
     fullname: user.fullname,
     phone: user.phone,
-    balance: user.wallet.balance,
+    balance: formattedBalance,
   };
 
   // ส่งไปอีก provider คนละ id กันกับในแอปปัจจุบัน
-  const flex = flexMessage(FLEX_MODE.WITHDRAW, devId, payload);
+  const flex = flexMessage(FLEX_MODE.REGISTER, line_user_id, payload);
   const response = await pushMessage(flex);
   console.log(response.data);
-  if (!response.status === 200)
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
+  if (!response.status === 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
   return response.data;
 };
 
+/**
+ * ส่ง Flex Message แจ้งเตือนการฝากเงินสำเร็จ
+ * @description จัดรูปแบบข้อมูลวันที่, จำนวนเงิน, และข้อมูลธนาคาร, จากนั้นสร้างและส่ง Flex Message
+ * @async
+ * @param {string} line_user_id - Line User ID ของผู้รับ
+ * @param {number} amount - จำนวนเงินที่ฝาก
+ * @param {number} balance - ยอดเงินคงเหลือล่าสุด
+ * @param {string} walletUniqueId - รหัส Wallet ของผู้ใช้
+ * @param {string} senderName - ชื่อผู้โอน
+ * @param {string} senderBankNumber - เลขบัญชีผู้โอน
+ * @param {string} senderBankName - ชื่อธนาคารผู้โอน
+ * @param {Date} updatedDate - วันที่และเวลาที่ทำรายการ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นข้อมูลการตอบกลับจาก LINE API
+ */
 const sendDepositFlexMessage = async (
   line_user_id,
   amount,
@@ -141,16 +172,29 @@ const sendDepositFlexMessage = async (
     liffHistoryUrl: `${process.env.LIFF_URL}/history`,
   };
 
-  // ON PRODUCTION DELETE DEVID AND USE line_user_id
+  // ON PRODUCTION DELETE line_user_id AND USE line_user_id
   // (RULE) MESSAGING API && LIFF (SAME PROVIDER!!)
-  const flex = line.flexMessage(FLEX_MODE.SAVE, devId, payload);
+  const flex = line.flexMessage(FLEX_MODE.SAVE, line_user_id, payload);
   const { data } = await pushMessage(flex);
   console.log(response.data);
-  if (!data)
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
+  if (!data) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
   return response.data;
 };
 
+/**
+ * ส่ง Flex Message แจ้งเตือนการถอนเงินสำเร็จ
+ * @description จัดรูปแบบข้อมูลวันที่, จำนวนเงิน, และข้อมูลผู้รับ, จากนั้นสร้างและส่ง Flex Message
+ * @async
+ * @param {string} line_user_id - Line User ID ของผู้รับ
+ * @param {number} amount - จำนวนเงินที่ถอน
+ * @param {number} balance - ยอดเงินคงเหลือล่าสุด
+ * @param {string} walletUniqueId - รหัส Wallet ของผู้ใช้
+ * @param {string} fullname - ชื่อเต็มของผู้ใช้
+ * @param {string} to - ข้อมูลบัญชีผู้รับ (เช่น 'ธนาคารไทยพาณิชย์ - 1234567890')
+ * @param {string} bank - ชื่อธนาคารผู้รับ
+ * @param {Date} updatedDate - วันที่และเวลาที่ทำรายการ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นข้อมูลการตอบกลับจาก LINE API
+ */
 const sendWithdrawSuccessFlex = async (
   line_user_id,
   amount,
@@ -175,7 +219,7 @@ const sendWithdrawSuccessFlex = async (
   });
   const toDisplay = formatRecipientDisplay(fullname, to);
   const bankLogoUrl = getBankIconUrl(bank);
-  const formattedBankName = senderBankName.replace("ธนาคาร", "");
+  const formattedBankName = bank.replace("ธนาคาร", "");
 
   const payload = {
     amount: formattedAmount,
@@ -189,13 +233,24 @@ const sendWithdrawSuccessFlex = async (
   };
   // case จริงจะใช้ line_user_id
   // line_user_id ต้องอยู่ใน provider เดียวกับ messaging api
-  const flex = line.flexMessage(FLEX_MODE.WITHDRAW, devId, payload);
+  const flex = line.flexMessage(FLEX_MODE.WITHDRAW, line_user_id, payload);
   const response = await pushMessage(flex);
-  if (!response.status === 200)
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
+  if (!response.status === 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR);
   return response.data;
 };
 
+/**
+ * ส่ง Flex Message สรุปรายการให้ "ผู้ส่ง" ในการโอนเงินภายในระบบ
+ * @async
+ * @param {string} senderLineId - Line User ID ของผู้ส่ง
+ * @param {number} sendingAmount - จำนวนเงินที่โอน
+ * @param {string} senderWalletUniqueId - รหัส Wallet ของผู้ส่ง
+ * @param {string} receiverWalletUniqueId - รหัส Wallet ของผู้รับ
+ * @param {Date} updatedDate - วันที่และเวลาที่ทำรายการ
+ * @param {number} senderBalance - ยอดเงินคงเหลือล่าสุดของผู้ส่ง
+ * @param {string} liffUrlHistory - URL ไปยังหน้าประวัติการทำรายการใน LIFF
+ * @returns {Promise<void>}
+ */
 const sendSenderFlex = async (
   senderLineId,
   sendingAmount,
@@ -215,18 +270,31 @@ const sendSenderFlex = async (
     maximumFractionDigits: 2,
   });
 
-  const flex = line.flexMessage(FLEX_MODE.SENDER, devId, {
+  const flex = line.sendSender(
+    senderLineId,
     senderWalletUniqueId,
     receiverWalletUniqueId,
     liffUrlHistory,
     formattedAmount,
     formattedDate,
     formattedBalance,
-  });
+  );
 
   await pushMessage(flex);
 };
 
+/**
+ * ส่ง Flex Message แจ้งเตือนการได้รับเงินให้ "ผู้รับ" ในการโอนเงินภายในระบบ
+ * @async
+ * @param {string} receiverLineId - Line User ID ของผู้รับ
+ * @param {number} receivingAmount - จำนวนเงินที่ได้รับ
+ * @param {string} senderWalletUniqueId - รหัส Wallet ของผู้ส่ง
+ * @param {string} receiverWalletUniqueId - รหัส Wallet ของผู้รับ
+ * @param {Date} updatedDate - วันที่และเวลาที่ทำรายการ
+ * @param {number} receiverBalance - ยอดเงินคงเหลือล่าสุดของผู้รับ
+ * @param {string} liffUrlHistory - URL ไปยังหน้าประวัติการทำรายการใน LIFF
+ * @returns {Promise<void>}
+ */
 const sendReceiverFlex = async (
   receiverLineId,
   receivingAmount,
@@ -246,14 +314,15 @@ const sendReceiverFlex = async (
     maximumFractionDigits: 2,
   });
 
-  const flex = line.flexMessage(FLEX_MODE.RECEIVER, devId, {
+  const flex = line.sendReceiver(
+    receiverLineId,
     senderWalletUniqueId,
     receiverWalletUniqueId,
     liffUrlHistory,
     formattedAmount,
     formattedDate,
     formattedBalance,
-  });
+  );
 
   await pushMessage(flex);
 };
