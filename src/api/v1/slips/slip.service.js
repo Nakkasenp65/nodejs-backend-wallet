@@ -88,8 +88,6 @@ const verfifySlip = async (slipImageUrl, transactionId) => {
       },
     });
 
-    // TEST CASE ALWAYS SUCCESS
-
     const verifyResult = verifyResponse.data;
 
     // const verifiedAmount = verifyResult?.data?.amount;

@@ -1,23 +1,29 @@
-import express from 'express';
-import cors from 'cors';
-// import { corsConfig } from './middlewares/cors.js';
-import v1Router from './api/v1/index.js';
-import ApiError from './utils/ApiError.js';
-import httpStatus from 'http-status';
-import error from './middlewares/error.js';
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
+import v1Router from "./api/v1/index.js";
+import ApiError from "./utils/ApiError.js";
+import httpStatus from "http-status";
+import error from "./middlewares/error.js";
 
 const app = express();
-app.use(cors());
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan("dev"));
+} else {
+  app.use(morgan("combined"));
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
-app.get('/', (req, res) => {
-  res.status(200).json({ message: 'test backend wallet' });
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "test backend wallet" });
 });
 // URL/v1
-app.use('/v1', v1Router);
+app.use("/v1", v1Router);
 app.use((req, res, next) => {
-  next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
+  next(new ApiError(httpStatus.NOT_FOUND, "Not found"));
 });
 
 app.use(error.errorConverter);

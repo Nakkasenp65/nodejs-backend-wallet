@@ -18,10 +18,13 @@ import axios from "axios";
 import sendEmail from "../../../utils/email.js";
 import crypto from "crypto";
 import userMissionService from "../user-missions/user-mission.service.js";
-import buildTransactionsPdf from "../../../utils/pdf.js";
+import buildStatementPdf from "../../../utils/statementPdf.js";
 import slipService from "../slips/slip.service.js";
 import notificationService from "../notifications/notification.service.js";
 import lineService from "../lines/line.service.js";
+
+const formatDate = (date) =>
+  new Date(date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
 /**
  * สร้างธุรกรรมการออมเงิน (ฝากเงิน) ใหม่ในสถานะ 'รอตรวจสอบ' (PENDING)
@@ -33,48 +36,41 @@ import lineService from "../lines/line.service.js";
  * @throws {ApiError} หากไม่ได้ระบุ `walletId` หรือไม่พบ Wallet ดังกล่าวในระบบ
  */
 const createSavingTransaction = async (transactionBody, imageUrl) => {
-  const { name, type, status, from, walletId, walletUniqueId } = transactionBody;
+  // รับข้อมูลเท่าที่จำเป็นจาก Front-end
+  const { walletId, userId } = transactionBody;
 
-  if (!walletId) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Wallet ID is required to create a transaction.");
+  if (!walletId || !userId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Wallet ID and User ID are required.");
   }
 
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: walletId },
-    select: { walletUniqueId: true },
-  });
+  // Back-end ค้นหาข้อมูลที่เหลือเอง
+  const [wallet, user] = await Promise.all([
+    prisma.wallet.findUnique({ where: { id: walletId }, select: { walletUniqueId: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { line_display_name: true } }),
+  ]);
 
-  try {
-    const dataToSave = {
-      name: name,
+  if (!wallet || !user) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Wallet or User not found.");
+  }
+
+  const newTransaction = await prisma.transaction.create({
+    data: {
+      // --- Back-end กำหนดค่าเองทั้งหมด ---
+      name: "ฝากเงินออม",
       type: TransactionType.DEPOSIT,
       status: TransactionStatus.PENDING,
-      from: from,
+      from: user.line_display_name, // ดึงจากฐานข้อมูล ปลอดภัยกว่า
       to: wallet.walletUniqueId,
+      // --- ข้อมูลที่ได้รับมา ---
       slipImageUrl: imageUrl,
-      toWallet: { connect: { walletUniqueId: walletUniqueId } },
+      toWallet: { connect: { id: walletId } },
       amount: null,
       verified: false,
       verifiedAmount: null,
-    };
+    },
+  });
 
-    const newTransaction = await prisma.transaction.create({
-      data: dataToSave,
-    });
-
-    // 5. คืนค่า Transaction ที่สร้างเสร็จแล้ว
-    return newTransaction;
-  } catch (error) {
-    // จัดการกับ Error ที่อาจเกิดขึ้นจาก Prisma (เช่น walletId ไม่ถูกต้อง)
-    console.error("Prisma error creating transaction:", error);
-
-    if (error.code === "P2025") {
-      // Prisma error code for "Record to connect not found"
-      throw new ApiError(httpStatus.NOT_FOUND, `Wallet with ID ${walletId} not found.`);
-    }
-
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to create saving transaction in database.");
-  }
+  return newTransaction;
 };
 
 /**
@@ -675,60 +671,60 @@ const exportToPdf = async (email, walletId, startDate, endDate) => {
   if (!walletId) throw new Error("walletId is required");
   if (!email) throw new Error("email is required");
 
-  // Optional date filters
-  const createdAtFilter =
+  const dateFilter =
     startDate || endDate
       ? {
-          gte: startDate ? new Date(startDate) : undefined,
-          lte: endDate ? new Date(endDate) : undefined,
+          gte: startDate ? new Date(startDate) : new Date(0), // Default to earliest possible date if no start
+          lte: endDate ? new Date(endDate) : new Date(), // Default to now if no end
         }
       : undefined;
 
-  // Fetch wallet + user (for header) and transactions
+  // 1. ดึงข้อมูล Wallet, User, และ Transactions จากฐานข้อมูล (เหมือนเดิม)
   const [wallet, transactions] = await Promise.all([
     prisma.wallet.findUnique({
       where: { id: walletId },
-      include: { user: true },
+      include: { user: { select: { fullname: true } } },
     }),
     prisma.transaction.findMany({
       where: {
         OR: [{ fromWalletId: walletId }, { toWalletId: walletId }],
         status: "SUCCESS",
-        ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
       },
       orderBy: { createdAt: "asc" },
       include: {
-        fromWallet: { include: { user: true } },
-        toWallet: { include: { user: true } },
+        fromWallet: { include: { user: { select: { line_display_name: true } } } },
+        toWallet: { include: { user: { select: { line_display_name: true } } } },
       },
     }),
   ]);
 
   if (!wallet) throw new Error("Wallet not found");
 
-  // Build PDF
-  const buffer = await buildTransactionsPdf({
+  // 2. ⭐️ เรียกใช้ฟังก์ชันใหม่เพื่อสร้าง PDF Buffer
+  const pdfBuffer = await buildStatementPdf({
     currentWalletId: walletId,
     wallet,
     transactions,
-    startDate: createdAtFilter?.gte,
-    endDate: createdAtFilter?.lte,
+    startDate: dateFilter?.gte,
+    endDate: dateFilter?.lte,
   });
 
-  // Email via Resend
+  // 3. ส่งอีเมลพร้อมไฟล์ PDF ที่แนบไป (เหมือนเดิม)
   const result = await sendEmail({
     to: email,
-    subject: "รายการเดินบัญชี (PDF)",
-    text: "แนบไฟล์รายการเดินบัญชีของคุณในรูปแบบ PDF",
+    subject: `ใบแจ้งยอดบัญชีสำหรับ ${wallet.user.fullname}`,
+    text: `เรียนคุณ ${wallet.user.fullname},\n\nเอกสารใบแจ้งยอดบัญชีของคุณสำหรับช่วงวันที่ ${formatDate(dateFilter.gte)} ถึง ${formatDate(dateFilter.lte)} อยู่ในไฟล์แนบแล้วค่ะ\n\nขอแสดงความนับถือ,\nNUMBER 1 MONEY PLUS`,
     attachments: [
       {
-        filename: `statement_${walletId}.pdf`,
-        content: buffer, // Buffer from pdfkit/pdf-lib
+        filename: `statement_${wallet.walletUniqueId}_${Date.now()}.pdf`,
+        content: pdfBuffer,
         contentType: "application/pdf",
       },
     ],
   });
-  console.log("Email sent: ", result);
+
+  console.log("Statement PDF email sent successfully:", result?.data?.id);
 
   return { count: transactions.length, emailId: result?.data?.id ?? null };
 };
@@ -982,38 +978,35 @@ const approveDeposit = async (transactionId, approvalData) => {
     throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for approval: ${amount}`);
   }
 
-  // --- STAGE 1: การตรวจสอบเงื่อนไขเบื้องต้น (Pre-condition Validation) ---
-  const transaction = await prisma.transaction.findUnique({
-    where: { id: transactionId },
-    select: {
-      status: true,
-      toWallet: {
-        select: {
-          id: true,
-          userId: true,
-          user: { select: { firstTime: true, line_display_name: true } },
+  const { mainUpdatedTransaction: updatedTransaction, flexData: flexData } = await prisma.$transaction(async (tx) => {
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: {
+        status: true,
+        toWallet: {
+          select: {
+            id: true,
+            userId: true,
+            user: { select: { firstTime: true, line_display_name: true } },
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!transaction) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
-  }
-  if (!transaction.toWallet) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Transaction is not a valid deposit (missing recipient wallet).");
-  }
-  if (transaction.toWallet.userId !== userId) {
-    throw new ApiError(httpStatus.FORBIDDEN, "User ID does not match the transaction's recipient.");
-  }
-  if (transaction.status !== "PENDING") {
-    console.warn(`Attempted to approve an already processed transaction (ID: ${transactionId})`);
-    return prisma.transaction.findUnique({ where: { id: transactionId } });
-  }
+    if (!transaction) {
+      throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+    }
+    if (!transaction.toWallet) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Transaction is not a valid deposit (missing recipient wallet).");
+    }
+    if (transaction.toWallet.userId !== userId) {
+      throw new ApiError(httpStatus.FORBIDDEN, "User ID does not match the transaction's recipient.");
+    }
+    if (transaction.status !== TransactionStatus.PENDING) {
+      console.warn(`Attempted to approve an already processed transaction (ID: ${transactionId})`);
+      return prisma.transaction.findUnique({ where: { id: transactionId } });
+    }
 
-  // --- STAGE 2: ปฏิบัติการเชิงปรมาณู (The Atomic Operation) ---
-  // รับประกันความสมบูรณ์ของข้อมูลทางการเงินและตรรกะที่เกี่ยวข้องกัน
-  const { mainUpdatedTransaction: updatedTransaction, flexData: flexData } = await prisma.$transaction(async (tx) => {
     const walletId = transaction.toWallet.id;
     const isFirstTimeDeposit = transaction.toWallet.user.firstTime;
 
