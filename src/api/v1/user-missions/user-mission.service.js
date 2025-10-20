@@ -9,6 +9,7 @@
 import prisma from "../../../libs/prisma.js";
 import httpStatus from "http-status";
 import ApiError from "../../../utils/ApiError.js";
+import { UserMissionStatus } from "../../../generated/prisma/index.js";
 
 /**
  * ดำเนินการสมัครเข้าร่วมภารกิจใหม่ให้ผู้ใช้ภายใต้ Atomic Transaction
@@ -542,5 +543,4 @@ export default {
   editUserMission,
   expireOverdueMissions,
   checkAndUpdateMissionProgress,
-  expireOverdueMissions,
 };

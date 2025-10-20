@@ -895,7 +895,6 @@ const handleApproval = async (transactionId, existingTransaction, dataToUpdate) 
  * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่อัปเดตแล้ว
  */
 const editTransaction = async (transactionId, file, payload) => {
-  // --- STAGE 1: VALIDATION ---
   if (!transactionId) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Transaction ID is required.");
   }
@@ -903,8 +902,7 @@ const editTransaction = async (transactionId, file, payload) => {
     throw new ApiError(httpStatus.BAD_REQUEST, "Update payload or a slip image file is required.");
   }
 
-  // --- STAGE 2: DATA PREPARATION & SANITIZATION ---
-  const dataToUpdate = { ...payload }; // <-- ใช้วิธีที่แข็งแกร่งกว่า
+  const dataToUpdate = { ...payload };
   if (dataToUpdate.amount) {
     dataToUpdate.amount = parseFloat(dataToUpdate.amount);
     if (isNaN(dataToUpdate.amount)) {
@@ -916,7 +914,6 @@ const editTransaction = async (transactionId, file, payload) => {
     dataToUpdate.slipImageUrl = imageInfo.url;
   }
 
-  // --- STAGE 3: DISPATCHING ---
   const existingTransaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
@@ -924,14 +921,11 @@ const editTransaction = async (transactionId, file, payload) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
   }
 
-  // วิเคราะห์เจตนา: การเปลี่ยนแปลงสถานะไปเป็น SUCCESS หรือไม่?
   const isApproving = dataToUpdate.status === "SUCCESS" && existingTransaction.status !== "SUCCESS";
 
   if (isApproving) {
-    // ส่งมอบภารกิจให้หน่วยปฏิบัติการพิเศษด้านการอนุมัติ
     return handleApproval(transactionId, existingTransaction, dataToUpdate);
   } else {
-    // ส่งมอบภารกิจให้หน่วยปฏิบัติการทั่วไป
     return await prisma.transaction.update({
       where: { id: transactionId },
       data: dataToUpdate,

@@ -95,7 +95,7 @@ const editNotification = catchAsync(async (req, res) => {
 });
 
 /**
- * คอนโทรลเลอร์สำหรับลบการแจ้งเตือน (สำหรับ Admin)
+ * คอนโทรลเลอร์สำหรับลบการแจ้งเตือนรายการเดียว
  * @description รับ `notificationId` จาก URL parameters, เรียกใช้ Service เพื่อลบ,
  * และส่งข้อมูลการแจ้งเตือนที่ถูกลบกลับไป
  * @param {object} req - อ็อบเจกต์ Express Request ที่มี `req.params.notificationId`
@@ -104,7 +104,8 @@ const editNotification = catchAsync(async (req, res) => {
 const deleteNotification = catchAsync(async (req, res) => {
   const { notificationId } = req.params;
   const deletedNotification = await notificationService.deleteNotification(notificationId);
-  res.status(httpStatus.OK).json(deletedNotification);
+  console.log(`Delete notification successfully: ${notificationId}`);
+  res.status(httpStatus.OK).json({ success: true, data: deletedNotification });
 });
 
 export default {

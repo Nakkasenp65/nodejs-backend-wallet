@@ -36,4 +36,12 @@ notificationRouter.patch("/:notificationId/read", notificationController.markAsR
  */
 notificationRouter.delete("/clear/:userId", notificationController.clearNotifications);
 
+/**
+ * @route DELETE /api/notifications/:notificationId
+ * @description ลบการแจ้งเตือนรายการเดียว
+ * @access Private (Requires Authentication)
+ * @param {string} notificationId - ID ของการแจ้งเตือนที่ต้องการลบ
+ */
+notificationRouter.delete("/:notificationId", notificationController.deleteNotification);
+
 export default notificationRouter;
