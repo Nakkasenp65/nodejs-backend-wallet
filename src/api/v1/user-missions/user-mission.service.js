@@ -179,11 +179,14 @@ const claimMissionReward = async (userId, userMissionId) => {
 
 /**
  * ดึงรายการภารกิจทั้งหมดของผู้ใช้ปัจจุบัน พร้อมตัวเลือกในการกรองข้อมูล
- * @description สามารถกรองข้อมูลตามสถานะได้ผ่าน `options.filter` ('active', 'history')
+ * @description สามารถกรองข้อมูลตามสถานะได้ผ่าน `options.filter`:
+ * - ไม่ระบุ filter (default): แสดงเฉพาะภารกิจที่ "กำลังทำ" (ENROLLED, AWAITING_CLAIM) เพื่อประสบการณ์ผู้ใช้ที่ดีที่สุด
+ * - 'all': แสดงภารกิจทั้งหมด รวมถึงที่หมดอายุ
+ * - 'history': แสดงเฉพาะภารกิจที่จบแล้ว (CLAIMED, EXPIRED, CLAIM_EXPIRED)
  * @async
  * @param {string} userId - ID ของผู้ใช้
  * @param {object} [options={}] - อ็อบเจกต์ตัวเลือกเพิ่มเติม
- * @param {'active'|'history'} [options.filter] - ตัวกรองสถานะภารกิจ ('active' คือ ENROLLED, AWAITING_CLAIM; 'history' คือสถานะที่จบแล้ว)
+ * @param {'all'|'history'} [options.filter] - ตัวกรองสถานะภารกิจ
  * @returns {Promise<Array<object>>} Promise ที่ resolve เป็นอาร์เรย์ของ UserMissions
  */
 const getMyMissions = async (userId, options = {}) => {
@@ -195,23 +198,26 @@ const getMyMissions = async (userId, options = {}) => {
   };
 
   // 2. เพิ่มเงื่อนไขการกรองตาม filter ที่ส่งเข้ามา
+  // BEST PRACTICE: Default behavior shows only active missions (better UX)
   switch (filter) {
-    // กรณีต้องการเฉพาะภารกิจที่ "กำลังทำ" หรือ "รอกดรับรางวัล"
-    case "active":
-      whereClause.status = {
-        in: ["ENROLLED", "AWAITING_CLAIM"],
-      };
+    // กรณีต้องการดูภารกิจทั้งหมด (รวมที่หมดอายุ)
+    case "all":
+      // ไม่เพิ่มเงื่อนไข status เพิ่ม = ดึงมาทั้งหมด
       break;
 
-    // กรณีต้องการเฉพาะภารกิจที่ "จบไปแล้ว" (สำเร็จ, หมดอายุ)
+    // กรณีต้องการเฉพาะภารกิจที่ "จบไปแล้ว" (สำเร็จ, หมดอายุ) - สำหรับหน้าประวัติ
     case "history":
       whereClause.status = {
         in: ["CLAIMED", "EXPIRED", "CLAIM_EXPIRED"],
       };
       break;
 
-    // ถ้าไม่ระบุ filter (default) ก็จะดึงมาทั้งหมด
+    // DEFAULT: แสดงเฉพาะภารกิจที่ "กำลังดำเนินการ" (UX Best Practice)
+    // ซ่อนภารกิจที่หมดอายุออกจากหน้าหลักโดยอัตโนมัติ
     default:
+      whereClause.status = {
+        in: ["ENROLLED", "AWAITING_CLAIM"],
+      };
       break;
   }
 
@@ -219,7 +225,7 @@ const getMyMissions = async (userId, options = {}) => {
   const missions = await prisma.userMission.findMany({
     where: whereClause,
     orderBy: [
-      { status: "asc" }, // 1. เรียงตามสถานะก่อน (AWAITING_CLAIM, ENROLLED จะมาก่อน)
+      { status: "asc" }, // 1. เรียงตามสถานะก่อน (AWAITING_CLAIM จะมาก่อน ENROLLED)
       { enrolledAt: "desc" }, // 2. ถ้าสถานะเหมือนกัน ให้เรียงตามวันที่เข้าร่วมล่าสุด
     ],
     include: {
