@@ -57,7 +57,7 @@ adminRoute.get("/users", userController.getUsers);
 adminRoute.get("/users/:line_user_id", userController.getUser);
 
 /**
- * @route PATCH /api/admin/users/:userId
+ * @route PATCH /v1/admin/users/:userId
  * @description แก้ไขข้อมูลผู้ใช้ด้วย ID ภายในระบบ
  * @access Admin Only
  * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูล
@@ -69,7 +69,7 @@ adminRoute.patch("users/:userId", adminController.editUser);
 //รายการการเงิน
 
 /**
- * @route GET /api/admin/transactions
+ * @route GET /v1/admin/transactions
  * @description ดึงรายการธุรกรรมทั้งหมดในระบบ พร้อมการแบ่งหน้าและการกรอง
  * @access Admin Only
  * @query {number} [page] - เลขหน้า
@@ -78,7 +78,7 @@ adminRoute.patch("users/:userId", adminController.editUser);
 adminRoute.get("/transactions", adminController.getTransactions);
 
 /**
- * @route PATCH /api/admin/transactions/:transactionId
+ * @route PATCH /v1/admin/transactions/:transactionId
  * @description แก้ไขธุรกรรม (รวมถึงการอนุมัติ/ปฏิเสธ) และอัปโหลดสลิปใหม่ (ถ้ามี)
  * @consumes multipart/form-data
  * @access Admin Only
@@ -89,7 +89,7 @@ adminRoute.get("/transactions", adminController.getTransactions);
 adminRoute.patch("/transactions/:transactionId", upload.single("slipImage"), adminController.editTransaction);
 
 /**
- * @route DELETE /api/admin/transactions/:transactionId
+ * @route DELETE /v1/admin/transactions/:transactionId
  * @description ลบธุรกรรม
  * @access Admin Only
  * @param {string} transactionId - ID ของธุรกรรม
@@ -99,14 +99,14 @@ adminRoute.delete("/transactions/:transactionId", adminController.deleteTransact
 //ภารกิจ
 
 /**
- * @route GET /api/admin/missions
+ * @route GET /v1/admin/missions
  * @description ดึงรายการภารกิจหลักทั้งหมด (Mission Templates)
  * @access Admin Only
  */
 adminRoute.get("/missions", adminController.getMissions);
 
 /**
- * @route GET /api/admin/missions/:missionId
+ * @route GET /v1/admin/missions/:missionId
  * @description ดึงข้อมูลภารกิจหลักเชิงลึก พร้อมสถิติและรายชื่อผู้เข้าร่วม
  * @access Admin Only
  * @param {string} missionId - ID ของภารกิจหลัก
@@ -114,7 +114,7 @@ adminRoute.get("/missions", adminController.getMissions);
 adminRoute.get("/missions/:missionId", missionController.getMissionDetails);
 
 /**
- * @route POST /api/admin/missions
+ * @route POST /v1/admin/missions
  * @description สร้างภารกิจหลักใหม่
  * @access Admin Only
  * @body {object} missionData - ข้อมูลสำหรับสร้างภารกิจ
@@ -122,7 +122,7 @@ adminRoute.get("/missions/:missionId", missionController.getMissionDetails);
 adminRoute.post("/missions", missionController.createMission);
 
 /**
- * @route PATCH /api/admin/missions
+ * @route PATCH /v1/admin/missions
  * @description แก้ไขภารกิจหลัก (ID อยู่ใน body)
  * @access Admin Only
  * @body {object} missionData - ข้อมูลสำหรับอัปเดตภารกิจ (ต้องมี `id`)
@@ -130,7 +130,7 @@ adminRoute.post("/missions", missionController.createMission);
 adminRoute.patch("/missions", missionController.editMission);
 
 /**
- * @route DELETE /api/admin/missions/:missionId
+ * @route DELETE /v1/admin/missions/:missionId
  * @description ลบภารกิจหลัก
  * @access Admin Only
  * @param {string} missionId - ID ของภารกิจหลัก
@@ -140,7 +140,7 @@ adminRoute.delete("/missions/:missionId", missionController.deleteMission);
 // ภารกิจของแต่ละ account
 
 /**
- * @route GET /api/admin/user-missions/:line_user_id
+ * @route GET /v1/admin/user-missions/:line_user_id
  * @description ดึงรายการภารกิจทั้งหมดของผู้ใช้รายบุคคล
  * @access Admin Only
  * @param {string} line_user_id - รหัสผู้ใช้ LINE
@@ -148,7 +148,7 @@ adminRoute.delete("/missions/:missionId", missionController.deleteMission);
 adminRoute.get("/user-missions/:line_user_id", adminController.getUserMisisonsByUserLineId);
 
 /**
- * @route GET /api/admin/user-missions/details/:userMissionId
+ * @route GET /v1/admin/user-missions/details/:userMissionId
  * @description ดึงข้อมูลภารกิจของผู้ใช้โดยละเอียด
  * @access Admin Only
  * @param {string} userMissionId - ID ของ UserMission
@@ -156,7 +156,7 @@ adminRoute.get("/user-missions/:line_user_id", adminController.getUserMisisonsBy
 adminRoute.get("/user-missions/details/:userMissionId", adminController.getUserMissionDetails);
 
 /**
- * @route PATCH /api/admin/user-missions/:userMissionId
+ * @route PATCH /v1/admin/user-missions/:userMissionId
  * @description แก้ไขข้อมูลภารกิจของผู้ใช้ (เช่น สถานะ, ความคืบหน้า)
  * @access Admin Only
  * @param {string} userMissionId - ID ของ UserMission
@@ -167,7 +167,7 @@ adminRoute.patch("/user-missions/:userMissionId", adminController.editUserMissio
 //การแจ้งเตือน เป็น broadcast แทน notification (notification คือส่วนตัวมี userId อยู่)
 
 /**
- * @route GET /api/admin/broadcasts
+ * @route GET /v1/admin/broadcasts
  * @description ดึงรายการข้อความประกาศทั้งหมด พร้อมการแบ่งหน้าและการค้นหา
  * @access Admin Only
  * @query {number} [page=1] - เลขหน้าปัจจุบัน
@@ -178,7 +178,7 @@ adminRoute.patch("/user-missions/:userMissionId", adminController.editUserMissio
 adminRoute.get("/broadcasts", broadcastController.getBroadcasts);
 
 /**
- * @route POST /api/admin/broadcasts
+ * @route POST /v1/admin/broadcasts
  * @description สร้างข้อความประกาศฉบับร่าง (Draft) ใหม่
  * @access Admin Only
  * @body {string} title - หัวข้อของข้อความประกาศ
@@ -187,7 +187,7 @@ adminRoute.get("/broadcasts", broadcastController.getBroadcasts);
 adminRoute.post("/broadcasts", broadcastController.createBroadcast);
 
 /**
- * @route POST /api/admin/broadcasts/:broadcastId/send
+ * @route POST /v1/admin/broadcasts/:broadcastId/send
  * @description ส่งข้อความประกาศที่ระบุไปยังผู้ใช้ทุกคนในระบบ
  * @access Admin Only
  * @param {string} broadcastId - ID ของข้อความประกาศที่ต้องการส่ง
@@ -195,7 +195,7 @@ adminRoute.post("/broadcasts", broadcastController.createBroadcast);
 adminRoute.post("/broadcasts/:broadcastId/send", broadcastController.sendBroadcast);
 
 /**
- * @route PATCH /api/admin/broadcasts/:broadcastId
+ * @route PATCH /v1/admin/broadcasts/:broadcastId
  * @description แก้ไขข้อความประกาศ
  * @access Admin Only
  * @param {string} broadcastId - ID ของข้อความประกาศที่ต้องการแก้ไข
@@ -205,7 +205,7 @@ adminRoute.post("/broadcasts/:broadcastId/send", broadcastController.sendBroadca
 adminRoute.patch("/broadcasts/:broadcastId", broadcastController.updateBroadcast);
 
 /**
- * @route DELETE /api/admin/broadcasts/:broadcastId
+ * @route DELETE /v1/admin/broadcasts/:broadcastId
  * @description ลบข้อความประกาศ
  * @access Admin Only
  * @param {string} broadcastId - ID ของข้อความประกาศที่ต้องการลบ
@@ -215,26 +215,26 @@ adminRoute.delete("/broadcasts/:broadcastId", broadcastController.deleteBroadcas
 //จัดการแก้ไข เพิ่มลบ รุ่นโทรศัพท์
 
 /**
- * @route GET /api/admin/products/filters
+ * @route GET /v1/admin/products/filters
  * @description ดึงข้อมูลตัวเลือกสำหรับสร้าง Filter UI ในหน้าจัดการสินค้า
  * @access Admin Only
  */
 adminRoute.get("/products/filters", productController.getProductFilters);
 /**
- * @route GET /api/admin/products
+ * @route GET /v1/admin/products
  * @description ดึงรายการสินค้าทั้งหมด พร้อมการแบ่งหน้าและการกรอง
  * @access Admin Only
  */
 adminRoute.get("/products", productController.getProducts);
 /**
- * @route POST /api/admin/products
+ * @route POST /v1/admin/products
  * @description สร้างสินค้าใหม่
  * @access Admin Only
  * @body {object} productData - ข้อมูลสำหรับสร้างสินค้า
  */
 adminRoute.post("/products", productController.createProduct);
 /**
- * @route PATCH /api/admin/products/:productId
+ * @route PATCH /v1/admin/products/:productId
  * @description แก้ไขสินค้า และอัปโหลดรูปภาพใหม่ (ถ้ามี)
  * @consumes multipart/form-data
  * @access Admin Only
@@ -245,7 +245,7 @@ adminRoute.post("/products", productController.createProduct);
 adminRoute.patch("/products/:productId", upload.single("productImage"), productController.editProduct);
 
 /**
- * @route DELETE /api/admin/products/:productId
+ * @route DELETE /v1/admin/products/:productId
  * @description ลบสินค้า
  * @access Admin Only
  * @param {string} productId - ID ของสินค้า
@@ -253,7 +253,7 @@ adminRoute.patch("/products/:productId", upload.single("productImage"), productC
 adminRoute.delete("/products/:productId", productController.deleteProduct);
 
 /**
- * @route POST /api/admin/line/:line_user_id
+ * @route POST /v1/admin/line/:line_user_id
  * @description ทดสอบส่ง flex message ไปยัง line user ตามที่ระบุ
  * @access Admin Only
  * @param {string} line_user_id - line user id ของ user
@@ -263,14 +263,14 @@ adminRoute.post("/line/test/:line_user_id", lineController.sendFlexMessage);
 // จัดการแก้ไข เพิ่มลบ กระเป๋า
 
 /**
- * @route GET /api/admin/wallets
+ * @route GET /v1/admin/wallets
  * @description ดึงรายการ Wallet ทั้งหมดในระบบ
  * @access Admin Only
  */
 adminRoute.get("/wallets", adminController.getWallets);
 
 /**
- * @route GET /api/admin/wallets/:walletId
+ * @route GET /v1/admin/wallets/:walletId
  * @description ดึงข้อมูล Wallet โดยละเอียด
  * @access Admin Only
  * @param {string} walletId - ID ของ Wallet
@@ -278,7 +278,7 @@ adminRoute.get("/wallets", adminController.getWallets);
 adminRoute.get("/wallets/:walletId", adminController.getWalletDetails);
 
 /**
- * @route PATCH /api/admin/wallets/:walletId
+ * @route PATCH /v1/admin/wallets/:walletId
  * @description อัปเดตข้อมูล Wallet (เช่น ยอดเงิน)
  * @access Admin Only
  * @param {string} walletId - ID ของ Wallet
@@ -289,7 +289,7 @@ adminRoute.patch("/wallets/:walletId", adminController.getWallets);
 // จัดการ cron
 
 /**
- * @route POST /api/admin/crons/expire-missions
+ * @route POST /v1/admin/crons/expire-missions
  * @description (สำหรับ Manual Trigger) เริ่มกระบวนการตรวจสอบและอัปเดตสถานะภารกิจที่หมดอายุ
  * @access Admin Only
  */

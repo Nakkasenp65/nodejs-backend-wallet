@@ -739,16 +739,7 @@ const exportToPdf = async (email, walletId, startDate, endDate) => {
  * @returns {Promise<{data: Array<object>, paging: object}>} Promise ที่ resolve เป็นอ็อบเจกต์ข้อมูลและสถานะการแบ่งหน้า
  */
 const getTransactions = async (options = {}) => {
-  const {
-    // pagination
-    page = 1,
-    pageSize = 10,
-    // sort
-    sort = "createdAt",
-    order = "desc",
-    // [MODIFIED] รับค่า status มาจาก options
-    status,
-  } = options;
+  const { page = 1, pageSize = 10, sort = "createdAt", order = "desc", status } = options;
 
   const orderBy = sort === "amount" ? { amount: order } : { createdAt: order };
   const ps = Math.min(Number(pageSize) || 20, 100);
@@ -764,14 +755,14 @@ const getTransactions = async (options = {}) => {
   // [MODIFIED] ใช้ whereClause ทั้งใน findMany และ count
   const [data, total] = await prisma.$transaction([
     prisma.transaction.findMany({
-      where: whereClause, // <--- เพิ่มตรงนี้
+      where: whereClause,
       orderBy,
       skip,
       take: ps,
       include: { toWallet: true, fromWallet: true },
     }),
     prisma.transaction.count({
-      where: whereClause, // <--- และเพิ่มตรงนี้เพื่อให้ Pagination ถูกต้อง
+      where: whereClause,
     }),
   ]);
 

@@ -5,9 +5,12 @@ import v1Router from "./api/v1/index.js";
 import ApiError from "./utils/ApiError.js";
 import httpStatus from "http-status";
 import error from "./middlewares/error.js";
+import dotenv from "dotenv";
 
 const app = express();
-if (process.env.NODE_ENV === "development") {
+dotenv.config({ path: "./../.env" });
+if (process.env.NODE_ENV === "dev") {
+  console.log("Running in development mode");
   app.use(morgan("dev"));
 } else {
   app.use(morgan("combined"));
@@ -28,4 +31,5 @@ app.use((req, res, next) => {
 
 app.use(error.errorConverter);
 app.use(error.errorHandler);
+
 export default app;

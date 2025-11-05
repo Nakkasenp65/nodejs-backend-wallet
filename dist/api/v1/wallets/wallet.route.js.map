@@ -1,0 +1,1 @@
+{"version":3,"file":"wallet.route.js","sourceRoot":"","sources":["../../../../src/api/v1/wallets/wallet.route.js"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AACH,OAAO,gBAAgB,MAAM,wBAAwB,CAAC;AACtD,OAAO,OAAO,MAAM,SAAS,CAAC;AAE9B,MAAM,YAAY,GAAG,OAAO,CAAC,MAAM,EAAE,CAAC;AAEtC;;;;;GAKG;AACH,YAAY,CAAC,GAAG,CAAC,gBAAgB,EAAE,gBAAgB,CAAC,aAAa,CAAC,CAAC;AAEnE,eAAe,YAAY,CAAC"}

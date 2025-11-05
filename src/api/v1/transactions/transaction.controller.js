@@ -144,7 +144,7 @@ const exportToPdf = catchAsync(async (req, res) => {
  */
 const getTransactions = catchAsync(async (req, res) => {
   const transactions = await transactionService.getTransactions(req.query);
-  res.httpStatus(OK).json(transactions);
+  res.status(httpStatus.OK).json(transactions);
 });
 
 export default {

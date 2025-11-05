@@ -11,9 +11,11 @@ import productRouter from "./products/product.route.js";
 import walletRouter from "./wallets/wallet.route.js";
 import slipRouter from "./slips/slip.route.js";
 import cronRouter from "./cron/cron.route.js";
+import healthRouter from "./health/health.route.js";
 
 const v1Router = express.Router();
 
+v1Router.use("/health", healthRouter);
 v1Router.use("/admin", adminRoute);
 v1Router.use("/user", userRouter);
 v1Router.use("/transaction", transactionRouter);

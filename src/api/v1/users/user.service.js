@@ -246,7 +246,7 @@ const createUserWithGoal = async (userData) => {
     line_user_id,
     line_display_name,
     line_profile_url,
-    email, // <-- เพิ่ม email เข้ามา
+    email,
     occupation,
     ageRange,
     monthlyPayment,
@@ -259,8 +259,6 @@ const createUserWithGoal = async (userData) => {
 
   const floatMonthlyPayment = parseFloat(monthlyPayment);
 
-  // --- STAGE 1: การตรวจสอบเงื่อนไขเบื้องต้น (Pre-condition Validation) ---
-  // ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่ ก่อนที่จะเริ่มกระบวนการที่ซับซ้อน
   const existingUser = await prisma.user.findUnique({
     where: { line_user_id: line_user_id },
     select: { id: true },
@@ -269,11 +267,10 @@ const createUserWithGoal = async (userData) => {
     throw new ApiError(httpStatus.CONFLICT, "มีผู้ใช้งานนี้ในระบบแล้ว");
   }
 
-  // --- STAGE 2: การเตรียมข้อมูลภายนอก (External Data Preparation) ---
-  // ทำงานที่ไม่ขึ้นกับ Transaction ให้เสร็จสิ้นก่อน
   const referralCode = await generateUniqueReferralCode(prisma);
   const walletUniqueId = await generateUniqueWalletId(prisma);
 
+  // ดึงภารกิจทั้งหมดที่เป็น onboarding (สำหรับคนที่สมัครใหม่, ภารกิจ event ทำครั้งแรก)
   const onboardingMissions = await prisma.mission.findMany({
     where: {
       type: MissionType.ONBOARDING,
@@ -294,8 +291,6 @@ const createUserWithGoal = async (userData) => {
     }
   }
 
-  // --- STAGE 3: ปฏิบัติการก่อกำเนิดเชิงปรมาณู (The Genesis Atomic Operation) ---
-  // ทุกการ "เขียน" ข้อมูลลงฐานข้อมูลจะเกิดขึ้นภายใน "ห้องนิรภัย" นี้เท่านั้น
   const createdUser = await prisma.$transaction(async (tx) => {
     // 1. สร้าง User, Wallet, และ Goal พร้อมกัน
     const newUser = await tx.user.create({
@@ -312,7 +307,7 @@ const createUserWithGoal = async (userData) => {
         chat_url,
         pin,
         phone,
-        referToCode: referToCode || null, // ตรวจสอบให้แน่ใจว่าเป็น null ถ้าไม่มี
+        referToCode: referToCode || null,
         wallet: {
           create: {
             walletUniqueId: walletUniqueId,
@@ -330,7 +325,6 @@ const createUserWithGoal = async (userData) => {
       select: { id: true, wallet: { select: { id: true } } },
     });
 
-    // 2. สร้าง UserMissions (ถ้ามี)
     if (onboardingMissions.length > 0) {
       const userMissionsData = onboardingMissions.map((mission) => ({
         userId: newUser.id,
@@ -342,7 +336,7 @@ const createUserWithGoal = async (userData) => {
       await tx.userMission.createMany({ data: userMissionsData });
     }
 
-    // 3. สร้าง Transaction โบนัสต้อนรับ
+    // เงินโบนัสต้อนรับ 100 บาท
     const welcomeTransaction = await tx.transaction.create({
       data: {
         name: "💰 รับโบนัสฟรี 100 บาท!",
@@ -357,7 +351,6 @@ const createUserWithGoal = async (userData) => {
       },
     });
 
-    // 4. สร้าง Notifications ต้อนรับ
     await tx.notification.createMany({
       data: [
         {
@@ -376,7 +369,6 @@ const createUserWithGoal = async (userData) => {
       ],
     });
 
-    // 5. สร้าง Referral Record (ถ้ามี)
     if (referrerId) {
       await tx.referral.create({
         data: {
@@ -386,8 +378,6 @@ const createUserWithGoal = async (userData) => {
       });
     }
 
-    // 6. [FINAL STEP] ดึงข้อมูลทั้งหมดที่จำเป็นกลับไปในครั้งเดียว
-    // นี่คือปฏิบัติการ "อ่าน" ครั้งสุดท้ายภายใน Transaction
     return tx.user.findUnique({
       where: { id: newUser.id },
       include: {
