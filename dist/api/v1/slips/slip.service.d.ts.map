@@ -1,1 +1,0 @@
-{"version":3,"file":"slip.service.d.ts","sourceRoot":"","sources":["../../../../src/api/v1/slips/slip.service.js"],"names":[],"mappings":";;;;;AAwDA;;;;;;;;;;GAUG;AACH,2CALW,MAAM,iBACN,MAAM,GACJ,OAAO,CAAC,MAAM,CAAC,CA0C3B;AAED;;;;;;;;;GASG;AACH,wCALW,MAAM,cACN,MAAM,GACJ,OAAO,CAAC;IAAC,MAAM,EAAE,MAAM,CAAC;IAAC,QAAQ,EAAE,MAAM,CAAC;IAAC,GAAG,EAAE,MAAM,CAAA;CAAC,CAAC,CAoDpE"}

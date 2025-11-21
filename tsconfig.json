@@ -3,39 +3,43 @@
     // Target modern Node.js
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022"],
-
+    "lib": [
+      "ES2022"
+    ],
     // Module resolution for ES modules
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-
     // Allow JS files alongside TS files
     "allowJs": true,
     "checkJs": false,
-
     // Output configuration
     "outDir": "./dist",
     "rootDir": "./src",
-
     // Type checking - start lenient, increase gradually
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
-
     // Interop
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
     // Types
-    "types": ["node"],
-
+    "types": [
+      "node"
+    ],
     // Emit
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
+    "declarationMap": false,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "src/**/*.js"],
-  "exclude": ["node_modules", "dist", "src/generated"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/generated"
+  ]
 }
