@@ -26,7 +26,12 @@ import cronController from "../cron/cron.controller.js";
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+import auth from "../../../middlewares/auth.js";
+import adminAuth from "../../../middlewares/adminAuth.js";
+
 const adminRoute = Router();
+
+adminRoute.use(auth, adminAuth);
 
 /**
  * @route GET /api/admin/

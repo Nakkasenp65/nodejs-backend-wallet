@@ -8,6 +8,7 @@
  */
 import { Router } from "express";
 import userController from "./user.controller.js";
+import auth from "../../../middlewares/auth.js";
 
 const userRouter = Router();
 
@@ -26,7 +27,7 @@ userRouter.get("/status/:line_user_id", userController.checkStatus);
 @query {string} type - ประเภทการค้นหา (เช่น 'phone', 'walletId')
 @query {string} value - ค่าที่ใช้ในการค้นหา
 */
-userRouter.get("/recipient", userController.searchRecipient);
+userRouter.get("/recipient", auth, userController.searchRecipient);
 
 /**
  * @route GET /api/users/referral/:line_user_id
@@ -34,7 +35,7 @@ userRouter.get("/recipient", userController.searchRecipient);
  * @access Private (Requires Authentication)
  * @param {string} line_user_id - รหัสผู้ใช้ LINE ของผู้ที่ต้องการดูประวัติ
  */
-userRouter.get("/referral/:line_user_id", userController.getReferralHistory);
+userRouter.get("/referral/:line_user_id", auth, userController.getReferralHistory);
 
 /**
  * @route GET /api/users/lock/:line_user_id
@@ -50,7 +51,7 @@ userRouter.get("/lock/:line_user_id", userController.getLockStatus);
  * @access Private (Requires Authentication)
  * @param {string} line_user_id - รหัสผู้ใช้ LINE ของผู้ใช้ที่ต้องการดึงข้อมูล
  */
-userRouter.get("/:line_user_id", userController.getUser);
+userRouter.get("/:line_user_id", auth, userController.getUser);
 
 /**
  * @route POST /api/users
@@ -67,7 +68,7 @@ userRouter.post("/", userController.createUser);
  * @body {string} newcomerId - ID ของผู้ใช้ใหม่ (ผู้ถูกแนะนำ)
  * @body {string} referralCode - โค้ดของผู้แนะนำ
  */
-userRouter.post("/refer", userController.createReferral);
+userRouter.post("/refer", auth, userController.createReferral);
 
 /**
  * @route POST /api/users/lock/:line_user_id
@@ -75,7 +76,7 @@ userRouter.post("/refer", userController.createReferral);
  * @access Private (Requires Authentication)
  * @param {string} line_user_id - รหัสผู้ใช้ LINE ที่ต้องการล็อก
  */
-userRouter.post("/lock/:line_user_id", userController.setLocked);
+userRouter.post("/lock/:line_user_id", auth, userController.setLocked);
 
 /**
  * @route POST /api/users/unlock
@@ -93,6 +94,6 @@ userRouter.post("/unlock", userController.unlock);
  * @param {string} line_user_id - รหัสผู้ใช้ LINE ที่ต้องการอัปเดต
  * @body {object} updateData - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดต
  */
-userRouter.patch("/:line_user_id", userController.updateUser);
+userRouter.patch("/:line_user_id", auth, userController.updateUser);
 
 export default userRouter;

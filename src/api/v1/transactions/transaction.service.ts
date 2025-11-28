@@ -27,11 +27,12 @@ import type {
   TransferData,
   TransactionQueryOptions,
   AdminTransactionQueryOptions,
-  EditTransactionUpdate,
   ApproveDepositData,
   RejectionData,
+  EditTransactionData,
 } from "./transaction.type.js";
 import type { Express } from "express";
+import { SentMessageInfo } from "nodemailer";
 
 const formatDate = (date: Date | string) =>
   new Date(date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
@@ -366,7 +367,6 @@ const createWithdrawTransaction = async (
   amount: number | string,
   withdrawalDetails: WithdrawDetails,
 ) => {
-  // --- 1. ตรวจสอบและแปลงข้อมูลนำเข้า ---
   const floatAmount = typeof amount === "string" ? parseFloat(amount) : amount;
   if (isNaN(floatAmount) || floatAmount <= 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, "จำนวนเงินที่ต้องการถอนไม่ถูกต้อง");
@@ -380,7 +380,6 @@ const createWithdrawTransaction = async (
     throw new ApiError(httpStatus.BAD_REQUEST, "กรุณาระบุข้อมูลบัญชีธนาคารให้ครบถ้วน");
   }
 
-  // --- 3. ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัยสูงสุด ---
   const newWithdrawalTransaction = await prisma.$transaction(async (tx) => {
     // 3.1 ค้นหา Wallet ของผู้ใช้
     const wallet = await tx.wallet.findUnique({
@@ -585,8 +584,7 @@ const getWalletTransaction = async (walletId: string, options: TransactionQueryO
   };
 
   if (options.year && options.month !== undefined) {
-    const year = parseInt(options.year, 10);
-    const month = parseInt(options.month, 10);
+    const { year, month } = options;
 
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 1);
@@ -622,8 +620,7 @@ const getSuccessTransaction = async (walletId: string, options: TransactionQuery
   };
 
   if (options.year && options.month !== undefined) {
-    const year = parseInt(options.year, 10);
-    const month = parseInt(options.month, 10);
+    const { year, month } = options;
 
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 1);
@@ -756,7 +753,7 @@ const exportToPdf = async (email: string, walletId: string, startDate?: string, 
   });
 
   // 3. ส่งอีเมลพร้อมไฟล์ PDF ที่แนบไป (เหมือนเดิม)
-  const result = await sendEmail({
+  const result: SentMessageInfo = await sendEmail({
     to: email,
     subject: `ใบแจ้งยอดบัญชีสำหรับ ${wallet.user.fullname}`,
     text: `เรียนคุณ ${wallet.user.fullname},\n\nเอกสารใบแจ้งยอดบัญชีของคุณสำหรับช่วงวันที่ ${formatDate(dateFilter?.gte || new Date())} ถึง ${formatDate(dateFilter?.lte || new Date())} อยู่ในไฟล์แนบแล้วค่ะ\n\nขอแสดงความนับถือ,\nNUMBER 1 MONEY PLUS`,
@@ -835,8 +832,19 @@ const getTransactions = async (options: AdminTransactionQueryOptions = {}) => {
  * @param {object} dataToUpdate - Payload ที่ผ่านการกรองและเตรียมข้อมูลแล้ว
  * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ธุรกรรมที่อัปเดตแล้ว
  */
-const handleApproval = async (transactionId: string, existingTransaction: any, dataToUpdate: EditTransactionUpdate) => {
-  const floatAmount = dataToUpdate.amount;
+const handleApproval = async (transactionId: string, existingTransaction: any, dataToUpdate: EditTransactionData) => {
+  // Ensure updateAmount is valid, fallback to existing amount if not provided
+  let updateAmount = dataToUpdate.amount !== undefined ? dataToUpdate.amount : existingTransaction.amount;
+
+  if (typeof updateAmount === "string") {
+    updateAmount = parseFloat(updateAmount);
+  }
+
+  // Final safety check
+  if (isNaN(updateAmount)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid transaction amount.");
+  }
+
 
   // กำหนดเป้าหมาย Wallet และประเภทปฏิบัติการ
   let targetWalletId;
@@ -846,12 +854,12 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
     case "INCOME":
     case "REWARD":
       targetWalletId = existingTransaction.toWalletId;
-      walletOperation = { balance: { increment: floatAmount } };
+      walletOperation = { balance: { increment: updateAmount } };
       break;
     case "OUTCOME":
     case "WITHDRAW":
       targetWalletId = existingTransaction.fromWalletId;
-      walletOperation = { balance: { decrement: floatAmount } };
+      walletOperation = { balance: { decrement: updateAmount } };
       break;
     default:
       throw new ApiError(
@@ -881,8 +889,11 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
       where: { id: transactionId },
       data: {
         ...dataToUpdate,
+        type: dataToUpdate.type as TransactionType,
+        status: dataToUpdate.status as TransactionStatus,
+        amount: updateAmount,
         verified: true,
-        verifiedAmount: floatAmount,
+        verifiedAmount: updateAmount,
       },
     });
 
@@ -933,7 +944,7 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
 const editTransaction = async (
   transactionId: string,
   file: Express.Multer.File | undefined,
-  payload: EditTransactionUpdate,
+  payload: EditTransactionData,
 ) => {
   if (!transactionId) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Transaction ID is required.");
@@ -943,9 +954,9 @@ const editTransaction = async (
   }
 
   const dataToUpdate = { ...payload };
+
   if (dataToUpdate.amount) {
-    dataToUpdate.amount = parseFloat(dataToUpdate.amount);
-    if (isNaN(dataToUpdate.amount)) {
+    if (isNaN(parseFloat(String(dataToUpdate.amount)))) {
       throw new ApiError(httpStatus.BAD_REQUEST, "Invalid amount format.");
     }
   }
@@ -961,14 +972,24 @@ const editTransaction = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
   }
 
-  const isApproving = dataToUpdate.status === "SUCCESS" && existingTransaction.status !== "SUCCESS";
+  const isApproving =
+    dataToUpdate.status === TransactionStatus.SUCCESS && existingTransaction.status !== TransactionStatus.SUCCESS;
 
   if (isApproving) {
     return handleApproval(transactionId, existingTransaction, dataToUpdate);
   } else {
+    // Sanitize amount for generic update
+    if (dataToUpdate.amount) {
+      dataToUpdate.amount = parseFloat(String(dataToUpdate.amount));
+    }
     return await prisma.transaction.update({
       where: { id: transactionId },
-      data: dataToUpdate,
+      data: {
+        ...dataToUpdate,
+        type: dataToUpdate.type as TransactionType,
+        status: dataToUpdate.status as TransactionStatus,
+        amount: typeof dataToUpdate.amount === 'string' ? parseFloat(dataToUpdate.amount) : dataToUpdate.amount,
+      },
     });
   }
 };
@@ -1006,7 +1027,7 @@ const deleteTransaction = async (transactionId: string) => {
  */
 const approveDeposit = async (transactionId: string, approvalData: ApproveDepositData) => {
   const { userId, amount, sender } = approvalData;
-  const floatAmount = parseFloat(amount);
+  const floatAmount = parseFloat(String(amount));
 
   if (isNaN(floatAmount) || floatAmount <= 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, `Invalid amount provided for approval: ${amount}`);

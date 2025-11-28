@@ -245,7 +245,7 @@ const createProduct = async (payload: Prisma.ProductCreateInput) => {
 
     // 2. สร้าง uniqueId และตรวจสอบข้อมูลซ้ำ
     const uniqueId = generateUniqueId({ brand, model, capacity, color });
-    const existingProduct = await prisma.product.findUnique({
+    const existingProduct = await prisma.product.findFirst({
         where: { uniqueId },
     });
 

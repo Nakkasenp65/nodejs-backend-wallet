@@ -21,8 +21,8 @@ import httpStatus from "http-status";
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getNotifications = catchAsync(async (req: Request, res: Response) => {
-    const notifications = await notificationService.getNotificationsByUserId(req.params.userId);
-    res.status(httpStatus.OK).json({ success: true, data: notifications });
+  const notifications = await notificationService.getNotificationsByUserId(req.params.userId);
+  res.status(httpStatus.OK).json({ success: true, data: notifications });
 });
 
 /**
@@ -33,12 +33,12 @@ const getNotifications = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const markAsRead = catchAsync(async (req: Request, res: Response) => {
-    // สมมติว่า userId มาจาก auth middleware (req.user.id) เพื่อความปลอดภัย
-    // const userId = req.user.id;
-    const { notificationId } = req.params;
-    const updatedNotification = await notificationService.markNotificationAsRead(notificationId);
-    console.log(`update transaction successfully: ${updatedNotification.title} : is Read: ${updatedNotification.isRead}`);
-    res.status(httpStatus.OK).json({ success: true, data: updatedNotification });
+  // สมมติว่า userId มาจาก auth middleware (req.user.id) เพื่อความปลอดภัย
+  // const userId = req.user.id;
+  const { notificationId } = req.params;
+  const updatedNotification = await notificationService.markNotificationAsRead(notificationId);
+  console.log(`update transaction successfully: ${updatedNotification.title} : is Read: ${updatedNotification.isRead}`);
+  res.status(httpStatus.OK).json({ success: true, data: updatedNotification });
 });
 
 /**
@@ -49,11 +49,11 @@ const markAsRead = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const clearNotifications = catchAsync(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const type = req.query.type as NotificationType;
-    const result = await notificationService.clearNotificationsByType(userId, type);
-    console.log("Delete notifications successfully!");
-    res.status(httpStatus.OK).json({ success: true, message: `${result.count} notifications cleared.`, data: result });
+  const { userId } = req.params;
+  const type = req.query.type as NotificationType;
+  const result = await notificationService.clearNotificationsByType(userId, type);
+  console.log("Delete notifications successfully!");
+  res.status(httpStatus.OK).json({ success: true, message: `${result.count} notifications cleared.`, data: result });
 });
 
 /**
@@ -64,22 +64,9 @@ const clearNotifications = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getSystemNotifications = catchAsync(async (req: Request, res: Response) => {
-    const options = req.query;
-    const notifications = await notificationService.getSystemNotifications(options);
-    res.status(httpStatus.OK).json(notifications);
-});
-
-/**
- * คอนโทรลเลอร์สำหรับสร้างการแจ้งเตือนของระบบ (สำหรับ Admin)
- * @description รับข้อมูลการแจ้งเตือนจาก Request Body, เรียกใช้ Service,
- * และส่งข้อมูลการแจ้งเตือนที่สร้างใหม่กลับไปพร้อมสถานะ 201 (Created)
- * @param {object} req - อ็อบเจกต์ Express Request ที่มีข้อมูลใน `req.body`
- * @param {object} res - อ็อบเจกต์ Express Response
- */
-const createSystemNotification = catchAsync(async (req: Request, res: Response) => {
-    const notificationPayload = req.body;
-    const notification = await notificationService.createSystemNotification(notificationPayload);
-    res.status(httpStatus.CREATED).json(notification);
+  const options = req.query;
+  const notifications = await notificationService.getSystemNotifications(options);
+  res.status(httpStatus.OK).json(notifications);
 });
 
 /**
@@ -90,10 +77,10 @@ const createSystemNotification = catchAsync(async (req: Request, res: Response) 
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const editNotification = catchAsync(async (req: Request, res: Response) => {
-    const { notificationId } = req.params;
-    const notificationPayload = req.body;
-    const notification = await notificationService.editNotification(notificationId, notificationPayload);
-    res.status(httpStatus.OK).json(notification);
+  const { notificationId } = req.params;
+  const notificationPayload = req.body;
+  const notification = await notificationService.editNotification(notificationId, notificationPayload);
+  res.status(httpStatus.OK).json(notification);
 });
 
 /**
@@ -104,18 +91,17 @@ const editNotification = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const deleteNotification = catchAsync(async (req: Request, res: Response) => {
-    const { notificationId } = req.params;
-    const deletedNotification = await notificationService.deleteNotification(notificationId);
-    console.log(`Delete notification successfully: ${notificationId}`);
-    res.status(httpStatus.OK).json({ success: true, data: deletedNotification });
+  const { notificationId } = req.params;
+  const deletedNotification = await notificationService.deleteNotification(notificationId);
+  console.log(`Delete notification successfully: ${notificationId}`);
+  res.status(httpStatus.OK).json({ success: true, data: deletedNotification });
 });
 
 export default {
-    getNotifications,
-    markAsRead,
-    clearNotifications,
-    getSystemNotifications,
-    createSystemNotification,
-    editNotification,
-    deleteNotification,
+  getNotifications,
+  markAsRead,
+  clearNotifications,
+  getSystemNotifications,
+  editNotification,
+  deleteNotification,
 };

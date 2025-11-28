@@ -48,7 +48,6 @@ const slipVerify = catchAsync(async (req: Request, res: Response) => {
     } else {
         // คำสั่ง: "ปฏิเสธรายการฝากนี้"
         updatedTransaction = await transactionService.rejectDeposit(transactionId, {
-            userId: userId,
             code: verifyResult.code,
             reason: verifyResult.message || "Slip verification failed.",
         });

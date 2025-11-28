@@ -14,62 +14,75 @@ import { pushMessage } from "../../../utils/axios.js";
 import line, { flexMessage } from "../../../utils/line.js";
 import prisma from "../../../libs/prisma.js";
 import getBankIconUrl from "../../../utils/bankIcon.js";
+import {
+  LineReceiverPayload,
+  LineRegisterPayload,
+  LineSavePayload,
+  LineSenderPayload,
+  LineWithdrawPayload,
+} from "../../../types/line.types.js";
+import {
+  buildReceiverFlex,
+  buildRegisterFlex,
+  buildSaveFlex,
+  buildSenderFlex,
+  buildWithdrawFlex,
+} from "../../../utils/flex.js";
+import { formatBalance } from "../../../utils/utils.js";
 
-const FLEX_MODE = {
-    SAVE: "save",
-    WITHDRAW: "withdraw",
-    REGISTER: "register",
-    RECEIVER: "receiver",
-    SENDER: "sender",
-};
+enum FLEX_MODE {
+  SAVE = "save",
+  WITHDRAW = "withdraw",
+  REGISTER = "register",
+  RECEIVER = "receiver",
+  SENDER = "sender",
+}
 
 const options: Intl.DateTimeFormatOptions = {
-    year: "2-digit", // แสดงปีเป็นเลข 2 หลัก
-    month: "short", // แสดงเดือนเป็นชื่อย่อ
-    day: "numeric", // แสดงวันที่เป็นตัวเลข
-    hour: "2-digit", // แสดงชั่วโมงเป็นเลข 2 หลัก
-    minute: "2-digit", // แสดงนาทีเป็นเลข 2 หลัก
-    timeZone: "Asia/Bangkok",
-    // locale: "th-TH", // ใช้รูปแบบของภาษาไทย (Intl.DateTimeFormatOptions doesn't have locale, it's passed to constructor)
+  year: "2-digit", // แสดงปีเป็นเลข 2 หลัก
+  month: "short", // แสดงเดือนเป็นชื่อย่อ
+  day: "numeric", // แสดงวันที่เป็นตัวเลข
+  hour: "2-digit", // แสดงชั่วโมงเป็นเลข 2 หลัก
+  minute: "2-digit", // แสดงนาทีเป็นเลข 2 หลัก
+  timeZone: "Asia/Bangkok",
+  // locale: "th-TH", // ใช้รูปแบบของภาษาไทย (Intl.DateTimeFormatOptions doesn't have locale, it's passed to constructor)
 };
 
 const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", options);
 
 const formatRecipientDisplay = (fullname: string, toString: string) => {
-    // --- STAGE 1: การตรวจสอบความสมบูรณ์ของโครงสร้าง (Structural Integrity Check) ---
-    // เกราะป้องกัน: ตรวจสอบว่าข้อมูลนำเข้าพื้นฐานมีอยู่จริงและอยู่ในรูปแบบที่คาดหวังหรือไม่
-    if (!fullname || !toString || !toString.includes(" - ")) {
-        console.warn(
-            `Warning: Invalid input provided. Fullname: '${fullname}', To: '${toString}'. Returning fullname as fallback.`
-        );
-        return fullname;
-    }
+  // --- STAGE 1: การตรวจสอบความสมบูรณ์ของโครงสร้าง (Structural Integrity Check) ---
+  // เกราะป้องกัน: ตรวจสอบว่าข้อมูลนำเข้าพื้นฐานมีอยู่จริงและอยู่ในรูปแบบที่คาดหวังหรือไม่
+  if (!fullname || !toString || !toString.includes(" - ")) {
+    console.warn(
+      `Warning: Invalid input provided. Fullname: '${fullname}', To: '${toString}'. Returning fullname as fallback.`,
+    );
+    return fullname;
+  }
 
-    // --- STAGE 2: การสกัดข้อมูล (Data Extraction) ---
-    // แยกส่วนข้อความอย่างแม่นยำ
-    const parts = toString.split(" - ");
-    if (parts.length < 2) {
-        console.warn(`Warning: Malformed 'toString': '${toString}'. Returning fullname as fallback.`);
-        return fullname;
-    }
-    const accountNumberRaw = parts[1].trim();
+  // --- STAGE 2: การสกัดข้อมูล (Data Extraction) ---
+  // แยกส่วนข้อความอย่างแม่นยำ
+  const parts = toString.split(" - ");
+  if (parts.length < 2) {
+    console.warn(`Warning: Malformed 'toString': '${toString}'. Returning fullname as fallback.`);
+    return fullname;
+  }
+  const accountNumberRaw = parts[1].trim();
 
-    // --- STAGE 3: การชำระล้างและตรวจสอบข้อมูล (Sanitization & Validation) ---
-    // เกราะป้องกัน: กรองเอาเฉพาะตัวเลขและตรวจสอบความยาว
-    const digitsOnly = accountNumberRaw.replace(/\D/g, "");
-    if (digitsOnly.length < 5) {
-        console.warn(
-            `Warning: Account number '${digitsOnly}' is too short for masking. Returning fullname as fallback.`
-        );
-        return fullname;
-    }
+  // --- STAGE 3: การชำระล้างและตรวจสอบข้อมูล (Sanitization & Validation) ---
+  // เกราะป้องกัน: กรองเอาเฉพาะตัวเลขและตรวจสอบความยาว
+  const digitsOnly = accountNumberRaw.replace(/\D/g, "");
+  if (digitsOnly.length < 5) {
+    console.warn(`Warning: Account number '${digitsOnly}' is too short for masking. Returning fullname as fallback.`);
+    return fullname;
+  }
 
-    // --- STAGE 4: การแปลงข้อมูล (Transformation) ---
-    const lastFiveDigits = digitsOnly.slice(-5); // ดึง 5 ตัวสุดท้าย (เช่น "93200")
-    const middleThree = lastFiveDigits.substring(1, 4); // ดึง 3 ตัวตรงกลาง (เช่น "320")
-    const maskedPart = `X${middleThree}X`; // ประกอบสร้างส่วนที่มาสก์ (เช่น "X320X")
+  // --- STAGE 4: การแปลงข้อมูล (Transformation) ---
+  const lastFiveDigits = digitsOnly.slice(-5); // ดึง 5 ตัวสุดท้าย (เช่น "93200")
+  const middleThree = lastFiveDigits.substring(1, 4); // ดึง 3 ตัวตรงกลาง (เช่น "320")
+  const maskedPart = `X${middleThree}X`; // ประกอบสร้างส่วนที่มาสก์ (เช่น "X320X")
 
-    return `${fullname} ${maskedPart}`;
+  return `${fullname} ${maskedPart}`;
 };
 // const devId = process.env.DEV_LINE_USER_ID;
 
@@ -83,44 +96,45 @@ const formatRecipientDisplay = (fullname: string, toString: string) => {
  * @throws {ApiError} หากไม่พบผู้ใช้หรือการส่งข้อความล้มเหลว
  */
 const sendRegisterFlexMessage = async (line_user_id: string) => {
-    if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "line user id is required");
+  if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "line user id is required");
 
-    const user = await prisma.user.findUnique({
-        where: {
-            line_user_id,
-        },
+  const user = await prisma.user.findUnique({
+    where: {
+      line_user_id,
+    },
+    select: {
+      line_display_name: true,
+      phone: true,
+      fullname: true,
+      wallet: {
         select: {
-            phone: true,
-            fullname: true,
-            wallet: {
-                select: {
-                    walletUniqueId: true,
-                    balance: true,
-                },
-            },
+          walletUniqueId: true,
+          balance: true,
         },
-    });
+      },
+    },
+  });
 
-    if (!user || !user.wallet) throw new ApiError(httpStatus.NOT_FOUND, "user not found");
+  if (!user || !user.wallet) throw new ApiError(httpStatus.NOT_FOUND, "user not found");
 
-    const formattedBalance = user.wallet.balance.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+  const balance = Number(user.wallet.balance);
 
-    const payload = {
-        walletUniqueId: user.wallet.walletUniqueId,
-        fullname: user.fullname,
-        phone: user.phone,
-        balance: formattedBalance,
-    };
+  const formattedBalance = formatBalance(balance);
 
-    // ส่งไปอีก provider คนละ id กันกับในแอปปัจจุบัน
-    const flex = flexMessage(FLEX_MODE.REGISTER, line_user_id, payload);
-    const response = await pushMessage(flex);
-    console.log(response.data);
-    if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
-    return response.data;
+  const payload: LineRegisterPayload = {
+    walletUniqueId: user.wallet.walletUniqueId,
+    fullname: user.fullname === "" ? user.line_display_name : user.fullname,
+    phone: user.phone,
+    balance: formattedBalance,
+  };
+
+  const flex = buildRegisterFlex(line_user_id, payload);
+
+  const response = await pushMessage(flex);
+
+  if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
+
+  return response.data;
 };
 
 /**
@@ -138,47 +152,41 @@ const sendRegisterFlexMessage = async (line_user_id: string) => {
  * @returns {Promise<object>} Promise ที่ resolve เป็นข้อมูลการตอบกลับจาก LINE API
  */
 const sendDepositFlexMessage = async (
-    line_user_id: string,
-    amount: number,
-    balance: number,
-    walletUniqueId: string,
-    senderName: string,
-    senderBankNumber: string,
-    senderBankName: string,
-    updatedDate: Date
+  line_user_id: string,
+  amount: number,
+  balance: number,
+  walletUniqueId: string,
+  senderName: string,
+  senderBankNumber: string,
+  senderBankName: string,
+  updatedDate: Date,
 ) => {
-    const formattedDate = thaiDateFormatter.format(updatedDate);
-    const bankNumber = "X" + senderBankNumber.slice(-4);
-    const formattedBankName = senderBankName.replace("ธนาคาร", "");
-    const bankImageUrl = getBankIconUrl(senderBankName);
+  const formattedDate = thaiDateFormatter.format(updatedDate);
+  const bankNumber = "X" + senderBankNumber.slice(-4);
+  const formattedBankName = senderBankName.replace("ธนาคาร", "");
+  const bankImageUrl = getBankIconUrl(senderBankName);
+  const formattedAmount = formatBalance(amount);
+  const formattedBalance = formatBalance(balance);
 
-    const formattedAmount = amount.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    const formattedBalance = balance.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+  const payload: LineSavePayload = {
+    amount: formattedAmount,
+    fullnameWithBankNumber: senderName + " " + bankNumber,
+    walletUniqueId,
+    date: formattedDate,
+    balance: formattedBalance,
+    bankName: formattedBankName,
+    bankImageUrl,
+    liffHistoryUrl: `${process.env.LIFF_URL}/history`,
+  };
 
-    const payload = {
-        amount: formattedAmount,
-        fullnameWithBankNumber: senderName + " " + bankNumber,
-        walletUniqueId,
-        date: formattedDate,
-        balance: formattedBalance,
-        bankName: formattedBankName,
-        bankImageUrl,
-        liffHistoryUrl: `${process.env.LIFF_URL}/history`,
-    };
+  // ON PRODUCTION DELETE line_user_id AND USE line_user_id
+  // (RULE) MESSAGING API && LIFF (SAME PROVIDER!!)
+  const flex = buildSaveFlex(line_user_id, payload);
 
-    // ON PRODUCTION DELETE line_user_id AND USE line_user_id
-    // (RULE) MESSAGING API && LIFF (SAME PROVIDER!!)
-    const flex = line.flexMessage(FLEX_MODE.SAVE, line_user_id, payload);
-    const response = await pushMessage(flex);
-    // console.log(response.data);
-    if (!response.data) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
-    return response.data;
+  const response = await pushMessage(flex);
+
+  if (!response.data) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
+  return response.data;
 };
 
 /**
@@ -196,47 +204,44 @@ const sendDepositFlexMessage = async (
  * @returns {Promise<object>} Promise ที่ resolve เป็นข้อมูลการตอบกลับจาก LINE API
  */
 const sendWithdrawSuccessFlex = async (
-    line_user_id: string,
-    amount: number,
-    balance: number,
-    walletUniqueId: string,
-    fullname: string,
-    to: string,
-    bank: string,
-    updatedDate: Date
+  line_user_id: string,
+  amount: number,
+  balance: number,
+  walletUniqueId: string,
+  fullname: string,
+  to: string,
+  bank: string,
+  updatedDate: Date,
 ) => {
-    // ถอนเงินน่าจะมาจาก dashboard
-    // userId, senderName, senderBankNumber, senderBankName, amount, updatedDate, to
-    // const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", options); // Already defined globally
-    const formattedDate = thaiDateFormatter.format(updatedDate);
-    const formattedAmount = amount.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    const formattedBalance = balance.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    const toDisplay = formatRecipientDisplay(fullname, to);
-    const bankLogoUrl = getBankIconUrl(bank);
-    const formattedBankName = bank.replace("ธนาคาร", "");
+  // ถอนเงินน่าจะมาจาก dashboard
+  // userId, senderName, senderBankNumber, senderBankName, amount, updatedDate, to
+  // const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", options); // Already defined globally
+  const formattedDate = thaiDateFormatter.format(updatedDate);
+  const formattedAmount = formatBalance(amount);
+  const formattedBalance = formatBalance(balance);
+  const toDisplay = formatRecipientDisplay(fullname, to);
+  const bankLogoUrl = getBankIconUrl(bank);
+  const formattedBankName = bank.replace("ธนาคาร", "");
 
-    const payload = {
-        amount: formattedAmount,
-        walletUniqueId,
-        toDisplay,
-        bankImageUrl: bankLogoUrl,
-        bankName: formattedBankName,
-        date: formattedDate,
-        balance: formattedBalance,
-        liffHistoryUrl: `${process.env.LIFF_URL}/history`,
-    };
-    // case จริงจะใช้ line_user_id
-    // line_user_id ต้องอยู่ใน provider เดียวกับ messaging api
-    const flex = line.flexMessage(FLEX_MODE.WITHDRAW, line_user_id, payload);
-    const response = await pushMessage(flex);
-    if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
-    return response.data;
+  const payload: LineWithdrawPayload = {
+    amount: formattedAmount,
+    walletUniqueId,
+    toDisplay,
+    bankImageUrl: bankLogoUrl,
+    bankName: formattedBankName,
+    date: formattedDate,
+    balance: formattedBalance,
+    liffHistoryUrl: `${process.env.LIFF_URL}/history`,
+  };
+  // case จริงจะใช้ line_user_id
+  // line_user_id ต้องอยู่ใน provider เดียวกับ messaging api
+  const flex = buildWithdrawFlex(line_user_id, payload);
+
+  const response = await pushMessage(flex);
+
+  if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
+
+  return response.data;
 };
 
 /**
@@ -252,35 +257,30 @@ const sendWithdrawSuccessFlex = async (
  * @returns {Promise<void>}
  */
 const sendSenderFlex = async (
-    senderLineId: string,
-    sendingAmount: number,
-    senderWalletUniqueId: string,
-    receiverWalletUniqueId: string,
-    updatedDate: Date,
-    senderBalance: number,
-    liffUrlHistory: string
+  senderLineId: string,
+  sendingAmount: number,
+  senderWalletUniqueId: string,
+  receiverWalletUniqueId: string,
+  updatedDate: Date,
+  senderBalance: number,
+  liffUrlHistory: string,
 ) => {
-    const formattedAmount = sendingAmount.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    const formattedDate = thaiDateFormatter.format(updatedDate);
-    const formattedBalance = senderBalance.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+  const formattedAmount = formatBalance(sendingAmount);
+  const formattedBalance = formatBalance(senderBalance);
+  const formattedDate = thaiDateFormatter.format(updatedDate);
 
-    const flex = line.sendSender(
-        senderLineId,
-        senderWalletUniqueId,
-        receiverWalletUniqueId,
-        liffUrlHistory,
-        formattedAmount,
-        formattedDate,
-        formattedBalance
-    );
+  const payload: LineSenderPayload = {
+    senderWalletUniqueId,
+    receiverWalletUniqueId,
+    liffUrlHistory,
+    formattedAmount,
+    formattedDate,
+    formattedBalance,
+  };
 
-    await pushMessage(flex);
+  const flex = buildSenderFlex(senderLineId, payload);
+
+  await pushMessage(flex);
 };
 
 /**
@@ -296,41 +296,36 @@ const sendSenderFlex = async (
  * @returns {Promise<void>}
  */
 const sendReceiverFlex = async (
-    receiverLineId: string,
-    receivingAmount: number,
-    senderWalletUniqueId: string,
-    receiverWalletUniqueId: string,
-    updatedDate: Date,
-    receiverBalance: number,
-    liffUrlHistory: string
+  receiverLineId: string,
+  receivingAmount: number,
+  senderWalletUniqueId: string,
+  receiverWalletUniqueId: string,
+  updatedDate: Date,
+  receiverBalance: number,
+  liffUrlHistory: string,
 ) => {
-    const formattedAmount = receivingAmount.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    const formattedDate = thaiDateFormatter.format(updatedDate);
-    const formattedBalance = receiverBalance.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+  const formattedAmount = formatBalance(receivingAmount);
+  const formattedBalance = formatBalance(receiverBalance);
+  const formattedDate = thaiDateFormatter.format(updatedDate);
 
-    const flex = line.sendReceiver(
-        receiverLineId,
-        senderWalletUniqueId,
-        receiverWalletUniqueId,
-        liffUrlHistory,
-        formattedAmount,
-        formattedDate,
-        formattedBalance
-    );
+  const payload: LineReceiverPayload = {
+    senderWalletUniqueId,
+    receiverWalletUniqueId,
+    liffUrlHistory,
+    formattedAmount,
+    formattedDate,
+    formattedBalance,
+  };
 
-    await pushMessage(flex);
+  const flex = buildReceiverFlex(receiverLineId, payload);
+
+  await pushMessage(flex);
 };
 
 export default {
-    sendRegisterFlexMessage,
-    sendDepositFlexMessage,
-    sendWithdrawSuccessFlex,
-    sendSenderFlex,
-    sendReceiverFlex,
+  sendRegisterFlexMessage,
+  sendDepositFlexMessage,
+  sendWithdrawSuccessFlex,
+  sendSenderFlex,
+  sendReceiverFlex,
 };

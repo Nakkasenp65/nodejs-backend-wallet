@@ -23,18 +23,24 @@ import axios from "axios";
 export const pushMessage = async (flexMessage: any): Promise<any | undefined> => {
   try {
     const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
+
     if (!channelAccessToken) {
       console.error("[CHANNEL_ACCESS_TOKEN_NOT_FOUND] - Channel Access Token not found in environment variables");
       return undefined;
     }
+
     const config = {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${channelAccessToken}`,
       },
     };
-    const { data } = await axios.post("https://api.line.me/v2/bot/message/push", flexMessage, config);
-    return data;
+
+    const response = await axios.post("https://api.line.me/v2/bot/message/push", flexMessage, config);
+
+    console.log("response from pushMessage axios: ", response);
+
+    return response;
   } catch (error: any) {
     console.error("[SEND_LINE_FAIL] - ", error.response?.data || error.message);
   }

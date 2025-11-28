@@ -9,6 +9,7 @@
 import prisma from "../../../libs/prisma.js";
 import httpStatus from "http-status";
 import ApiError from "../../../utils/ApiError.js";
+import { GoalStatus } from "../../../generated/prisma/index.js";
 
 /**
  * สร้างเป้าหมายการออมใหม่สำหรับผู้ใช้
@@ -21,26 +22,26 @@ import ApiError from "../../../utils/ApiError.js";
  * @param {string} data.planId - ID ของแผนการออม (Plan) ที่เลือก
  * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ Goal ที่สร้างขึ้นใหม่ พร้อมข้อมูล mobileModel และ plan ที่เกี่ยวข้อง
  */
-const createGoalForUser = async (userId: number, data: { mobileId: string; planId: string }) => {
-    const newGoal = await prisma.goal.create({
-        data: {
-            user: { connect: { id: userId } },
-            mobileModel: { connect: { id: data.mobileId } },
-            plan: { connect: { id: data.planId } },
-            status: "ACTIVE",
-        },
-        include: {
-            mobileModel: true,
-            plan: true,
-        },
-    });
+const createGoalForUser = async (userId: string, data: { mobileId: string; planId: string }) => {
+  const newGoal = await prisma.goal.create({
+    data: {
+      userId: userId,
+      productId: data.mobileId,
+      planId: data.planId,
+      status: GoalStatus.ACTIVE,
+    },
+    include: {
+      product: true,
+      plan: true,
+    },
+  });
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: { firstTime: false },
-    });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { firstTime: false },
+  });
 
-    return newGoal;
+  return newGoal;
 };
 
 /**
@@ -51,15 +52,15 @@ const createGoalForUser = async (userId: number, data: { mobileId: string; planI
  * @param {object} data - อ็อบเจกต์ข้อมูลที่ต้องการอัปเดตใน Goal
  * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ Goal ที่อัปเดตแล้ว
  */
-const updateGoalForUser = async (userId: number, data: any) => {
-    const updatedGoal = await prisma.goal.update({
-        where: {
-            userId: userId,
-        },
-        data: data,
-    });
+const updateGoalForUser = async (userId: string, data: any) => {
+  const updatedGoal = await prisma.goal.update({
+    where: {
+      userId: userId,
+    },
+    data: data,
+  });
 
-    return updatedGoal;
+  return updatedGoal;
 };
 
 /**
@@ -72,26 +73,26 @@ const updateGoalForUser = async (userId: number, data: any) => {
  * @throws {ApiError} ในกรณีที่ไม่ได้ระบุ `line_user_id`
  */
 const getUserGoal = async (line_user_id: string) => {
-    if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "Line User ID is required");
-    const goal = await prisma.goal.findFirst({
-        where: {
-            user: {
-                line_user_id,
-            },
-        },
+  if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "Line User ID is required");
+  const goal = await prisma.goal.findFirst({
+    where: {
+      user: {
+        line_user_id,
+      },
+    },
+    select: {
+      plan: true,
+      product: {
         select: {
-            plan: true,
-            product: {
-                select: {
-                    brand: true,
-                    model: true,
-                    downPaymentAmount: true,
-                    imageUrl: true,
-                },
-            },
+          brand: true,
+          model: true,
+          downPaymentAmount: true,
+          imageUrl: true,
         },
-    });
-    return goal;
+      },
+    },
+  });
+  return goal;
 };
 
 export default { createGoalForUser, getUserGoal, updateGoalForUser };

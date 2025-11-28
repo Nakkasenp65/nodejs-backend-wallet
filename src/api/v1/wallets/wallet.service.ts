@@ -12,14 +12,14 @@ import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
 
 interface WalletFilters {
-    search?: string;
-    page?: number | string;
-    pageSize?: number | string;
+  search?: string;
+  page?: number | string;
+  pageSize?: number | string;
 }
 
 interface WalletUpdateBody {
-    balance?: number | string;
-    bonusBalance?: number | string;
+  balance?: number | string;
+  bonusBalance?: number | string;
 }
 
 /**
@@ -36,69 +36,69 @@ interface WalletUpdateBody {
  * @throws {ApiError} ในกรณีที่ข้อมูล `amount` ไม่ถูกต้อง, ไม่พบ Transaction, หรือ Transaction ไม่อยู่ในสถานะ 'PENDING' ที่สามารถดำเนินการต่อได้
  */
 const confirmWalletAmount = async (transactionVerification: any, transactionId: string, amount: number | string) => {
-    // --- Best Practice 1: ตรวจสอบและแปลงข้อมูลนำเข้าอย่างเข้มงวด ---
-    const floatAmount = parseFloat(amount as string);
-    if (isNaN(floatAmount) || floatAmount <= 0) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Invalid amount provided. Amount must be a positive number.");
-    }
+  // --- Best Practice 1: ตรวจสอบและแปลงข้อมูลนำเข้าอย่างเข้มงวด ---
+  const floatAmount = parseFloat(amount as string);
+  if (isNaN(floatAmount) || floatAmount <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid amount provided. Amount must be a positive number.");
+  }
 
-    // --- Best Practice 2: ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัย ---
-    // การใช้ prisma.$transaction ทำให้แน่ใจว่าการอัปเดต Transaction และ Wallet
-    // จะสำเร็จหรือล้มเหลวไปพร้อมกันทั้งหมด (Atomicity)
-    // ป้องกันกรณีที่อัปเดต Transaction สำเร็จแต่เพิ่มเงินเข้า Wallet ไม่สำเร็จ
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
-        // 2.1 ค้นหา Transaction ที่ต้องการอัปเดตก่อน
-        const transaction = await tx.transaction.findUnique({
-            where: { id: transactionId },
-        });
-
-        // 2.2 ตรวจสอบเงื่อนไขก่อนการอัปเดต
-        if (!transaction) {
-            throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
-        }
-        // (สำคัญ) ป้องกันการอัปเดตซ้ำซ้อน
-        if (transaction.status !== "PENDING") {
-            throw new ApiError(httpStatus.CONFLICT, `Transaction is already processed with status: ${transaction.status}`);
-        }
-
-        // 2.3 อัปเดต Wallet ก่อน (หรือพร้อมกัน)
-        // เราจะใช้ walletId ที่ผูกอยู่กับ transaction ที่ดึงมา เพื่อความปลอดภัย
-        await tx.wallet.update({
-            where: {
-                id: transaction.toWalletId!,
-            },
-            data: {
-                balance: {
-                    increment: floatAmount,
-                },
-            },
-        });
-
-        // 2.4 อัปเดต Transaction
-        const confirmedTransaction = await tx.transaction.update({
-            where: {
-                id: transactionId,
-            },
-            data: {
-                amount: floatAmount,
-                verified: true,
-                verifiedAmount: floatAmount,
-                status: "SUCCESS",
-                description: `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`,
-            },
-            include: {
-                toWallet: true, // include wallet เพื่อให้ได้ข้อมูลล่าสุดกลับไป
-            },
-        });
-
-        return confirmedTransaction;
+  // --- Best Practice 2: ใช้ Transaction ของฐานข้อมูลเพื่อความปลอดภัย ---
+  // การใช้ prisma.$transaction ทำให้แน่ใจว่าการอัปเดต Transaction และ Wallet
+  // จะสำเร็จหรือล้มเหลวไปพร้อมกันทั้งหมด (Atomicity)
+  // ป้องกันกรณีที่อัปเดต Transaction สำเร็จแต่เพิ่มเงินเข้า Wallet ไม่สำเร็จ
+  const updatedTransaction = await prisma.$transaction(async (tx) => {
+    // 2.1 ค้นหา Transaction ที่ต้องการอัปเดตก่อน
+    const transaction = await tx.transaction.findUnique({
+      where: { id: transactionId },
     });
 
-    // (Optional) ณ จุดนี้ คุณสามารถส่ง Notification หรือ Trigger event อื่นๆ ได้
-    // await notificationService.sendDepositSuccess(updatedTransaction.wallet.userId, floatAmount);
-    // await missionService.checkAndUpdateProgress(updatedTransaction.wallet.userId, floatAmount);
+    // 2.2 ตรวจสอบเงื่อนไขก่อนการอัปเดต
+    if (!transaction) {
+      throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
+    }
+    // (สำคัญ) ป้องกันการอัปเดตซ้ำซ้อน
+    if (transaction.status !== "PENDING") {
+      throw new ApiError(httpStatus.CONFLICT, `Transaction is already processed with status: ${transaction.status}`);
+    }
 
-    return updatedTransaction;
+    // 2.3 อัปเดต Wallet ก่อน (หรือพร้อมกัน)
+    // เราจะใช้ walletId ที่ผูกอยู่กับ transaction ที่ดึงมา เพื่อความปลอดภัย
+    await tx.wallet.update({
+      where: {
+        id: transaction.toWalletId!,
+      },
+      data: {
+        balance: {
+          increment: floatAmount,
+        },
+      },
+    });
+
+    // 2.4 อัปเดต Transaction
+    const confirmedTransaction = await tx.transaction.update({
+      where: {
+        id: transactionId,
+      },
+      data: {
+        amount: floatAmount,
+        verified: true,
+        verifiedAmount: floatAmount,
+        status: "SUCCESS",
+        description: `รายการได้รับการตรวจสอบและยืนยันยอดเงินจำนวน: ${floatAmount} บาท`,
+      },
+      include: {
+        toWallet: true, // include wallet เพื่อให้ได้ข้อมูลล่าสุดกลับไป
+      },
+    });
+
+    return confirmedTransaction;
+  });
+
+  // (Optional) ณ จุดนี้ คุณสามารถส่ง Notification หรือ Trigger event อื่นๆ ได้
+  // await notificationService.sendDepositSuccess(updatedTransaction.wallet.userId, floatAmount);
+  // await missionService.checkAndUpdateProgress(updatedTransaction.wallet.userId, floatAmount);
+
+  return updatedTransaction;
 };
 
 /**
@@ -111,15 +111,15 @@ const confirmWalletAmount = async (transactionVerification: any, transactionId: 
  * @throws {ApiError} ในกรณีที่ไม่ได้ระบุ `line_user_id`
  */
 const getUserWallet = async (line_user_id: string) => {
-    if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "Line user ID is required");
-    const wallet = await prisma.wallet.findFirst({
-        where: {
-            user: {
-                line_user_id,
-            },
-        },
-    });
-    return wallet;
+  if (!line_user_id) throw new ApiError(httpStatus.BAD_REQUEST, "Line user ID is required");
+  const wallet = await prisma.wallet.findFirst({
+    where: {
+      user: {
+        line_user_id,
+      },
+    },
+  });
+  return wallet;
 };
 
 /**
@@ -135,42 +135,42 @@ const getUserWallet = async (line_user_id: string) => {
  * @returns {Promise<object>} Promise ที่จะ resolve เป็นอ็อบเจกต์ซึ่งประกอบด้วย `data` (อาร์เรย์ของ Wallets) และ `paging` (ข้อมูลการแบ่งหน้า)
  */
 const getWallets = async (filters: WalletFilters = {}) => {
-    const { search, page = 1, pageSize = 10 } = filters;
-    const take = parseInt(pageSize as string, 10);
-    const skip = (parseInt(page as string, 10) - 1) * take;
+  const { search, page = 1, pageSize = 10 } = filters;
+  const take = parseInt(pageSize as string, 10);
+  const skip = (parseInt(page as string, 10) - 1) * take;
 
-    const where: Prisma.WalletWhereInput = {};
-    if (search) {
-        where.OR = [
-            { walletUniqueId: { contains: search, mode: "insensitive" } },
-            { user: { line_display_name: { contains: search, mode: "insensitive" } } },
-            { user: { phone: { contains: search, mode: "insensitive" } } },
-        ];
-    }
+  const where: Prisma.WalletWhereInput = {};
+  if (search) {
+    where.OR = [
+      { walletUniqueId: { contains: search, mode: "insensitive" } },
+      { user: { line_display_name: { contains: search, mode: "insensitive" } } },
+      { user: { phone: { contains: search, mode: "insensitive" } } },
+    ];
+  }
 
-    const [wallets, total] = await prisma.$transaction([
-        prisma.wallet.findMany({
-            where,
-            include: {
-                user: {
-                    select: { line_display_name: true, line_profile_url: true, phone: true },
-                },
-            },
-            orderBy: { createdAt: "desc" },
-            take,
-            skip,
-        }),
-        prisma.wallet.count({ where }),
-    ]);
+  const [wallets, total] = await prisma.$transaction([
+    prisma.wallet.findMany({
+      where,
+      include: {
+        user: {
+          select: { line_display_name: true, line_profile_url: true, phone: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take,
+      skip,
+    }),
+    prisma.wallet.count({ where }),
+  ]);
 
-    const paging = {
-        page: parseInt(page as string, 10),
-        pageSize: take,
-        total,
-        totalPages: Math.ceil(total / take),
-    };
+  const paging = {
+    page: parseInt(page as string, 10),
+    pageSize: take,
+    total,
+    totalPages: Math.ceil(total / take),
+  };
 
-    return { data: wallets, paging };
+  return { data: wallets, paging };
 };
 
 /**
@@ -184,26 +184,26 @@ const getWallets = async (filters: WalletFilters = {}) => {
  * @throws {ApiError} ในกรณีที่ไม่พบ Wallet ตาม `walletId` ที่ระบุ
  */
 const getWalletDetails = async (walletId: string) => {
-    const wallet = await prisma.wallet.findUnique({
-        where: { id: walletId },
-        include: {
-            user: true, // ดึงข้อมูล User ทั้งหมด
-            // ดึงประวัติธุรกรรม 10 รายการล่าสุด
-            fromWalletTransactions: {
-                orderBy: { createdAt: "desc" },
-                take: 10,
-            },
-            toWalletTransactions: {
-                orderBy: { createdAt: "desc" },
-                take: 10,
-            },
-        },
-    });
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: walletId },
+    include: {
+      user: true, // ดึงข้อมูล User ทั้งหมด
+      // ดึงประวัติธุรกรรม 10 รายการล่าสุด
+      sentTransaction: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
+      receieveTransaction: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
+    },
+  });
 
-    if (!wallet) {
-        throw new ApiError(httpStatus.NOT_FOUND, "Wallet not found");
-    }
-    return wallet;
+  if (!wallet) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Wallet not found");
+  }
+  return wallet;
 };
 
 /**
@@ -219,47 +219,47 @@ const getWalletDetails = async (walletId: string) => {
  * @throws {ApiError} ในกรณีที่ไม่พบ Wallet หรือข้อมูลที่ส่งมาไม่ถูกต้อง (เช่น balance ไม่ใช่ตัวเลข, หรือไม่ได้ส่งฟิลด์ใดๆ มาเลย)
  */
 const updateWallet = async (walletId: string, updateBody: WalletUpdateBody) => {
-    const { balance, bonusBalance } = updateBody;
+  const { balance, bonusBalance } = updateBody;
 
-    // Structural Safeguard: ตรวจสอบว่ามีข้อมูลที่อนุญาตให้อัปเดตส่งมาหรือไม่
-    if (balance === undefined && bonusBalance === undefined) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "No valid fields to update. Only balance and bonusBalance are allowed.");
-    }
+  // Structural Safeguard: ตรวจสอบว่ามีข้อมูลที่อนุญาตให้อัปเดตส่งมาหรือไม่
+  if (balance === undefined && bonusBalance === undefined) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "No valid fields to update. Only balance and bonusBalance are allowed.");
+  }
 
-    const wallet = await prisma.wallet.findUnique({
-        where: { id: walletId },
-    });
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: walletId },
+  });
 
-    if (!wallet) {
-        throw new ApiError(httpStatus.NOT_FOUND, "Wallet not found");
-    }
+  if (!wallet) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Wallet not found");
+  }
 
-    // สร้าง data object เฉพาะฟิลด์ที่มีการส่งค่ามา
-    const dataToUpdate: Prisma.WalletUpdateInput = {};
-    if (balance !== undefined) {
-        const floatBalance = parseFloat(balance as string);
-        if (isNaN(floatBalance)) throw new ApiError(httpStatus.BAD_REQUEST, "Invalid balance amount.");
-        dataToUpdate.balance = floatBalance;
-    }
-    if (bonusBalance !== undefined) {
-        const floatBonus = parseFloat(bonusBalance as string);
-        if (isNaN(floatBonus)) throw new ApiError(httpStatus.BAD_REQUEST, "Invalid bonusBalance amount.");
-        dataToUpdate.bonusBalance = floatBonus;
-    }
+  // สร้าง data object เฉพาะฟิลด์ที่มีการส่งค่ามา
+  const dataToUpdate: Prisma.WalletUpdateInput = {};
+  if (balance !== undefined) {
+    const floatBalance = parseFloat(balance as string);
+    if (isNaN(floatBalance)) throw new ApiError(httpStatus.BAD_REQUEST, "Invalid balance amount.");
+    dataToUpdate.balance = floatBalance;
+  }
+  if (bonusBalance !== undefined) {
+    const floatBonus = parseFloat(bonusBalance as string);
+    if (isNaN(floatBonus)) throw new ApiError(httpStatus.BAD_REQUEST, "Invalid bonusBalance amount.");
+    dataToUpdate.bonusBalance = floatBonus;
+  }
 
-    // TODO: พิจารณาการสร้าง Transaction log สำหรับการแก้ไขโดย Admin เพื่อการตรวจสอบย้อนหลัง
-    // await prisma.adminLog.create({ data: { action: 'UPDATE_WALLET', targetId: walletId, changes: dataToUpdate } });
+  // TODO: พิจารณาการสร้าง Transaction log สำหรับการแก้ไขโดย Admin เพื่อการตรวจสอบย้อนหลัง
+  // await prisma.adminLog.create({ data: { action: 'UPDATE_WALLET', targetId: walletId, changes: dataToUpdate } });
 
-    return await prisma.wallet.update({
-        where: { id: walletId },
-        data: dataToUpdate,
-    });
+  return await prisma.wallet.update({
+    where: { id: walletId },
+    data: dataToUpdate,
+  });
 };
 
 export default {
-    confirmWalletAmount,
-    getUserWallet,
-    getWallets,
-    getWalletDetails,
-    updateWallet,
+  confirmWalletAmount,
+  getUserWallet,
+  getWallets,
+  getWalletDetails,
+  updateWallet,
 };

@@ -1,7 +1,9 @@
-import pdf from "html-pdf";
-import path from "path";
+import PDFDocument from "pdfkit-table";
+import * as QRCode from "qrcode";
+import * as path from "path";
+import * as fs from "fs";
 
-// Helper functions (ฟังก์ชันช่วยเหลือ)
+// Helper functions
 const formatDate = (date: Date | string) =>
     new Date(date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 const formatDateTime = (date: Date | string) =>
@@ -14,27 +16,6 @@ const formatDateTime = (date: Date | string) =>
     });
 const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
-
-/**
- * สร้าง SVG สำหรับลายน้ำแล้วแปลงเป็น Data URL
- */
-function generateWatermarkDataUrl() {
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">
-      <text
-        x="50%" y="50%"
-        font-family="NotoSansThai, sans-serif" font-size="18"
-        fill="#000" opacity="0.08"
-        transform="rotate(-30, 100, 75)"
-        text-anchor="middle" dominant-baseline="middle"
-      >
-        1 MONEY PLUS
-      </text>
-    </svg>
-  `;
-    const base64 = Buffer.from(svg).toString("base64");
-    return `data:image/svg+xml;base64,${base64}`;
-}
 
 interface Transaction {
     type: string;
@@ -63,178 +44,284 @@ interface StatementData {
     endDate: Date | string;
 }
 
+// --- Layout Configuration (Your Perfect Values) ---
+export const LAYOUT = {
+    qrBox: { x: 45, y: 138, w: 83, h: 83 },
+    userInfoBox: { x: 52, y: 239, w: 239 },
+    summaryBox: { x: 309, y: 239, w: 230 },
+    tableStart: { x: 48, y: 360 }, 
+    columnWidths: [73, 165, 75, 77, 80], 
+};
+
 /**
- * สร้างเนื้อหา HTML สำหรับใบแจ้งยอดบัญชี
- * @param {object} data - ข้อมูลธุรกรรมและ Wallet
- * @returns {string} - โค้ด HTML ที่สมบูรณ์
+ * สร้าง PDF จากข้อมูลธุรกรรมและส่งกลับเป็น Buffer
  */
-function createHtmlContent(data: StatementData) {
-    const { transactions, wallet, currentWalletId, startDate, endDate } = data;
-    const validTransactions = transactions.filter((tx) => tx.type !== "REWARD");
+const buildStatementPdf = async (data: StatementData): Promise<Buffer> => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const doc: any = new (PDFDocument as any)({
+                size: "A4",
+                margin: 0,
+                autoFirstPage: false,
+            });
 
-    const totalIncome = validTransactions.reduce(
-        (sum, tx) => (tx.toWalletId === currentWalletId ? sum + tx.amount : sum),
-        0,
-    );
-    const totalExpense = validTransactions.reduce(
-        (sum, tx) => (tx.fromWalletId === currentWalletId ? sum + tx.amount : sum),
-        0,
-    );
-    const openingBalance = wallet.balance - totalIncome + totalExpense;
-    const watermarkDataUrl = generateWatermarkDataUrl();
+            const buffers: Buffer[] = [];
+            doc.on("data", (chunk: any) => buffers.push(chunk));
+            doc.on("end", () => resolve(Buffer.concat(buffers)));
+            doc.on("error", (err: any) => reject(err));
 
-    const transactionRowsHtml = validTransactions
-        .map((tx) => {
-            const isIncome = tx.toWalletId === currentWalletId;
-            let description = "";
-            switch (tx.type) {
-                case "DEPOSIT":
-                    description = `ฝากเงิน (จาก: ${tx.from})`;
-                    break;
-                case "TRANSFER":
-                    description = isIncome
-                        ? `รับโอน (จาก: ${tx.fromWallet?.user?.line_display_name})`
-                        : `โอนเงิน (ถึง: ${tx.toWallet?.user?.line_display_name})`;
-                    break;
-                case "WITHDRAW":
-                    description = `ถอนเงิน (ไปที่: ${tx.to})`;
-                    break;
-                default:
-                    description = tx.description || "";
+            // 1. Prepare Paths & Assets
+            const bgPath = path.resolve("public/statement.png");
+            const fontPath = path.resolve("public/fonts/LINESeedSansTH_Bd.ttf");
+            
+            let bgBuffer: Buffer | null = null;
+            if (fs.existsSync(bgPath)) {
+                bgBuffer = fs.readFileSync(bgPath);
+            } else {
+                console.error("Statement background image not found at:", bgPath);
             }
-            return `<tr><td>${formatDateTime(tx.createdAt)}</td><td>${description}</td><td class="money credit">${isIncome ? formatCurrency(tx.amount) : "-"}</td><td class="money debit">${!isIncome ? formatCurrency(tx.amount) : "-"}</td></tr>`;
-        })
-        .join("");
 
-    // โค้ด HTML ทั้งหมดจากไฟล์ตัวอย่างของคุณ (นำมาวางที่นี่)
+            // Register font
+            if (fs.existsSync(fontPath)) {
+                doc.registerFont("LINESeedSansTH", fontPath);
+                doc.font("LINESeedSansTH");
+            }
+
+            // 2. Add Background Logic
+            doc.on("pageAdded", () => {
+                if (bgBuffer) {
+                    doc.image(bgBuffer, 0, 0, { width: doc.page.width, height: doc.page.height });
+                }
+            });
+
+            // 3. Create First Page
+            doc.addPage();
+
+            // --- QR Code ---
+            try {
+                const qrDataUrl = await QRCode.toDataURL(data.wallet.walletUniqueId, { margin: 0 });
+                doc.image(qrDataUrl, LAYOUT.qrBox.x + 5, LAYOUT.qrBox.y + 5, { 
+                    width: LAYOUT.qrBox.w - 10, 
+                    height: LAYOUT.qrBox.h - 10,
+                });
+            } catch (err: any) {
+                console.error("Error generating QR code:", err);
+            }
+
+            // --- User Information ---
+            const userX = LAYOUT.userInfoBox.x;
+            const userY = LAYOUT.userInfoBox.y;
+            
+            doc.fillColor("#000000").fontSize(9);
+            doc.text(`ชื่อ wallet: ${data.wallet.user.fullname}`, userX, userY);
+            doc.text(`Wallet ID: ${data.wallet.walletUniqueId}`, userX, userY + 20);
+            doc.text(`ช่วงเวลา: ${formatDate(data.startDate)} - ${formatDate(data.endDate)}`, userX, userY + 36);
+
+            // --- Calculate Totals ---
+            const validTransactions = data.transactions.filter((tx) => tx.type !== "REWARD");
+            const totalIncome = validTransactions.reduce(
+                (sum, tx) => (tx.toWalletId === data.currentWalletId ? sum + tx.amount : sum), 0,
+            );
+            const totalExpense = validTransactions.reduce(
+                (sum, tx) => (tx.fromWalletId === data.currentWalletId ? sum + tx.amount : sum), 0,
+            );
+            
+            // --- Summary Box (Simulating Justify-Between) ---
+            const summaryX = LAYOUT.summaryBox.x;
+            let summaryY = LAYOUT.summaryBox.y;
+            const summaryWidth = LAYOUT.summaryBox.w;
+            const lineHeight = 16; 
+
+            doc.fillColor("#000000").fontSize(9);
+
+            // Row 1: Income
+            doc.text("รายรับรวม:", summaryX, summaryY);
+            // Align Value to RIGHT
+            doc.text(`${formatCurrency(totalIncome)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
+            
+            // Row 2: Expense
+            summaryY += lineHeight;
+            doc.text("รายจ่ายรวม:", summaryX, summaryY);
+            doc.text(`${formatCurrency(totalExpense)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
+
+            // Row 3: Net Balance
+            summaryY += lineHeight;
+            doc.text("ยอดคงเหลือสุทธิ:", summaryX, summaryY);
+            doc.text(`${formatCurrency(data.wallet.balance)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
+
+
+            // --- Table ---
+            let balanceTracker = data.wallet.balance;
+            
+            const tableRows = validTransactions.map((tx) => {
+                const isIncome = tx.toWalletId === data.currentWalletId;
+                const amount = tx.amount;
+                const balanceAfterTx = balanceTracker;
+                
+                if (isIncome) balanceTracker -= amount; 
+                else balanceTracker += amount;
+
+                let description = "";
+                switch (tx.type) {
+                    case "DEPOSIT": description = `ฝากเงิน (${tx.from})`; break;
+                    case "TRANSFER":
+                        description = isIncome
+                            ? `รับโอน (${tx.fromWallet?.user?.line_display_name || "Unknown"})`
+                            : `โอนเงิน (${tx.toWallet?.user?.line_display_name || "Unknown"})`;
+                        break;
+                    case "WITHDRAW": description = `ถอนเงิน (${tx.to})`; break;
+                    default: description = tx.description || tx.type;
+                }
+
+                return [
+                    formatDateTime(tx.createdAt),
+                    description,
+                    isIncome ? formatCurrency(amount) : "-",
+                    !isIncome ? formatCurrency(amount) : "-",
+                    formatCurrency(balanceAfterTx)
+                ];
+            });
+
+            const table = {
+                headers: ["", "", "", "", ""],
+                rows: tableRows,
+            };
+
+            await doc.table(table, {
+                x: LAYOUT.tableStart.x,
+                y: LAYOUT.tableStart.y,
+                width: 505,
+                columnsSize: LAYOUT.columnWidths,
+                hideHeader: true, 
+                divider: {
+                    header: { disabled: true },
+                    horizontal: { disabled: false, width: 0.5, opacity: 0.5 },
+                },
+                prepareRow: (row: any, indexColumn: any, indexRow: any, rect: any, rowData: any) => {
+                    doc.font("LINESeedSansTH").fontSize(9).fillColor("#333333");
+                    const yOffset = rect.y + 2; 
+                    if (indexColumn >= 2) { 
+                        // Money columns align right
+                        doc.text(rowData[indexColumn], rect.x, yOffset, { width: rect.width, align: 'right' });
+                        return false; 
+                    }
+                    // Other columns align left
+                    doc.text(rowData[indexColumn], rect.x, yOffset, { width: rect.width, align: 'left' });
+                    return false;
+                },
+            });
+
+            doc.end();
+        } catch (error) {
+            reject(error);
+        }
+    });
+};
+
+/**
+ * สร้าง HTML สำหรับ Debug Layout (Identical to your provided snippet)
+ */
+export const buildStatementHtml = async (data: StatementData): Promise<string> => {
+    const qrDataUrl = await QRCode.toDataURL(data.wallet.walletUniqueId, { margin: 0 });
+    
+    const bgPath = path.resolve("public/statement.png");
+    let bgBase64 = "";
+    if (fs.existsSync(bgPath)) {
+        const bgBuffer = fs.readFileSync(bgPath);
+        bgBase64 = `data:image/png;base64,${bgBuffer.toString('base64')}`;
+    } else {
+        console.warn("HTML Debug: Background image not found");
+    }
+
+    const validTransactions = data.transactions.filter((tx) => tx.type !== "REWARD");
+    const totalIncome = validTransactions.reduce((sum, tx) => (tx.toWalletId === data.currentWalletId ? sum + tx.amount : sum), 0);
+    const totalExpense = validTransactions.reduce((sum, tx) => (tx.fromWalletId === data.currentWalletId ? sum + tx.amount : sum), 0);
+
+    let balanceTracker = data.wallet.balance;
+    const rowsHtml = validTransactions.map((tx) => {
+        const isIncome = tx.toWalletId === data.currentWalletId;
+        const amount = tx.amount;
+        const balanceAfterTx = balanceTracker;
+        if (isIncome) balanceTracker -= amount; else balanceTracker += amount;
+
+        let description = "";
+        switch (tx.type) {
+            case "DEPOSIT": description = `ฝากเงิน (${tx.from})`; break;
+            case "TRANSFER": description = isIncome ? `รับโอน (${tx.fromWallet?.user?.line_display_name || "Unknown"})` : `โอนเงิน (${tx.toWallet?.user?.line_display_name || "Unknown"})`; break;
+            case "WITHDRAW": description = `ถอนเงิน (${tx.to})`; break;
+            default: description = tx.description || tx.type;
+        }
+
+        return `
+            <div class="row">
+                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[0]}px">${formatDateTime(tx.createdAt)}</div>
+                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[1]}px">${description}</div>
+                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[2]}px; text-align: right;">${isIncome ? formatCurrency(amount) : "-"}</div>
+                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[3]}px; text-align: right;">${!isIncome ? formatCurrency(amount) : "-"}</div>
+                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[4]}px; text-align: right;">${formatCurrency(balanceAfterTx)}</div>
+            </div>
+        `;
+    }).join("");
+
     return `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8" />
-      <style>
-        :root { --brand-purple: #6f42c1; }
-        @font-face {
-          font-family: 'NotoSansThai';
-          src: url('file://${path.resolve("public/fonts/NotoSansThai-Regular.ttf")}') format('truetype');
-          font-weight: 400;
-        }
-        body {
-          font-family: 'NotoSansThai', sans-serif;
-          font-size: 10px;
-          color: #333;
-          position: relative;
-        }
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
-            background-image: url('${watermarkDataUrl}');
-            background-repeat: repeat;
-        }
-        .container { padding: 20px; }
-        .header, .info-summary {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding-bottom: 20px;
-        }
-        .info-summary {
-          padding-top: 20px;
-          border-top: 1px solid #eee;
-          border-bottom: 1px solid #eee;
-        }
-        .summary-box table { width: 280px; }
-        .summary-box td { padding: 2px 0; }
-        h1 { font-size: 20px; color: var(--brand-purple); margin: 0; }
-        h2 { font-size: 18px; color: var(--brand-purple); margin: 0; }
-        table.transactions { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
-        th { background-color: #f8f8f8; font-weight: bold; color: var(--brand-purple); }
-        .money { text-align: right; }
-        .credit { color: #008000; }
-        .debit { color: #D32F2F; }
-        .text-right { text-align: right; }
-      </style>
+        <style>
+            @font-face { font-family: 'LINESeedSansTH'; src: url('/public/fonts/LINESeedSansTH_Bd.ttf'); }
+            body { margin: 0; padding: 20px; background: #333; font-family: 'LINESeedSansTH', sans-serif; display: flex; justify-content: center; }
+            .page {
+                position: relative;
+                width: 595px; height: 842px;
+                background-image: url('${bgBase64}'); 
+                background-size: cover;
+                background-color: white;
+                box-shadow: 0 0 20px rgba(0,0,0,0.5);
+                overflow: hidden;
+            }
+            .abs { position: absolute; }
+            
+            .qr { left: ${LAYOUT.qrBox.x}px; top: ${LAYOUT.qrBox.y}px; width: ${LAYOUT.qrBox.w}px; height: ${LAYOUT.qrBox.h}px; display: flex; justify-content: center; align-items: center; }
+            .qr img { width: ${LAYOUT.qrBox.w - 10}px; height: ${LAYOUT.qrBox.h - 10}px; }
+            
+            .user-info {  left: ${LAYOUT.userInfoBox.x}px; top: ${LAYOUT.userInfoBox.y}px; width: ${LAYOUT.userInfoBox.w}px; }
+            .text-title { font-size: 9pt; color: #000; font-weight: bold; }
+            .text-detail { font-size: 9pt; color: #333; white-space: nowrap; }
+
+            .summary-box {  left: ${LAYOUT.summaryBox.x}px; top: ${LAYOUT.summaryBox.y}px; width: ${LAYOUT.summaryBox.w}px; display: flex; }
+            
+            .summary-details { width: 100%; font-size: 9pt; }
+            .sum-row { width: 100%; white-space: nowrap; display: flex; justify-content: space-between; align-items: center; }
+            
+            .table-container { left: ${LAYOUT.tableStart.x}px; top: ${LAYOUT.tableStart.y}px; width: 502px; font-size: 9pt; color: #333; }
+            .row { font-size: 8pt; display: flex;}
+        </style>
     </head>
     <body>
-        <div class="container">
-            <header class="header">
-                <div>
-                    <h1>NUMBER 1 MONEY PLUS</h1>
-                    <p>123 ถนนเทคโนโลยี แขวงนวัตกรรม เขตดิจิทัล กรุงเทพฯ 10110</p>
+        <div class="page">
+            <div class="abs qr"><img src="${qrDataUrl}" /></div>
+            
+            <div class="abs user-info">
+                <div class="text-title">ชื่อผู้ใช้: ${data.wallet.user.fullname}</div>
+                <div class="text-detail">Wallet ID: ${data.wallet.walletUniqueId}</div>
+                <div class="text-detail">ตั้งแต่: ${formatDate(data.startDate)} - ${formatDate(data.endDate)}</div>
+            </div>
+
+            <div class="abs summary-box">
+                <div class="summary-details">
+                    <div class="sum-row" style="color: #000;"><span>รายรับรวม:</span> ${formatCurrency(totalIncome)}.-</div>
+                    <div class="sum-row" style="color: #000;"><span>รายจ่ายรวม:</span> ${formatCurrency(totalExpense)}.-</div>
+                    <div class="sum-row" style="color: #000;"><span>ยอดคงเหลือสุทธิ:</span> ${formatCurrency(data.wallet.balance)}.-</div>
                 </div>
-                <div class="text-right">
-                    <h2>ใบแจ้งยอดบัญชี</h2>
-                    <p>เลขที่: STMT-${new Date().getFullYear()}-${wallet.walletUniqueId.slice(-4)}<br>
-                    วันที่ออก: ${formatDate(new Date())}</p>
-                </div>
-            </header>
-            <section class="info-summary">
-                <div>
-                    <b>สรุปรายการสำหรับ:</b>
-                    <p>ชื่อ: ${wallet.user.fullname}<br>
-                    เลขที่ Wallet: ${wallet.walletUniqueId}<br>
-                    ช่วงเวลา: ${formatDate(startDate)} - ${formatDate(endDate)}</p>
-                </div>
-                <div class="summary-box">
-                    <table>
-                        <tr><td>ยอดคงเหลือยกมา:</td><td class="text-right">${formatCurrency(openingBalance)}</td></tr>
-                        <tr><td>รายรับทั้งหมด:</td><td class="text-right">${formatCurrency(totalIncome)}</td></tr>
-                        <tr><td>รายจ่ายทั้งหมด:</td><td class="text-right">${formatCurrency(totalExpense)}</td></tr>
-                        <tr><td><b>ยอดคงเหลือสุทธิ:</b></td><td class="text-right"><b>${formatCurrency(wallet.balance)}</b></td></tr>
-                    </table>
-                </div>
-            </section>
-            <main>
-              <h3>รายการเคลื่อนไหวบัญชี</h3>
-              <table class="transactions">
-                  <thead>
-                      <tr>
-                          <th>วัน-เวลา</th>
-                          <th>รายละเอียด</th>
-                          <th class="money">รายรับ (บาท)</th>
-                          <th class="money">รายจ่าย (บาท)</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      ${transactionRowsHtml}
-                  </tbody>
-              </table>
-            </main>
+            </div>
+
+            <div class="abs table-container">
+                ${rowsHtml}
+            </div>
         </div>
     </body>
     </html>
-  `;
-}
-
-/**
- * สร้าง PDF จากข้อมูลธุรกรรมและส่งกลับเป็น Buffer
- * @param {object} data - ข้อมูลธุรกรรมที่ดึงมาจากฐานข้อมูล
- * @returns {Promise<Buffer>} - Buffer ของไฟล์ PDF
- */
-const buildStatementPdf = (data: StatementData): Promise<Buffer> => {
-    return new Promise((resolve, reject) => {
-        const html = createHtmlContent(data);
-        const options = {
-            format: "A4" as const,
-            orientation: "portrait" as const,
-            border: { top: "1.5cm", right: "1.5cm", bottom: "1.5cm", left: "1.5cm" },
-            footer: {
-                height: "20mm",
-                contents: {
-                    default:
-                        '<div style="font-family: NotoSansThai, sans-serif; font-size: 8px; text-align: center; color: #888;">หน้า {{page}}/{{pages}}<br>ขอขอบคุณที่ใช้บริการ NUMBER 1 MONEY PLUS</div>',
-                },
-            },
-        };
-
-        pdf.create(html, options).toBuffer((err, buffer) => {
-            if (err) return reject(err);
-            resolve(buffer);
-        });
-    });
+    `;
 };
 
 export default buildStatementPdf;

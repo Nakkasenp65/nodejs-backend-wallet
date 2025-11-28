@@ -8,8 +8,11 @@
  */
 import express from "express";
 import notificationController from "./notification.controller.js";
+import auth from "../../../middlewares/auth.js";
 
 const notificationRouter = express.Router();
+
+notificationRouter.use(auth);
 
 /**
  * @route GET /api/notifications/:userId

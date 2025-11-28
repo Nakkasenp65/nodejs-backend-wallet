@@ -20,10 +20,10 @@ import catchAsync from "../../../utils/catchAsync.js";
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const createGoal = catchAsync(async (req: Request, res: Response) => {
-    console.log("Log Check: ", req.params.userId, " Body: ", req.body);
-    const { userId } = req.params;
-    const newGoal = await goalService.createGoalForUser(parseInt(userId), req.body);
-    res.status(httpStatus.CREATED).json(newGoal);
+  console.log("Log Check: ", req.params.userId, " Body: ", req.body);
+  const { userId } = req.params;
+  const newGoal = await goalService.createGoalForUser(userId, req.body);
+  res.status(httpStatus.CREATED).json(newGoal);
 });
 
 /**
@@ -34,9 +34,9 @@ const createGoal = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getUserGoal = catchAsync(async (req: Request, res: Response) => {
-    const { line_user_id } = req.params;
-    const goal = await goalService.getUserGoal(line_user_id);
-    res.status(httpStatus.OK).json(goal);
+  const { line_user_id } = req.params;
+  const goal = await goalService.getUserGoal(line_user_id);
+  res.status(httpStatus.OK).json(goal);
 });
 
 /**
@@ -47,17 +47,17 @@ const getUserGoal = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const updateGoal = catchAsync(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const { planId, productId } = req.body;
-    const updatedGoal = await goalService.updateGoalForUser(parseInt(userId), {
-        planId,
-        productId,
-    });
-    res.status(httpStatus.OK).json(updatedGoal);
+  const { userId } = req.params;
+  const { planId, productId } = req.body;
+  const updatedGoal = await goalService.updateGoalForUser(userId, {
+    planId,
+    productId,
+  });
+  res.status(httpStatus.OK).json(updatedGoal);
 });
 
 export default {
-    createGoal,
-    updateGoal,
-    getUserGoal,
+  createGoal,
+  updateGoal,
+  getUserGoal,
 };

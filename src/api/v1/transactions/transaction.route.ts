@@ -15,6 +15,10 @@ const transactionRouter = Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+import auth from "../../../middlewares/auth.js";
+
+transactionRouter.use(auth);
+
 /**
  * @route POST /api/transactions
  * @description สร้างธุรกรรมการออมเงิน (ฝากเงิน) ใหม่โดยแนบสลิป

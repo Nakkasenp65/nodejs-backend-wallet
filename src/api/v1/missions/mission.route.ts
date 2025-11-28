@@ -8,8 +8,11 @@
  */
 import { Router } from "express";
 import missionController from "./mission.controller.js";
+import auth from "../../../middlewares/auth.js";
 
 const missionRouter = Router();
+
+missionRouter.use(auth);
 
 /**
  * @route GET /api/missions/available/:userId

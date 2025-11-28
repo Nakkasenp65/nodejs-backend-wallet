@@ -8,8 +8,11 @@
  */
 import { Router } from "express";
 import userMissionController from "./user-mission.controller.js";
+import auth from "../../../middlewares/auth.js";
 
 const userMissionRouter = Router();
+
+userMissionRouter.use(auth);
 
 /**
  * @route POST /api/user-missions/enroll

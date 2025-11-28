@@ -17,7 +17,7 @@ import httpStatus from "http-status";
 import adminService from "./admin.service.js";
 import catchAsync from "../../../utils/catchAsync.js";
 import transactionService from "../transactions/transaction.service.js";
-import userService from "../users/user.controller.js"; // Note: Imported controller as service? Original code did this.
+import userService from "../users/user.service.js"; // Note: Imported controller as service? Original code did this.
 import missionService from "../missions/mission.service.js";
 import walletService from "../wallets/wallet.service.js";
 import userMissionService from "../user-missions/user-mission.service.js";
@@ -28,8 +28,8 @@ import userMissionService from "../user-missions/user-mission.service.js";
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getDashboardData = catchAsync(async (req: Request, res: Response) => {
-    const data = await adminService.getDashboardData();
-    res.status(httpStatus.OK).json(data);
+  const data = await adminService.getDashboardData();
+  res.status(httpStatus.OK).json(data);
 });
 
 /**
@@ -39,8 +39,8 @@ const getDashboardData = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getTransactions = catchAsync(async (req: Request, res: Response) => {
-    const transactions = await transactionService.getTransactions(req.query);
-    res.status(httpStatus.OK).json(transactions);
+  const transactions = await transactionService.getTransactions(req.query);
+  res.status(httpStatus.OK).json(transactions);
 });
 
 /**
@@ -50,10 +50,10 @@ const getTransactions = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const editTransaction = catchAsync(async (req: Request, res: Response) => {
-    const { transactionId } = req.params;
-    const transactionPayload = req.body;
-    const transaction = await transactionService.editTransaction(transactionId, req.file, transactionPayload);
-    res.status(httpStatus.OK).json(transaction);
+  const { transactionId } = req.params;
+  const transactionPayload = req.body;
+  const transaction = await transactionService.editTransaction(transactionId, req.file, transactionPayload);
+  res.status(httpStatus.OK).json(transaction);
 });
 
 /**
@@ -63,10 +63,10 @@ const editTransaction = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const deleteTransaction = catchAsync(async (req: Request, res: Response) => {
-    // Fixed bug: req.param -> req.params
-    const { transactionId } = req.params;
-    const transaction = await transactionService.deleteTransaction(transactionId);
-    res.status(httpStatus.OK).json(transaction);
+  // Fixed bug: req.param -> req.params
+  const { transactionId } = req.params;
+  const transaction = await transactionService.deleteTransaction(transactionId);
+  res.status(httpStatus.OK).json(transaction);
 });
 
 /**
@@ -76,9 +76,9 @@ const deleteTransaction = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const editUser = catchAsync(async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const user = await userService.updateUserByAdmin(userId, req.body);
-    res.status(httpStatus.OK).json(user);
+  const { userId } = req.params;
+  const user = await userService.updateUserByAdmin(userId, req.body);
+  res.status(httpStatus.OK).json(user);
 });
 
 /**
@@ -88,9 +88,9 @@ const editUser = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getMissions = catchAsync(async (req: Request, res: Response) => {
-    const options = req.query;
-    const missions = await missionService.getAllMissionsForAdmin(options);
-    res.status(httpStatus.OK).json(missions);
+  const options = req.query;
+  const missions = await missionService.getAllMissionsForAdmin(options);
+  res.status(httpStatus.OK).json(missions);
 });
 
 /**
@@ -100,9 +100,9 @@ const getMissions = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getWallets = catchAsync(async (req: Request, res: Response) => {
-    const filters = req.query;
-    const result = await walletService.getWallets(filters);
-    res.status(httpStatus.OK).json(result);
+  const filters = req.query;
+  const result = await walletService.getWallets(filters);
+  res.status(httpStatus.OK).json(result);
 });
 
 /**
@@ -112,9 +112,9 @@ const getWallets = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getWalletDetails = catchAsync(async (req: Request, res: Response) => {
-    const { walletId } = req.params;
-    const wallet = await walletService.getWalletDetails(walletId);
-    res.status(httpStatus.OK).json(wallet);
+  const { walletId } = req.params;
+  const wallet = await walletService.getWalletDetails(walletId);
+  res.status(httpStatus.OK).json(wallet);
 });
 
 /**
@@ -124,10 +124,10 @@ const getWalletDetails = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const updateWallet = catchAsync(async (req: Request, res: Response) => {
-    const { walletId } = req.params;
-    const updatedPayload = req.body;
-    const updatedWallet = await walletService.updateWallet(walletId, updatedPayload);
-    res.status(httpStatus.OK).json(updatedWallet);
+  const { walletId } = req.params;
+  const updatedPayload = req.body;
+  const updatedWallet = await walletService.updateWallet(walletId, updatedPayload);
+  res.status(httpStatus.OK).json(updatedWallet);
 });
 
 /**
@@ -137,9 +137,9 @@ const updateWallet = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getUserMissionDetails = catchAsync(async (req: Request, res: Response) => {
-    const { userMissionId } = req.params;
-    const userMissionDetails = await userMissionService.getMyMissionDetails(userMissionId);
-    res.status(httpStatus.OK).json(userMissionDetails);
+  const { userMissionId } = req.params;
+  const userMissionDetails = await userMissionService.getMyMissionDetails(userMissionId);
+  res.status(httpStatus.OK).json(userMissionDetails);
 });
 
 /**
@@ -149,9 +149,9 @@ const getUserMissionDetails = catchAsync(async (req: Request, res: Response) => 
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const getUserMisisonsByUserLineId = catchAsync(async (req: Request, res: Response) => {
-    const { line_user_id } = req.params;
-    const userMissions = await userMissionService.getUserMissionByLineUserId(line_user_id);
-    res.status(httpStatus.OK).json(userMissions);
+  const { line_user_id } = req.params;
+  const userMissions = await userMissionService.getUserMissionByLineUserId(line_user_id);
+  res.status(httpStatus.OK).json(userMissions);
 });
 
 /**
@@ -161,22 +161,22 @@ const getUserMisisonsByUserLineId = catchAsync(async (req: Request, res: Respons
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const editUserMission = catchAsync(async (req: Request, res: Response) => {
-    const { userMissionId } = req.params;
-    const updatedUserMission = await userMissionService.editUserMission(userMissionId, req.body);
-    res.status(httpStatus.OK).json(updatedUserMission);
+  const { userMissionId } = req.params;
+  const updatedUserMission = await userMissionService.editUserMission(userMissionId, req.body);
+  res.status(httpStatus.OK).json(updatedUserMission);
 });
 
 export default {
-    getDashboardData,
-    getTransactions,
-    editTransaction,
-    deleteTransaction,
-    editUser,
-    getMissions,
-    getWallets,
-    getWalletDetails,
-    updateWallet,
-    getUserMissionDetails,
-    getUserMisisonsByUserLineId,
-    editUserMission,
+  getDashboardData,
+  getTransactions,
+  editTransaction,
+  deleteTransaction,
+  editUser,
+  getMissions,
+  getWallets,
+  getWalletDetails,
+  updateWallet,
+  getUserMissionDetails,
+  getUserMisisonsByUserLineId,
+  editUserMission,
 };

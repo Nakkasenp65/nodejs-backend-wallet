@@ -8,8 +8,11 @@
  */
 import walletController from "./wallet.controller.js";
 import express from "express";
+import auth from "../../../middlewares/auth.js";
 
 const walletRouter = express.Router();
+
+walletRouter.use(auth);
 
 /**
  * @route GET /api/wallets/:line_user_id

@@ -1,6 +1,13 @@
 import ApiError from "./ApiError.js";
 import httpStatus from "http-status";
 import { buildRegisterFlex, buildSaveFlex, buildWithdrawFlex, buildReceiverFlex, buildSenderFlex } from "./flex.js";
+import {
+  LineReceiverPayload,
+  LineRegisterPayload,
+  LineSavePayload,
+  LineSenderPayload,
+  LineWithdrawPayload,
+} from "../types/line.types.js";
 
 // ========== EXTRACTED STANDALONE FUNCTIONS ==========
 
@@ -9,7 +16,7 @@ import { buildRegisterFlex, buildSaveFlex, buildWithdrawFlex, buildReceiverFlex,
  * @param line_user_id - LINE user ID
  * @param payload - { walletUniqueId, fullname, phone, balance }
  */
-export const sendRegisterFlexMessage = (line_user_id: string, payload: any) => {
+export const sendRegisterFlexMessage = (line_user_id: string, payload: LineRegisterPayload) => {
   return buildRegisterFlex(line_user_id, payload);
 };
 
@@ -18,7 +25,7 @@ export const sendRegisterFlexMessage = (line_user_id: string, payload: any) => {
  * @param line_user_id - LINE user ID
  * @param payload - { amount, fullnameWithBankNumber, walletUniqueId, date, balance, bankImageUrl, bankName, liffHistoryUrl }
  */
-export const sendDepositFlexMessage = (line_user_id: string, payload: any) => {
+export const sendDepositFlexMessage = (line_user_id: string, payload: LineSavePayload) => {
   return buildSaveFlex(line_user_id, payload);
 };
 
@@ -39,11 +46,17 @@ export const sendWithdrawSuccessFlex = (
   balance: number,
   walletUniqueId: string,
   accountName: string,
-  accountNumber: string,
   bankName: string,
   updatedDate: Date,
 ) => {
-  const payload = { amount, balance, walletUniqueId, toDisplay: accountName, accountNumber, bankName, updatedDate };
+  const payload: LineWithdrawPayload = {
+    amount,
+    balance,
+    walletUniqueId,
+    toDisplay: accountName,
+    bankName,
+    updatedDate,
+  };
   return buildWithdrawFlex(line_user_id, payload);
 };
 
@@ -66,7 +79,7 @@ export const sendTransferReceivedFlex = (
   formattedDate: string,
   formattedBalance: string,
 ) => {
-  const payload = {
+  const payload: LineReceiverPayload = {
     senderWalletUniqueId,
     receiverWalletUniqueId,
     liffUrlHistory,
@@ -96,7 +109,7 @@ export const sendTransferSentFlex = (
   formattedDate: string,
   formattedBalance: string,
 ) => {
-  const payload = {
+  const payload: LineSenderPayload = {
     senderWalletUniqueId,
     receiverWalletUniqueId,
     liffUrlHistory,
@@ -104,12 +117,17 @@ export const sendTransferSentFlex = (
     formattedDate,
     formattedBalance,
   };
+
   return buildSenderFlex(line_user_id, payload);
 };
 
 // ========== ORIGINAL FLEXMESSAGE FUNCTION (kept for backward compatibility) ==========
 
-export const flexMessage = (mode: string | null = null, line_user_id: string, payload: any = {}) => {
+export const flexMessage = (
+  mode: "register" | "save" | "withdraw" | "receiver" | "sender",
+  line_user_id: string,
+  payload: any = {},
+) => {
   switch (mode) {
     case "register":
       return buildRegisterFlex(line_user_id, payload);
@@ -122,23 +140,16 @@ export const flexMessage = (mode: string | null = null, line_user_id: string, pa
     case "sender":
       return buildSenderFlex(line_user_id, payload);
     default:
-      return null;
+      throw new ApiError(httpStatus.BAD_REQUEST, "Invalid flex message mode");
   }
 };
 
-// ========== EXPORTS ==========
-
-// Aliases for backward compatibility with line.service.ts
-export const sendSender = sendTransferSentFlex;
 export const sendReceiver = sendTransferReceivedFlex;
 
 export default {
-  flexMessage,
   sendRegisterFlexMessage,
   sendDepositFlexMessage,
   sendWithdrawSuccessFlex,
   sendTransferReceivedFlex,
   sendTransferSentFlex,
-  sendSender,
-  sendReceiver,
 };

@@ -1,54 +1,13 @@
 import ApiError from "./ApiError.js";
 import httpStatus from "http-status";
 import getBankIconUrl from "./bankIcon.js";
-
-export type RegisterFlexPayload = {
-  walletUniqueId: string;
-  fullname: string;
-  phone: string;
-  balance: string;
-};
-
-export type SaveFlexPayload = {
-  amount: string;
-  fullnameWithBankNumber: string;
-  walletUniqueId: string;
-  date: string;
-  balance: string;
-  bankImageUrl: string;
-  bankName: string;
-  liffHistoryUrl: string;
-};
-
-export type WithdrawFlexPayload = {
-  amount: string | number;
-  walletUniqueId: string;
-  toDisplay: string;
-  bankImageUrl?: string;
-  bankName: string;
-  date?: string;
-  updatedDate?: Date | string;
-  balance: string | number;
-  liffHistoryUrl?: string;
-};
-
-export type ReceiverFlexPayload = {
-  senderWalletUniqueId: string;
-  receiverWalletUniqueId: string;
-  liffUrlHistory: string;
-  formattedAmount: string;
-  formattedDate: string;
-  formattedBalance: string;
-};
-
-export type SenderFlexPayload = {
-  senderWalletUniqueId: string;
-  receiverWalletUniqueId: string;
-  liffUrlHistory: string;
-  formattedAmount: string;
-  formattedDate: string;
-  formattedBalance: string;
-};
+import {
+  LineReceiverPayload,
+  LineRegisterPayload,
+  LineSavePayload,
+  LineSenderPayload,
+  LineWithdrawPayload,
+} from "../types/line.types.js";
 
 const DATE_FMT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: "2-digit",
@@ -60,16 +19,19 @@ const DATE_FMT_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 const thaiDateFormatter = new Intl.DateTimeFormat("th-TH", DATE_FMT_OPTIONS);
 
-export const buildRegisterFlex = (line_user_id: string, payload: RegisterFlexPayload) => {
+export const buildRegisterFlex = (line_user_id: string, payload: LineRegisterPayload) => {
   const LIFF_URL = process.env.LIFF_URL;
+
   if (!LIFF_URL) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "LIFF URL is not defined");
+
   const { walletUniqueId, fullname, phone, balance } = payload;
+
   return {
     to: line_user_id,
     messages: [
       {
         type: "flex",
-        altText: `📢 แจ้งเตือน เปิด 1 Wallet สำเร็จ Wallet Id: ...`,
+        altText: `📢 แจ้งเตือน เปิด 1 Wallet สำเร็จ Wallet Id: ${walletUniqueId}.`,
         contents: {
           type: "bubble",
           size: "mega",
@@ -100,7 +62,12 @@ export const buildRegisterFlex = (line_user_id: string, payload: RegisterFlexPay
                     type: "box",
                     layout: "horizontal",
                     contents: [
-                      { type: "text", text: "เปิด 1 Wallet สำเร็จ!", weight: "bold", flex: 0 },
+                      {
+                        type: "text",
+                        text: "เปิด 1 Wallet สำเร็จ!",
+                        weight: "bold",
+                        flex: 0,
+                      },
                       {
                         type: "image",
                         url: "https://lh3.googleusercontent.com/d/1Z44ENRlcljinDd47R3u6OO8QU0e03s3j",
@@ -111,45 +78,110 @@ export const buildRegisterFlex = (line_user_id: string, payload: RegisterFlexPay
                       },
                     ],
                   },
-                  { type: "separator" },
+                  {
+                    type: "separator",
+                  },
                   {
                     type: "box",
                     layout: "horizontal",
                     contents: [
-                      { type: "text", text: "1 Wallet ID:", flex: 0, size: "sm", weight: "bold", color: "#000000" },
-                      { type: "text", text: `${walletUniqueId}`, align: "end", size: "sm", offsetTop: "2px" },
+                      {
+                        type: "text",
+                        text: "1 Wallet ID:",
+                        flex: 0,
+                        size: "sm",
+                        weight: "bold",
+                        color: "#000000",
+                      },
+                      {
+                        type: "text",
+                        // wallet Id
+                        text: `${walletUniqueId}`,
+                        align: "end",
+                        size: "sm",
+                        offsetTop: "2px",
+                      },
                     ],
                   },
                   {
                     type: "box",
                     layout: "horizontal",
                     contents: [
-                      { type: "text", text: "ชื่อผู้ฝาก:", flex: 0, size: "sm", color: "#000000", weight: "bold" },
-                      { type: "text", text: `${fullname}`, align: "end", size: "sm" },
+                      {
+                        type: "text",
+                        text: "ชื่อผู้ฝาก:",
+                        flex: 0,
+                        size: "sm",
+                        color: "#000000",
+                        weight: "bold",
+                      },
+                      {
+                        type: "text",
+                        // ชื่อผู้ใช้ ชื่อจริง
+                        text: `${fullname}`,
+                        align: "end",
+                        size: "sm",
+                      },
                     ],
                   },
                   {
                     type: "box",
                     layout: "horizontal",
                     contents: [
-                      { type: "text", text: "เบอร์โทร:", flex: 0, size: "sm", weight: "bold", color: "#000000" },
-                      { type: "text", text: `${phone}`, align: "end", size: "sm", offsetTop: "2px" },
+                      {
+                        type: "text",
+                        text: "เบอร์โทร:",
+                        flex: 0,
+                        size: "sm",
+                        weight: "bold",
+                        color: "#000000",
+                      },
+                      {
+                        type: "text",
+                        // เบอร์โทร
+                        text: `${phone}`,
+                        align: "end",
+                        size: "sm",
+                        offsetTop: "2px",
+                      },
                     ],
                   },
                   {
                     type: "box",
                     layout: "horizontal",
                     contents: [
-                      { type: "text", text: "ยอดเงินคงเหลือ:", flex: 0, size: "sm", weight: "bold", color: "#000000" },
-                      { type: "text", text: `${balance}`, align: "end", size: "sm", color: "#ff3366", weight: "bold" },
+                      {
+                        type: "text",
+                        text: "ยอดเงินคงเหลือ:",
+                        flex: 0,
+                        size: "sm",
+                        weight: "bold",
+                        color: "#000000",
+                      },
+                      {
+                        type: "text",
+                        // wallBalance
+                        text: `${balance}`,
+                        align: "end",
+                        size: "sm",
+                        color: "#ff3366",
+                        weight: "bold",
+                      },
                     ],
                   },
                 ],
               },
-              { type: "separator", margin: "5px" },
+              {
+                type: "separator",
+                margin: "5px",
+              },
               {
                 type: "button",
-                action: { type: "uri", label: "เข้าสู่ระบบออมดาวน์", uri: LIFF_URL },
+                action: {
+                  type: "uri",
+                  label: "เข้าสู่ระบบออมดาวน์",
+                  uri: `${LIFF_URL}`,
+                },
                 height: "sm",
                 style: "primary",
                 color: "#ff815a",
@@ -163,7 +195,7 @@ export const buildRegisterFlex = (line_user_id: string, payload: RegisterFlexPay
   };
 };
 
-export const buildSaveFlex = (line_user_id: string, payload: SaveFlexPayload) => {
+export const buildSaveFlex = (line_user_id: string, payload: LineSavePayload) => {
   const { amount, fullnameWithBankNumber, walletUniqueId, date, balance, bankImageUrl, bankName, liffHistoryUrl } =
     payload;
   return {
@@ -353,7 +385,7 @@ export const buildSaveFlex = (line_user_id: string, payload: SaveFlexPayload) =>
   };
 };
 
-export const buildWithdrawFlex = (line_user_id: string, payload: WithdrawFlexPayload) => {
+export const buildWithdrawFlex = (line_user_id: string, payload: LineWithdrawPayload) => {
   const dateStr =
     payload.date ?? thaiDateFormatter.format(payload.updatedDate ? new Date(payload.updatedDate) : new Date());
   const bankImageUrl = payload.bankImageUrl ?? getBankIconUrl(payload.bankName || "");
@@ -548,7 +580,7 @@ export const buildWithdrawFlex = (line_user_id: string, payload: WithdrawFlexPay
   };
 };
 
-export const buildReceiverFlex = (line_user_id: string, payload: ReceiverFlexPayload) => {
+export const buildReceiverFlex = (line_user_id: string, payload: LineReceiverPayload) => {
   const {
     senderWalletUniqueId,
     receiverWalletUniqueId,
@@ -730,7 +762,7 @@ export const buildReceiverFlex = (line_user_id: string, payload: ReceiverFlexPay
   };
 };
 
-export const buildSenderFlex = (line_user_id: string, payload: SenderFlexPayload) => {
+export const buildSenderFlex = (line_user_id: string, payload: LineSenderPayload) => {
   const {
     senderWalletUniqueId,
     receiverWalletUniqueId,

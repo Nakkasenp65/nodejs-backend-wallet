@@ -1,3 +1,5 @@
+import { TransactionStatus } from "../../../generated/prisma";
+
 export type CreateSavingTransactionBody = {
   walletId: string;
   userId: string;
@@ -17,8 +19,8 @@ export type TransferData = {
 };
 
 export type TransactionQueryOptions = {
-  year?: number | string;
-  month?: number | string;
+  year?: number;
+  month?: number;
 };
 
 export type AdminTransactionQueryOptions = {
@@ -40,19 +42,7 @@ export type AdminTransactionQueryOptions = {
     | "REWARD";
 };
 
-export type EditTransactionUpdate = {
-  amount?: number | string;
-  status?: "PENDING" | "SUCCESS" | "REJECTED" | "CANCELLED";
-  slipImageUrl?: string;
-  description?: string;
-  bank?: string;
-  from?: string;
-  to?: string;
-  verified?: boolean;
-  verifiedAmount?: number;
-  name?: string;
-  type?: "INCOME" | "OUTCOME" | "TRANSFER" | "WITHDRAW" | "DEPOSIT" | "REWARD";
-};
+
 
 export type ApproveSenderInfo = {
   account: { name: string; bank: { account: string } };
@@ -65,5 +55,25 @@ export type ApproveDepositData = {
   sender: ApproveSenderInfo;
 };
 
-export type RejectionData = { code: string; reason?: string };
+export type ApproveWithdrawData = {
+  status: "SUCCESS";
+  amount: string | number;
+  description: string;
+};
 
+export type RejectWithdrawData = {
+  status: "REJECTED";
+  description: string;
+};
+
+export type EditTransactionData = {
+  from: string;
+  to: string;
+  description: string;
+  status: string;
+  type: string;
+  amount: string | number;
+  slipImageUrl?: string;
+};
+
+export type RejectionData = { code: string; reason?: string };
