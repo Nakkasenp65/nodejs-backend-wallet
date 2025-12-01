@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import ApiError from '../utils/ApiError.js';
 import httpStatus from 'http-status';
-import { PrismaClientKnownRequestError } from '../generated/prisma/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const errorConverter = (err: any, req: Request, res: Response, next: NextFunction) => {
     let error = err;
