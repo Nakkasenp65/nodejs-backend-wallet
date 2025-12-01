@@ -9,7 +9,7 @@
 import prisma from "../../../libs/prisma.js";
 import httpStatus from "http-status";
 import ApiError from "../../../utils/ApiError.js";
-import { GoalStatus } from "../../../generated/prisma/index.js";
+import { GoalStatus } from "@prisma/client";
 
 /**
  * สร้างเป้าหมายการออมใหม่สำหรับผู้ใช้

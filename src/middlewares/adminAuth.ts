@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import httpStatus from 'http-status';
 import ApiError from '../utils/ApiError.js';
 // Assuming Role is available in @prisma/client, if not we might need to adjust
-import { Role } from '../generated/prisma/index';
+import { Role } from '@prisma/client';
 
 interface AuthenticatedRequest extends Request {
     user?: {

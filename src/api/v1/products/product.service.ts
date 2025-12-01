@@ -7,7 +7,7 @@
  * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
  * @requires services/image.service - Service สำหรับการอัปโหลดรูปภาพ
  */
-import { Prisma, Product } from "../../../generated/prisma/index";
+import { Prisma, Product } from "@prisma/client";
 import prisma from "../../../libs/prisma.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";

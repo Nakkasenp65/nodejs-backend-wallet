@@ -9,7 +9,7 @@
  */
 import httpStatus from "http-status";
 import { z } from "zod";
-import { Prisma, MissionType, UserMissionStatus } from "../../../generated/prisma/index";
+import { Prisma, MissionType, UserMissionStatus } from "@prisma/client";
 import prisma from "../../../libs/prisma.js";
 import ApiError from "../../../utils/ApiError.js";
 

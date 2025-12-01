@@ -8,7 +8,7 @@
  * @requires http-status - Library สำหรับจัดการ HTTP status codes
  */
 import { Request, Response } from "express";
-import { NotificationType } from "../../../generated/prisma/index";
+import { NotificationType } from "@prisma/client";
 import notificationService from "./notification.service.js";
 import catchAsync from "../../../utils/catchAsync.js";
 import httpStatus from "http-status";

@@ -6,7 +6,7 @@
  * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
  * @requires utils/ApiError - Custom Error class สำหรับจัดการข้อผิดพลาด
  */
-import { Prisma, UserMissionStatus, UserMission } from "../../../generated/prisma/index";
+import { Prisma, UserMissionStatus, UserMission } from "@prisma/client";
 import prisma from "../../../libs/prisma.js";
 import httpStatus from "http-status";
 import ApiError from "../../../utils/ApiError.js";

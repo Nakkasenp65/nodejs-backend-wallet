@@ -1,4 +1,4 @@
-import { UserMissionStatus } from "../../../generated/prisma";
+import { UserMissionStatus } from "@prisma/client";
 
 export interface UserMission {
   id: string;

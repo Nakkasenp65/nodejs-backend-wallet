@@ -9,7 +9,7 @@
 import prisma from "../../../libs/prisma.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
-import { NotificationType, Prisma } from "../../../generated/prisma/index";
+import { NotificationType, Prisma } from "@prisma/client";
 
 /**
  * (Admin) สร้างข้อความประกาศฉบับร่าง (Draft) ใหม่

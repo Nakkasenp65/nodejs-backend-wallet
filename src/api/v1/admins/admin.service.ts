@@ -5,7 +5,7 @@
  * @module services/admin
  * @requires libs/prisma - Prisma Client instance สำหรับการเชื่อมต่อฐานข้อมูล
  */
-import { TransactionStatus, TransactionType, UserMissionStatus } from "../../../generated/prisma/index";
+import { TransactionStatus, TransactionType, UserMissionStatus } from "@prisma/client";
 import prisma from "../../../libs/prisma.js";
 
 /**

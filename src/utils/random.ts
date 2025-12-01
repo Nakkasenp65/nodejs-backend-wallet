@@ -1,5 +1,5 @@
 import { customAlphabet } from "nanoid";
-import { PrismaClient } from "../generated/prisma/index.js";
+import { PrismaClient } from "@prisma/client";
 
 // --- STAGE 1: สร้าง "โรงงานผลิต ID" ที่ด้านบนสุดของไฟล์ ---
 // เราสร้าง "พิมพ์เขียว" สำหรับ ID แต่ละประเภทเพียงครั้งเดียว

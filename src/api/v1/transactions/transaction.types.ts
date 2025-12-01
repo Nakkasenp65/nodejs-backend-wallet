@@ -1,4 +1,4 @@
-import { TransactionStatus, TransactionType } from "../../../generated/prisma";
+import { TransactionStatus, TransactionType } from "@prisma/client";
 
 export interface Transaction {
   id: string;

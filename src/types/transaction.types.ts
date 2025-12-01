@@ -4,7 +4,7 @@
  */
 
 import { Request, Response } from "express";
-import { TransactionType, TransactionStatus, Transaction, Wallet, User } from "../generated/prisma/index.js";
+import { TransactionType, TransactionStatus, Transaction, Wallet, User } from "@prisma/client";
 
 // Request body types
 export interface CreateSavingTransactionBody {

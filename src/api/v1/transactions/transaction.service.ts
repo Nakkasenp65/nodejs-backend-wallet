@@ -12,7 +12,7 @@
 import prisma from "../../../libs/prisma.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
-import { TransactionStatus, TransactionType } from "../../../generated/prisma/index";
+import { TransactionStatus, TransactionType } from "@prisma/client";
 import axios from "axios";
 import sendEmail from "../../../utils/email.js";
 import crypto from "crypto";
