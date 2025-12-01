@@ -39,7 +39,6 @@ const slipVerify = catchAsync(async (req: Request, res: Response) => {
     // 2. "แปลภาษา" และส่ง "คำสั่งภายใน" ที่ชัดเจน
     if (verifyResult.code === "200000" && verifyResult.data) {
         // คำสั่ง: "อนุมัติรายการฝากนี้"
-
         updatedTransaction = await transactionService.approveDeposit(transactionId, {
             userId: userId, // <-- ส่ง userId เข้าไป
             amount: verifyResult.data.amount,

@@ -95,6 +95,7 @@ model User {
   referToCode       String?
   email             String?
   firstTime         Boolean  @default(true)
+  guideShown        Boolean  @default(false)
   role              Role     @default(USER)
 
   // Saving Streaks & Insights

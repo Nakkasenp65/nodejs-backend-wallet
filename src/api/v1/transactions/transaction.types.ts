@@ -1,4 +1,24 @@
-import { TransactionStatus } from "../../../generated/prisma";
+import { TransactionStatus, TransactionType } from "../../../generated/prisma";
+
+export interface Transaction {
+  id: string;
+  name?: string | null;
+  amount?: number | null;
+  type?: TransactionType | null;
+  status: TransactionStatus;
+  from?: string | null;
+  fromWalletId?: string | null;
+  toWalletId?: string | null;
+  to?: string | null;
+  description?: string | null;
+  slipImageUrl?: string | null;
+  bank?: string | null;
+  verified: boolean;
+  verifiedAmount?: number | null;
+  externalSource?: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
 
 export type CreateSavingTransactionBody = {
   walletId: string;
@@ -41,8 +61,6 @@ export type AdminTransactionQueryOptions = {
     | "DEPOSIT"
     | "REWARD";
 };
-
-
 
 export type ApproveSenderInfo = {
   account: { name: string; bank: { account: string } };

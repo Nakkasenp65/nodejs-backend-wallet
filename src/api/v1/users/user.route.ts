@@ -88,6 +88,15 @@ userRouter.post("/lock/:line_user_id", auth, userController.setLocked);
 userRouter.post("/unlock", userController.unlock);
 
 /**
+ * @route PATCH /api/users/:line_user_id/guide-shown
+ * @description อัปเดตสถานะการแสดง Guide
+ * @access Private (Requires Authentication)
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @body {boolean} guideShown - สถานะการแสดง Guide
+ */
+userRouter.patch("/:line_user_id/guide-shown", auth, userController.updateGuideShown);
+
+/**
  * @route PATCH /api/users/:line_user_id
  * @description อัปเดตข้อมูลโปรไฟล์ของผู้ใช้
  * @access Private (Requires Authentication)

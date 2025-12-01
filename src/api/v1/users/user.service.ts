@@ -77,6 +77,7 @@ const getUser = async (line_user_id: string) => {
       isLocked: true,
       createdAt: true,
       role: true,
+      guideShown: true,
       wallet: {
         select: {
           id: true,
@@ -730,6 +731,33 @@ const getLockStatus = async (line_user_id: string) => {
   }
 };
 
+/**
+ * อัปเดตสถานะการแสดง Guide (guideShown) ของผู้ใช้
+ * @async
+ * @param {string} line_user_id - รหัสผู้ใช้ LINE
+ * @param {boolean} shown - สถานะการแสดง Guide (true = แสดงแล้ว, false = ยังไม่แสดง)
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ผู้ใช้ที่อัปเดตแล้ว
+ */
+const updateGuideShown = async (line_user_id: string, shown: boolean) => {
+  if (!line_user_id) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Line User ID is required");
+  }
+
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { line_user_id: line_user_id },
+      data: { guideShown: shown },
+      select: { id: true, line_user_id: true, guideShown: true },
+    });
+    return updatedUser;
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      throw new ApiError(httpStatus.NOT_FOUND, `User not found with ID: ${line_user_id}`);
+    }
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to update guide status");
+  }
+};
+
 export default {
   checkUserStatus,
   getUsers,
@@ -746,4 +774,5 @@ export default {
   setLocked,
   unlock,
   getLockStatus,
+  updateGuideShown,
 };

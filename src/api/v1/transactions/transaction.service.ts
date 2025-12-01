@@ -30,7 +30,7 @@ import type {
   ApproveDepositData,
   RejectionData,
   EditTransactionData,
-} from "./transaction.type.js";
+} from "./transaction.types.js";
 import type { Express } from "express";
 import { SentMessageInfo } from "nodemailer";
 
@@ -897,14 +897,12 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
       },
     });
 
-    // 3. ปฏิบัติการหลังเกิดเหตุ (อยู่ภายใต้การคุ้มครอง)
-    // เราจะสร้าง payload สำหรับ service อื่นๆ ที่นี่
-    const notificationPayload = {
-      userId: updatedWallet.user.id,
-      amount: mainUpdatedTransaction.verifiedAmount,
-      transactionId: mainUpdatedTransaction.id,
-    };
+    return { mainUpdatedTransaction, updatedWallet };
+  });
 
+  const { mainUpdatedTransaction, updatedWallet } = updatedTransaction;
+
+  try {
     // ตัวอย่างการเรียก service อื่นๆ (ควรถูกออกแบบให้รับ payload)
     await notificationService.sendWithdrawSuccessNotification(
       updatedWallet.user.id,
@@ -922,12 +920,12 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
       mainUpdatedTransaction.bank || "",
       mainUpdatedTransaction.updatedAt,
     );
-
-    return mainUpdatedTransaction;
-  });
+  } catch (error) {
+    console.error(`[POST_APPROVAL_FAILURE] Failed to execute post-approval tasks for TxID ${transactionId}:`, error);
+  }
 
   console.log(`Transaction ${transactionId} approved. Wallet ${targetWalletId} balance updated.`);
-  return updatedTransaction;
+  return mainUpdatedTransaction;
 };
 
 /**

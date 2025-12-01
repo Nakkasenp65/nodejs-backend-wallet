@@ -155,6 +155,22 @@ const getLockStatus = catchAsync(async (req: Request, res: Response) => {
     res.status(httpStatus.OK).json({ isLocked, isNewUser });
 });
 
+/**
+ * คอนโทรลเลอร์สำหรับอัปเดตสถานะ guideShown
+ * @description รับ `line_user_id` จาก URL และ `guideShown` จาก Body
+ */
+const updateGuideShown = catchAsync(async (req: Request, res: Response) => {
+    const { line_user_id } = req.params;
+    const { guideShown } = req.body;
+    
+    if (typeof guideShown !== 'boolean') {
+        return res.status(httpStatus.BAD_REQUEST).json({ message: "guideShown must be a boolean" });
+    }
+
+    const result = await userService.updateGuideShown(line_user_id, guideShown);
+    res.status(httpStatus.OK).json(result);
+});
+
 export default {
     createUser,
     updateUser,
@@ -167,4 +183,5 @@ export default {
     setLocked,
     unlock,
     getLockStatus,
+    updateGuideShown,
 };

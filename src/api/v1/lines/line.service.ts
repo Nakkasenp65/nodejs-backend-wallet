@@ -132,7 +132,7 @@ const sendRegisterFlexMessage = async (line_user_id: string) => {
 
   const response = await pushMessage(flex);
 
-  if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
+  if (!response || response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
 
   return response.data;
 };
@@ -185,7 +185,7 @@ const sendDepositFlexMessage = async (
 
   const response = await pushMessage(flex);
 
-  if (!response.data) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
+  if (!response || !response.data) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "SEND_LINE_FAIL");
   return response.data;
 };
 
@@ -239,7 +239,7 @@ const sendWithdrawSuccessFlex = async (
 
   const response = await pushMessage(flex);
 
-  if (response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
+  if (!response || response.status !== 200) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send LINE message");
 
   return response.data;
 };
