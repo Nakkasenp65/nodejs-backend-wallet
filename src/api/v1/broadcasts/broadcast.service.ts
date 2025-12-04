@@ -10,6 +10,51 @@ import prisma from "../../../libs/prisma.js";
 import ApiError from "../../../utils/ApiError.js";
 import httpStatus from "http-status";
 import { NotificationType, Prisma } from "@prisma/client";
+import axios from "axios";
+import FormData from "form-data";
+
+/**
+ * อัปโหลดรูปภาพสำหรับ Broadcast ไปยังเซิร์ฟเวอร์ภายนอก
+ * @async
+ * @param {object} fileObject - ไฟล์รูปภาพจาก Multer
+ * @returns {Promise<string>} URL ของรูปภาพที่อัปโหลด
+ */
+const uploadBroadcastImage = async (fileObject: Express.Multer.File) => {
+  const uploadApiUrl = process.env.UPLOAD_IMAGE_API_URL;
+
+  if (!fileObject || !fileObject.buffer) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "No file buffer provided for upload.");
+  }
+
+  const formData = new FormData();
+  formData.append("myFile", fileObject.buffer, {
+    filename: fileObject.originalname,
+    contentType: fileObject.mimetype,
+  });
+  // ใช้ userId เป็น 'SYSTEM_BROADCAST' หรือค่าคงที่อื่นๆ เพื่อระบุว่าเป็นของระบบ
+  formData.append("userId", "SYSTEM_BROADCAST");
+
+  try {
+    if (!uploadApiUrl) {
+      throw new Error("UPLOAD_IMAGE_API_URL is not defined in .env");
+    }
+
+    const { data } = await axios.post(uploadApiUrl, formData, {
+      headers: {
+        ...formData.getHeaders(),
+      },
+    });
+
+    if (!data || !data.data?.url) {
+      throw new Error("Invalid response format from image upload service");
+    }
+
+    return data.data.url;
+  } catch (error: any) {
+    console.error("Error uploading broadcast image:", error.response?.data || error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Could not upload broadcast image.");
+  }
+};
 
 /**
  * (Admin) สร้างข้อความประกาศฉบับร่าง (Draft) ใหม่
@@ -18,16 +63,25 @@ import { NotificationType, Prisma } from "@prisma/client";
  * @param {object} payload - อ็อบเจกต์ข้อมูลสำหรับสร้างข้อความประกาศ
  * @param {string} payload.title - หัวข้อของข้อความประกาศ
  * @param {string} [payload.body] - เนื้อหาของข้อความประกาศ
+ * @param {string} [payload.imageUrl] - URL ของรูปภาพ (ถ้ามี)
+ * @param {Express.Multer.File} [file] - ไฟล์รูปภาพ (Optional - ถ้ามีจะถูกอัปโหลดและแทนที่ imageUrl)
  * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ Broadcast ที่สร้างขึ้นใหม่
  * @throws {ApiError} หากไม่ได้ระบุ `title`
  */
-const createBroadcast = async (payload: { title: string; body?: string }) => {
+const createBroadcast = async (payload: { title: string; body?: string; imageUrl?: string }, file?: Express.Multer.File) => {
   const { title, body } = payload;
   if (!title) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Title is required.");
   }
+
+  let finalImageUrl: string | null = payload.imageUrl || null;
+
+  if (file) {
+    finalImageUrl = await uploadBroadcastImage(file);
+  }
+
   const broadcast = await prisma.broadcast.create({
-    data: { title, body, status: "DRAFT" },
+    data: { title, body, imageUrl: finalImageUrl, status: "DRAFT" },
   });
   return broadcast;
 };
@@ -126,6 +180,7 @@ const sendBroadcastToAllUsers = async (broadcastId: string) => {
     const notificationsToCreate = users.map((user) => ({
       title: broadcast.title,
       body: broadcast.body || "",
+      imageUrl: broadcast.imageUrl, // เพิ่ม imageUrl
       type: NotificationType.SYSTEM, // กำหนดให้เป็น SYSTEM
       userId: user.id,
     }));

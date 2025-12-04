@@ -223,9 +223,10 @@ model UserMission {
 }
 
 model Broadcast {
-  id    String  @id @default(auto()) @map("_id") @db.ObjectId
-  title String
-  body  String?
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  title    String
+  body     String?
+  imageUrl String?
   // type ไม่จำเป็นต้องมี เพราะเราจะถือว่าทั้งหมดเป็น SYSTEM/PROMOTION
 
   status String    @default("DRAFT") // DRAFT, SENT

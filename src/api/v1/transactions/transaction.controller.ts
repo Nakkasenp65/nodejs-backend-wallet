@@ -15,6 +15,7 @@ import httpStatus from "http-status";
 import catchAsync from "../../../utils/catchAsync.js";
 import slipService from "../slips/slip.service.js";
 import qstashService from "../qstash/qstash.service.js";
+import { CreateWithdrawTransactionBody } from "./transaction.types.js";
 
 /**
  * คอนโทรลเลอร์สำหรับสร้างธุรกรรมการออมเงิน (ฝากเงิน)
@@ -57,7 +58,7 @@ const updateTransaction = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const createWithdrawTransaction = catchAsync(async (req: Request, res: Response) => {
-  const { amount, bank, accountNumber, accountName, userId } = req.body;
+  const { amount, bank, accountNumber, accountName, userId }: CreateWithdrawTransactionBody = req.body;
   const newTransaction = await transactionService.createWithdrawTransaction(userId, amount, {
     bank,
     accountNumber,

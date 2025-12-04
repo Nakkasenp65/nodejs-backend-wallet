@@ -68,8 +68,14 @@ adminRoute.get("/users/:line_user_id", userController.getUser);
  * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูล
  * @body {object} updateData - ข้อมูลที่ต้องการอัปเดต (เช่น fullname, phone, role)
  */
-adminRoute.patch("/users/:userId", adminController.editUser); // Fixed missing slash in original code: "users/:userId" -> "/users/:userId"
-// adminRoute.delete("users/:line_user_id", userController.deleteUser);
+adminRoute.patch("/users/:userId", adminController.editUser);
+/**
+ * @route DELETE /v1/admin/users/:userId
+ * @description ลบผู้ใช้ (สำหรับ Admin)
+ * @access Admin Only
+ * @param {string} userId - ID ของผู้ใช้ในฐานข้อมูล
+ */
+adminRoute.delete("/users/:userId", userController.deleteUser);
 
 //รายการการเงิน
 
@@ -169,6 +175,14 @@ adminRoute.get("/user-missions/details/:userMissionId", adminController.getUserM
  */
 adminRoute.patch("/user-missions/:userMissionId", adminController.editUserMission);
 
+/**
+ * @route DELETE /v1/admin/user-missions/:userMissionId
+ * @description ลบข้อมูลภารกิจของผู้ใช้
+ * @access Admin Only
+ * @param {string} userMissionId - ID ของ UserMission
+ */
+adminRoute.delete("/user-missions/:userMissionId", adminController.deleteUserMission);
+
 //การแจ้งเตือน เป็น broadcast แทน notification (notification คือส่วนตัวมี userId อยู่)
 
 /**
@@ -188,8 +202,10 @@ adminRoute.get("/broadcasts", broadcastController.getBroadcasts);
  * @access Admin Only
  * @body {string} title - หัวข้อของข้อความประกาศ
  * @body {string} [body] - เนื้อหาของข้อความประกาศ
+ * @body {string} [imageUrl] - URL ของรูปภาพ (Optional - ใช้แทนการอัปโหลดไฟล์ได้)
+ * @body {file} [image] - (Optional) ไฟล์รูปภาพ
  */
-adminRoute.post("/broadcasts", broadcastController.createBroadcast);
+adminRoute.post("/broadcasts", upload.single("image"), broadcastController.createBroadcast);
 
 /**
  * @route POST /v1/admin/broadcasts/:broadcastId/send

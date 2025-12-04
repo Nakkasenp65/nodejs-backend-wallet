@@ -847,8 +847,8 @@ const handleApproval = async (transactionId: string, existingTransaction: any, d
 
 
   // กำหนดเป้าหมาย Wallet และประเภทปฏิบัติการ
-  let targetWalletId;
-  let walletOperation;
+  let targetWalletId: string;
+  let walletOperation: any;
 
   switch (existingTransaction.type) {
     case "INCOME":
@@ -958,6 +958,7 @@ const editTransaction = async (
       throw new ApiError(httpStatus.BAD_REQUEST, "Invalid amount format.");
     }
   }
+
   if (file) {
     const imageInfo = await slipService.uploadSlip(file, transactionId);
     dataToUpdate.slipImageUrl = imageInfo.url;
@@ -966,10 +967,12 @@ const editTransaction = async (
   const existingTransaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
+
   if (!existingTransaction) {
     throw new ApiError(httpStatus.NOT_FOUND, "Transaction not found.");
   }
 
+  // The incoming status is SUCCESS and the existing status is not SUCCESS = Approving
   const isApproving =
     dataToUpdate.status === TransactionStatus.SUCCESS && existingTransaction.status !== TransactionStatus.SUCCESS;
 

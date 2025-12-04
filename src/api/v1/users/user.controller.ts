@@ -171,6 +171,18 @@ const updateGuideShown = catchAsync(async (req: Request, res: Response) => {
     res.status(httpStatus.OK).json(result);
 });
 
+/**
+ * คอนโทรลเลอร์สำหรับลบผู้ใช้ (สำหรับ Admin)
+ * @description รับ `userId` จาก URL parameters, เรียกใช้ Service เพื่อลบ, และส่งข้อมูลที่ลบกลับไป
+ * @param {object} req - อ็อบเจกต์ Express Request ที่มี `req.params.userId`
+ * @param {object} res - อ็อบเจกต์ Express Response
+ */
+const deleteUser = catchAsync(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const deletedUser = await userService.deleteUser(userId);
+    res.status(httpStatus.OK).json(deletedUser);
+});
+
 export default {
     createUser,
     updateUser,
@@ -184,4 +196,5 @@ export default {
     unlock,
     getLockStatus,
     updateGuideShown,
+    deleteUser,
 };

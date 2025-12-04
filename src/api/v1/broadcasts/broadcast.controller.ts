@@ -33,8 +33,8 @@ const getBroadcasts = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const createBroadcast = catchAsync(async (req: Request, res: Response) => {
-    // รับ payload (title, body) จาก request body
-    const newBroadcast = await broadcastService.createBroadcast(req.body);
+    // รับ payload (title, body) จาก request body และ file จาก req.file
+    const newBroadcast = await broadcastService.createBroadcast(req.body, req.file);
     res.status(httpStatus.CREATED).json(newBroadcast);
 });
 

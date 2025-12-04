@@ -545,9 +545,35 @@ const expireOverdueMissions = async () => {
         return result;
     } catch (error) {
         console.error("[Cron Job] An error occurred during expireOverdueMissions:", error);
-        // โยน Error ต่อไปเพื่อให้ระบบ Scheduler (เช่น QStash) รู้ว่างานล้มเหลวและอาจจะลองใหม่ (retry)
-        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to process overdue missions.");
     }
+};
+
+/**
+ * ลบ UserMission ออกจากระบบ (สำหรับ Admin หรือการจัดการพิเศษ)
+ * @async
+ * @param {string} userMissionId - ID ของ UserMission ที่ต้องการลบ
+ * @returns {Promise<object>} Promise ที่ resolve เป็นอ็อบเจกต์ UserMission ที่ถูกลบ
+ * @throws {ApiError} หากไม่พบ UserMission
+ */
+const deleteUserMission = async (userMissionId: string) => {
+    if (!userMissionId) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "UserMission ID is required");
+    }
+
+    const existingUserMission = await prisma.userMission.findUnique({
+        where: { id: userMissionId },
+    });
+
+    if (!existingUserMission) {
+        throw new ApiError(httpStatus.NOT_FOUND, "UserMission not found");
+    }
+
+    const deletedUserMission = await prisma.userMission.delete({
+        where: { id: userMissionId },
+    });
+
+    console.log(`[AUDIT] Deleted UserMission ${userMissionId}`);
+    return deletedUserMission;
 };
 
 export default {
@@ -559,4 +585,5 @@ export default {
     editUserMission,
     expireOverdueMissions,
     checkAndUpdateMissionProgress,
+    deleteUserMission,
 };

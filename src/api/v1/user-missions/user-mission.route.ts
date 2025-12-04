@@ -49,4 +49,12 @@ userMissionRouter.get("/:userId", userMissionController.getMyMissions);
  */
 userMissionRouter.get("/details/:userMissionId", userMissionController.getMyMissionDetails);
 
+/**
+ * @route DELETE /api/user-missions/:userMissionId
+ * @description ลบ UserMission (สำหรับ Admin หรือการจัดการพิเศษ)
+ * @access Private (Requires Authentication)
+ * @param {string} userMissionId - ID ของ UserMission ที่ต้องการลบ
+ */
+userMissionRouter.delete("/:userMissionId", userMissionController.deleteUserMission);
+
 export default userMissionRouter;

@@ -21,6 +21,7 @@ import userService from "../users/user.service.js"; // Note: Imported controller
 import missionService from "../missions/mission.service.js";
 import walletService from "../wallets/wallet.service.js";
 import userMissionService from "../user-missions/user-mission.service.js";
+import { EditTransactionData } from "../transactions/transaction.types.js";
 
 /**
  * คอนโทรลเลอร์สำหรับดึงข้อมูลสรุปสำหรับ Admin Dashboard
@@ -51,7 +52,7 @@ const getTransactions = catchAsync(async (req: Request, res: Response) => {
  */
 const editTransaction = catchAsync(async (req: Request, res: Response) => {
   const { transactionId } = req.params;
-  const transactionPayload = req.body;
+  const transactionPayload: EditTransactionData = req.body;
   const transaction = await transactionService.editTransaction(transactionId, req.file, transactionPayload);
   res.status(httpStatus.OK).json(transaction);
 });
@@ -166,6 +167,18 @@ const editUserMission = catchAsync(async (req: Request, res: Response) => {
   res.status(httpStatus.OK).json(updatedUserMission);
 });
 
+/**
+ * คอนโทรลเลอร์สำหรับลบ UserMission (สำหรับ Admin)
+ * @description รับ `userMissionId` จาก URL parameters
+ * @param {object} req - อ็อบเจกต์ Express Request
+ * @param {object} res - อ็อบเจกต์ Express Response
+ */
+const deleteUserMission = catchAsync(async (req: Request, res: Response) => {
+  const { userMissionId } = req.params;
+  const deletedMission = await userMissionService.deleteUserMission(userMissionId);
+  res.status(httpStatus.OK).json(deletedMission);
+});
+
 export default {
   getDashboardData,
   getTransactions,
@@ -179,4 +192,5 @@ export default {
   getUserMissionDetails,
   getUserMisisonsByUserLineId,
   editUserMission,
+  deleteUserMission,
 };

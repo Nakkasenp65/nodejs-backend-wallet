@@ -25,6 +25,14 @@ export type CreateSavingTransactionBody = {
   userId: string;
 };
 
+export type CreateWithdrawTransactionBody = {
+  amount: number;
+bank: string;
+accountNumber: string;
+accountName: string;
+userId: string;
+};
+
 export type WithdrawDetails = {
   bank: string;
   accountNumber: string;
@@ -85,12 +93,12 @@ export type RejectWithdrawData = {
 };
 
 export type EditTransactionData = {
-  from: string;
-  to: string;
-  description: string;
-  status: string;
-  type: string;
-  amount: string | number;
+  from?: string;
+  to?: string;
+  description?: string;
+  status?: string;
+  type?: string;
+  amount?: string | number;
   slipImageUrl?: string;
 };
 

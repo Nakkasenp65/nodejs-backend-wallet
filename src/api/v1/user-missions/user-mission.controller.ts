@@ -73,9 +73,22 @@ const getMyMissionDetails = catchAsync(async (req: Request, res: Response) => {
     res.status(httpStatus.OK).json(missionDetails);
 });
 
+/**
+ * คอนโทรลเลอร์สำหรับลบ UserMission (สำหรับ Admin หรือการจัดการพิเศษ)
+ * @description รับ `userMissionId` จาก URL parameters, เรียกใช้ Service เพื่อลบ, และส่งข้อมูลที่ลบกลับไป
+ * @param {object} req - อ็อบเจกต์ Express Request ที่มี `req.params.userMissionId`
+ * @param {object} res - อ็อบเจกต์ Express Response
+ */
+const deleteUserMission = catchAsync(async (req: Request, res: Response) => {
+    const { userMissionId } = req.params;
+    const deletedMission = await userMissionService.deleteUserMission(userMissionId);
+    res.status(httpStatus.OK).json(deletedMission);
+});
+
 export default {
     enrollInMission,
     claimMissionReward,
     getMyMissions,
     getMyMissionDetails,
+    deleteUserMission,
 };
