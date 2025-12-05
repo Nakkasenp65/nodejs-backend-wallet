@@ -1,4 +1,4 @@
-import PDFDocument from "pdfkit-table";
+import puppeteer from "puppeteer";
 import * as QRCode from "qrcode";
 import * as path from "path";
 import * as fs from "fs";
@@ -17,6 +17,7 @@ const formatDateTime = (date: Date | string) =>
 const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 
+// Interfaces
 interface Transaction {
     type: string;
     toWalletId: string;
@@ -44,284 +45,239 @@ interface StatementData {
     endDate: Date | string;
 }
 
-// --- Layout Configuration (Your Perfect Values) ---
-export const LAYOUT = {
-    qrBox: { x: 45, y: 138, w: 83, h: 83 },
-    userInfoBox: { x: 52, y: 239, w: 239 },
-    summaryBox: { x: 309, y: 239, w: 230 },
-    tableStart: { x: 48, y: 360 }, 
-    columnWidths: [73, 165, 75, 77, 80], 
-};
-
 /**
- * สร้าง PDF จากข้อมูลธุรกรรมและส่งกลับเป็น Buffer
+ * Build Statement PDF using Puppeteer with Pagination
  */
 const buildStatementPdf = async (data: StatementData): Promise<Buffer> => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const doc: any = new (PDFDocument as any)({
-                size: "A4",
-                margin: 0,
-                autoFirstPage: false,
-            });
+    let browser;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+        const page = await browser.newPage();
 
-            const buffers: Buffer[] = [];
-            doc.on("data", (chunk: any) => buffers.push(chunk));
-            doc.on("end", () => resolve(Buffer.concat(buffers)));
-            doc.on("error", (err: any) => reject(err));
+        const htmlContent = await buildStatementHtml(data);
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-            // 1. Prepare Paths & Assets
-            const bgPath = path.resolve("public/statement.png");
-            const fontPath = path.resolve("public/fonts/LINESeedSansTH_Bd.ttf");
-            
-            let bgBuffer: Buffer | null = null;
-            if (fs.existsSync(bgPath)) {
-                bgBuffer = fs.readFileSync(bgPath);
-            } else {
-                console.error("Statement background image not found at:", bgPath);
-            }
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+        });
 
-            // Register font
-            if (fs.existsSync(fontPath)) {
-                doc.registerFont("LINESeedSansTH", fontPath);
-                doc.font("LINESeedSansTH");
-            }
+        return Buffer.from(pdfBuffer);
 
-            // 2. Add Background Logic
-            doc.on("pageAdded", () => {
-                if (bgBuffer) {
-                    doc.image(bgBuffer, 0, 0, { width: doc.page.width, height: doc.page.height });
-                }
-            });
-
-            // 3. Create First Page
-            doc.addPage();
-
-            // --- QR Code ---
-            try {
-                const qrDataUrl = await QRCode.toDataURL(data.wallet.walletUniqueId, { margin: 0 });
-                doc.image(qrDataUrl, LAYOUT.qrBox.x + 5, LAYOUT.qrBox.y + 5, { 
-                    width: LAYOUT.qrBox.w - 10, 
-                    height: LAYOUT.qrBox.h - 10,
-                });
-            } catch (err: any) {
-                console.error("Error generating QR code:", err);
-            }
-
-            // --- User Information ---
-            const userX = LAYOUT.userInfoBox.x;
-            const userY = LAYOUT.userInfoBox.y;
-            
-            doc.fillColor("#000000").fontSize(9);
-            doc.text(`ชื่อ wallet: ${data.wallet.user.fullname}`, userX, userY);
-            doc.text(`Wallet ID: ${data.wallet.walletUniqueId}`, userX, userY + 20);
-            doc.text(`ช่วงเวลา: ${formatDate(data.startDate)} - ${formatDate(data.endDate)}`, userX, userY + 36);
-
-            // --- Calculate Totals ---
-            const validTransactions = data.transactions.filter((tx) => tx.type !== "REWARD");
-            const totalIncome = validTransactions.reduce(
-                (sum, tx) => (tx.toWalletId === data.currentWalletId ? sum + tx.amount : sum), 0,
-            );
-            const totalExpense = validTransactions.reduce(
-                (sum, tx) => (tx.fromWalletId === data.currentWalletId ? sum + tx.amount : sum), 0,
-            );
-            
-            // --- Summary Box (Simulating Justify-Between) ---
-            const summaryX = LAYOUT.summaryBox.x;
-            let summaryY = LAYOUT.summaryBox.y;
-            const summaryWidth = LAYOUT.summaryBox.w;
-            const lineHeight = 16; 
-
-            doc.fillColor("#000000").fontSize(9);
-
-            // Row 1: Income
-            doc.text("รายรับรวม:", summaryX, summaryY);
-            // Align Value to RIGHT
-            doc.text(`${formatCurrency(totalIncome)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
-            
-            // Row 2: Expense
-            summaryY += lineHeight;
-            doc.text("รายจ่ายรวม:", summaryX, summaryY);
-            doc.text(`${formatCurrency(totalExpense)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
-
-            // Row 3: Net Balance
-            summaryY += lineHeight;
-            doc.text("ยอดคงเหลือสุทธิ:", summaryX, summaryY);
-            doc.text(`${formatCurrency(data.wallet.balance)}.-`, summaryX, summaryY, { align: 'right', width: summaryWidth });
-
-
-            // --- Table ---
-            let balanceTracker = data.wallet.balance;
-            
-            const tableRows = validTransactions.map((tx) => {
-                const isIncome = tx.toWalletId === data.currentWalletId;
-                const amount = tx.amount;
-                const balanceAfterTx = balanceTracker;
-                
-                if (isIncome) balanceTracker -= amount; 
-                else balanceTracker += amount;
-
-                let description = "";
-                switch (tx.type) {
-                    case "DEPOSIT": description = `ฝากเงิน (${tx.from})`; break;
-                    case "TRANSFER":
-                        description = isIncome
-                            ? `รับโอน (${tx.fromWallet?.user?.line_display_name || "Unknown"})`
-                            : `โอนเงิน (${tx.toWallet?.user?.line_display_name || "Unknown"})`;
-                        break;
-                    case "WITHDRAW": description = `ถอนเงิน (${tx.to})`; break;
-                    default: description = tx.description || tx.type;
-                }
-
-                return [
-                    formatDateTime(tx.createdAt),
-                    description,
-                    isIncome ? formatCurrency(amount) : "-",
-                    !isIncome ? formatCurrency(amount) : "-",
-                    formatCurrency(balanceAfterTx)
-                ];
-            });
-
-            const table = {
-                headers: ["", "", "", "", ""],
-                rows: tableRows,
-            };
-
-            await doc.table(table, {
-                x: LAYOUT.tableStart.x,
-                y: LAYOUT.tableStart.y,
-                width: 505,
-                columnsSize: LAYOUT.columnWidths,
-                hideHeader: true, 
-                divider: {
-                    header: { disabled: true },
-                    horizontal: { disabled: false, width: 0.5, opacity: 0.5 },
-                },
-                prepareRow: (row: any, indexColumn: any, indexRow: any, rect: any, rowData: any) => {
-                    doc.font("LINESeedSansTH").fontSize(9).fillColor("#333333");
-                    const yOffset = rect.y + 2; 
-                    if (indexColumn >= 2) { 
-                        // Money columns align right
-                        doc.text(rowData[indexColumn], rect.x, yOffset, { width: rect.width, align: 'right' });
-                        return false; 
-                    }
-                    // Other columns align left
-                    doc.text(rowData[indexColumn], rect.x, yOffset, { width: rect.width, align: 'left' });
-                    return false;
-                },
-            });
-
-            doc.end();
-        } catch (error) {
-            reject(error);
-        }
-    });
+    } catch (error) {
+        console.error("Puppeteer PDF Generation Error:", error);
+        throw error;
+    } finally {
+        if (browser) await browser.close();
+    }
 };
 
 /**
- * สร้าง HTML สำหรับ Debug Layout (Identical to your provided snippet)
+ * Build HTML Content with Pagination
  */
 export const buildStatementHtml = async (data: StatementData): Promise<string> => {
-    const qrDataUrl = await QRCode.toDataURL(data.wallet.walletUniqueId, { margin: 0 });
+    // 1. Prepare Base64 Assets
+    const getBase64 = (filePath: string) => fs.existsSync(filePath) ? fs.readFileSync(filePath).toString('base64') : "";
     
-    const bgPath = path.resolve("public/statement.png");
-    let bgBase64 = "";
-    if (fs.existsSync(bgPath)) {
-        const bgBuffer = fs.readFileSync(bgPath);
-        bgBase64 = `data:image/png;base64,${bgBuffer.toString('base64')}`;
-    } else {
-        console.warn("HTML Debug: Background image not found");
-    }
+    const fontBase64Bd = getBase64(path.resolve("public/fonts/LINESeedSansTH_Bd.ttf"));
+    const fontBase64Rg = getBase64(path.resolve("public/fonts/LINESeedSansTH_Rg.ttf"));
+    const bgBase64 = getBase64(path.resolve("public/statement.png"));
+    const qrDataUrl = await QRCode.toDataURL(data.wallet.walletUniqueId, { margin: 0 });
 
-    const validTransactions = data.transactions.filter((tx) => tx.type !== "REWARD");
+    // 2. Data Preparation
+    // 2. Data Preparation
+    // Sort transactions Oldest First (Ascending)
+    // Assuming input data might be descended, we flip it.
+    // Ideally we sort by createdAt just to be safe.
+    const validTransactions = data.transactions
+        .filter((tx) => tx.type !== "REWARD")
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
     const totalIncome = validTransactions.reduce((sum, tx) => (tx.toWalletId === data.currentWalletId ? sum + tx.amount : sum), 0);
     const totalExpense = validTransactions.reduce((sum, tx) => (tx.fromWalletId === data.currentWalletId ? sum + tx.amount : sum), 0);
 
-    let balanceTracker = data.wallet.balance;
-    const rowsHtml = validTransactions.map((tx) => {
-        const isIncome = tx.toWalletId === data.currentWalletId;
-        const amount = tx.amount;
-        const balanceAfterTx = balanceTracker;
-        if (isIncome) balanceTracker -= amount; else balanceTracker += amount;
+    // 3. Pagination Logic
+    // --- ADJUST THESE TO CONTROL ROWS PER PAGE ---
+    const PAGE_HEIGHT = 1123; // A4 pixel height
+    
+    // Page 1 Configuration
+    const START_Y_P1 = 480;  // Where table starts on Page 1 (must match CSS .table-container top)
+    const PAGE_BOTTOM_P1 = 1300; // Stop adding rows when we reach this Y position
+    const MAX_H_P1 = PAGE_BOTTOM_P1 - START_Y_P1; 
 
-        let description = "";
+    // Page 2+ Configuration (Matches Page 1 now)
+    const START_Y_P2 = 480; 
+    const PAGE_BOTTOM_P2 = 1250; 
+    const MAX_H_P2 = PAGE_BOTTOM_P2 - START_Y_P2;
+
+    const ROW_PADDING = 12; 
+    const LINE_HEIGHT = 16; 
+    const CHARS_PER_LINE = 35;
+
+    const estimateRowHeight = (tx: Transaction): number => {
+        let description = getTxDescription(tx, data.currentWalletId);
+        const lines = Math.max(1, Math.ceil((description.length || 1) / CHARS_PER_LINE));
+        return (lines * LINE_HEIGHT) + ROW_PADDING;
+    };
+
+    const getTxDescription = (tx: Transaction, currentWalletId: string) => {
+        const isIncome = tx.toWalletId === currentWalletId;
         switch (tx.type) {
-            case "DEPOSIT": description = `ฝากเงิน (${tx.from})`; break;
-            case "TRANSFER": description = isIncome ? `รับโอน (${tx.fromWallet?.user?.line_display_name || "Unknown"})` : `โอนเงิน (${tx.toWallet?.user?.line_display_name || "Unknown"})`; break;
-            case "WITHDRAW": description = `ถอนเงิน (${tx.to})`; break;
-            default: description = tx.description || tx.type;
+            case "DEPOSIT": return `ฝากเงิน (${tx.from})`;
+            case "TRANSFER":
+                return isIncome
+                    ? `รับโอน (${tx.fromWallet?.user?.line_display_name || "Unknown"})`
+                    : `โอนเงิน (${tx.toWallet?.user?.line_display_name || "Unknown"})`;
+            case "WITHDRAW": return `ถอนเงิน (${tx.to})`;
+            default: return tx.description || tx.type;
         }
+    };
+
+    // Chunking
+    const pages: Transaction[][] = [];
+    let currentPageTx: Transaction[] = [];
+    let currentH = 0;
+    let maxH = MAX_H_P1; // Starts with Page 1 limit
+
+    for (const tx of validTransactions) {
+        const h = estimateRowHeight(tx);
+        if (currentH + h > maxH) {
+            // Push current page
+            pages.push(currentPageTx);
+            // Reset for new page
+            currentPageTx = [];
+            currentH = 0;
+            maxH = MAX_H_P2; // Subsequent pages use larger area
+        }
+        currentPageTx.push(tx);
+        currentH += h;
+    }
+    if (currentPageTx.length > 0) pages.push(currentPageTx);
+
+    // 4. Render Pages
+    // Calculate Initial Balance (Balance BEFORE the first visible transaction)
+    // Formula: FinalBalance (Current) - TotalIncome + TotalExpense = InitialBalance
+    let runningBalance = data.wallet.balance - totalIncome + totalExpense;
+
+    const dataRowsHtml = (txs: Transaction[]) => {
+        return txs.map(tx => {
+            const isIncome = tx.toWalletId === data.currentWalletId;
+            const amount = tx.amount;
+            
+            // For statement: Balance displayed is usually "Balance After Transaction"
+            if (isIncome) runningBalance += amount;
+            else runningBalance -= amount;
+
+            const rowBalance = runningBalance;
+
+            const description = getTxDescription(tx, data.currentWalletId);
+
+            return `
+            <div class="row">
+                <div class="col date">${formatDateTime(tx.createdAt)}</div>
+                <div class="col desc">${description}</div>
+                <div class="col amount income">${isIncome ? formatCurrency(amount) : "-"}</div>
+                <div class="col amount expense">${!isIncome ? formatCurrency(amount) : "-"}</div>
+                <div class="col amount balance">${formatCurrency(rowBalance)}</div>
+            </div>`;
+        }).join("");
+    };
+
+    // Generate HTML for each page
+    const pagesHtml = pages.map((pageTxs, index) => {
+        // Every page is now treated like the first page
+        const topOffset = START_Y_P1; 
+        const rows = dataRowsHtml(pageTxs);
 
         return `
-            <div class="row">
-                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[0]}px">${formatDateTime(tx.createdAt)}</div>
-                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[1]}px">${description}</div>
-                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[2]}px; text-align: right;">${isIncome ? formatCurrency(amount) : "-"}</div>
-                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[3]}px; text-align: right;">${!isIncome ? formatCurrency(amount) : "-"}</div>
-                <div style="padding: 0 4px; width: ${LAYOUT.columnWidths[4]}px; text-align: right;">${formatCurrency(balanceAfterTx)}</div>
+        <div class="page">
+            <div class="background-container"></div>
+            <div class="content-container">
+                <!-- Header Info (On Every Page) -->
+                <div class="qr-code"><img src="${qrDataUrl}" alt="QR"></div>
+                <div class="user-info">
+                    <div>ชื่อ-นามสกุล: <span class="value">${data.wallet.user.fullname}</span></div>
+                    <div>Wallet ID: <span class="value">${data.wallet.walletUniqueId}</span></div>
+                    <div>ช่วงเวลา: <span class="value">${formatDate(data.startDate)} - ${formatDate(data.endDate)}</span></div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-row"><span>รายรับรวม:</span><span>${formatCurrency(totalIncome)}.-</span></div>
+                    <div class="summary-row"><span>รายจ่ายรวม:</span><span>${formatCurrency(totalExpense)}.-</span></div>
+                    <div class="summary-row"><span>ยอดคงเหลือสุทธิ:</span><span>${formatCurrency(data.wallet.balance)}.-</span></div>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container" style="top: ${topOffset}px;">
+                    ${rows}
+                </div>
             </div>
-        `;
+        </div>`;
     }).join("");
 
     return `
     <!DOCTYPE html>
-    <html>
+    <html lang="th">
     <head>
+        <meta charset="UTF-8">
         <style>
-            @font-face { font-family: 'LINESeedSansTH'; src: url('/public/fonts/LINESeedSansTH_Bd.ttf'); }
-            body { margin: 0; padding: 20px; background: #333; font-family: 'LINESeedSansTH', sans-serif; display: flex; justify-content: center; }
+            @font-face { font-family: 'LINESeedSansTH'; src: url(data:font/ttf;charset=utf-8;base64,${fontBase64Rg}) format('truetype'); font-weight: normal; font-style: normal; }
+            @font-face { font-family: 'LINESeedSansTH'; src: url(data:font/ttf;charset=utf-8;base64,${fontBase64Bd}) format('truetype'); font-weight: bold; font-style: normal; }
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            @page { size: A4; margin: 0; }
+            body { margin: 0; padding: 0; background-color: white; }
+            
             .page {
                 position: relative;
-                width: 595px; height: 842px;
-                background-image: url('${bgBase64}'); 
-                background-size: cover;
-                background-color: white;
-                box-shadow: 0 0 20px rgba(0,0,0,0.5);
+                width: 210mm;
+                height: 297mm;
+                page-break-after: always;
                 overflow: hidden;
+                font-family: 'LINESeedSansTH', sans-serif;
             }
-            .abs { position: absolute; }
-            
-            .qr { left: ${LAYOUT.qrBox.x}px; top: ${LAYOUT.qrBox.y}px; width: ${LAYOUT.qrBox.w}px; height: ${LAYOUT.qrBox.h}px; display: flex; justify-content: center; align-items: center; }
-            .qr img { width: ${LAYOUT.qrBox.w - 10}px; height: ${LAYOUT.qrBox.h - 10}px; }
-            
-            .user-info {  left: ${LAYOUT.userInfoBox.x}px; top: ${LAYOUT.userInfoBox.y}px; width: ${LAYOUT.userInfoBox.w}px; }
-            .text-title { font-size: 9pt; color: #000; font-weight: bold; }
-            .text-detail { font-size: 9pt; color: #333; white-space: nowrap; }
+            .page:last-child { page-break-after: avoid; }
 
-            .summary-box {  left: ${LAYOUT.summaryBox.x}px; top: ${LAYOUT.summaryBox.y}px; width: ${LAYOUT.summaryBox.w}px; display: flex; }
+            .background-container {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+                background-image: url('data:image/png;base64,${bgBase64}');
+                background-size: cover; background-repeat: no-repeat;
+            }
             
-            .summary-details { width: 100%; font-size: 9pt; }
-            .sum-row { width: 100%; white-space: nowrap; display: flex; justify-content: space-between; align-items: center; }
+            /* Header Elements (On Every Page) */
+            .qr-code { position: absolute; top: 197px; left: 73px; width: 85px; height: 85px; display: flex; justify-content: center; align-items: center; }
+            .qr-code img { width: 100%; height: 100%; }
             
-            .table-container { left: ${LAYOUT.tableStart.x}px; top: ${LAYOUT.tableStart.y}px; width: 502px; font-size: 9pt; color: #333; }
-            .row { font-size: 8pt; display: flex;}
+            .user-info { position: absolute; top: 315px; left: 75px; width: 310px; font-size: 14px; line-height: 1.6; color: #000; font-weight: bold; display: flex; flex-direction: column; gap: 8px; }
+            .user-info .value { font-weight: normal; }
+            
+            .summary-box { position: absolute; top: 315px; left: 420px; width: 300px; font-size: 14px; line-height: 1.6; color: #000; display: flex; flex-direction: column; gap: 8px; }
+            .summary-row { display: flex; justify-content: space-between; font-weight: bold; }
+
+            /* Table Section */
+            .table-container { position: absolute; left: 72px; width: 505px; }
+            
+            .row {
+                display: grid;
+                grid-template-columns: 90px 210px 95px 95px 95px;
+                gap: 16px;
+                padding: 6px 0;
+                font-size: 10px;
+                color: #333;
+                align-items: center;
+            }
+            .col { padding: 0 4px; }
+            .date { text-align: left; white-space: nowrap; }
+            .desc { text-align: left; word-break: break-word; line-height: 1.4; }
+            .amount { text-align: right; }
         </style>
     </head>
     <body>
-        <div class="page">
-            <div class="abs qr"><img src="${qrDataUrl}" /></div>
-            
-            <div class="abs user-info">
-                <div class="text-title">ชื่อผู้ใช้: ${data.wallet.user.fullname}</div>
-                <div class="text-detail">Wallet ID: ${data.wallet.walletUniqueId}</div>
-                <div class="text-detail">ตั้งแต่: ${formatDate(data.startDate)} - ${formatDate(data.endDate)}</div>
-            </div>
-
-            <div class="abs summary-box">
-                <div class="summary-details">
-                    <div class="sum-row" style="color: #000;"><span>รายรับรวม:</span> ${formatCurrency(totalIncome)}.-</div>
-                    <div class="sum-row" style="color: #000;"><span>รายจ่ายรวม:</span> ${formatCurrency(totalExpense)}.-</div>
-                    <div class="sum-row" style="color: #000;"><span>ยอดคงเหลือสุทธิ:</span> ${formatCurrency(data.wallet.balance)}.-</div>
-                </div>
-            </div>
-
-            <div class="abs table-container">
-                ${rowsHtml}
-            </div>
-        </div>
+        ${pagesHtml}
     </body>
-    </html>
-    `;
+    </html>`;
 };
 
 export default buildStatementPdf;

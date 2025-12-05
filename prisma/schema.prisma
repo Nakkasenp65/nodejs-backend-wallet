@@ -46,6 +46,7 @@ enum TransactionType {
   DEPOSIT
   REWARD
   TRANSFER
+  REDEEMED
 }
 
 enum TransactionStatus {
@@ -331,4 +332,19 @@ model Referral {
 
   newcomer   User   @relation("WasReferred", fields: [newcomerId], references: [id], onDelete: Cascade)
   newcomerId String @unique @db.ObjectId
+}
+
+model Log {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  adminId         String
+  lineUserId      String?
+  lineDisplayName String?
+  method          String
+  path            String
+  params          String?
+  query           String?
+  body            String?
+  ip              String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
 }

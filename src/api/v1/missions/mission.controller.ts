@@ -83,7 +83,8 @@ const deleteMission = catchAsync(async (req: Request, res: Response) => {
  * @param {object} res - อ็อบเจกต์ Express Response
  */
 const editMission = catchAsync(async (req: Request, res: Response) => {
-    const updatedMission = await missionService.editMission(req.body);
+    const { missionId } = req.params;
+    const updatedMission = await missionService.editMission({ ...req.body, id: missionId });
     res.status(httpStatus.OK).json(updatedMission);
 });
 

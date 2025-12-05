@@ -80,6 +80,7 @@ const auth = catchAsync(async (req: Request, res: Response, next: NextFunction) 
       select: {
         id: true,
         line_user_id: true,
+        line_display_name: true, // Fetch display name
         phone: true,
         role: true,
       },

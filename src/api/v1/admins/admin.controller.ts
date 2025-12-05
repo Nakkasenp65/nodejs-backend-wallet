@@ -132,6 +132,19 @@ const updateWallet = catchAsync(async (req: Request, res: Response) => {
 });
 
 /**
+ * คอนโทรลเลอร์สำหรับตัดยอดเงินจาก Wallet เพื่อแลกสินค้า (สำหรับ Admin)
+ * @description รับ `walletId` จาก URL และ `productPrice`, `description` จาก Body
+ * @param {object} req - อ็อบเจกต์ Express Request
+ * @param {object} res - อ็อบเจกต์ Express Response
+ */
+const redeemProduct = catchAsync(async (req: Request, res: Response) => {
+  const { walletId } = req.params;
+  const { productPrice, description } = req.body;
+  const result = await adminService.redeemProduct(walletId, productPrice, description);
+  res.status(httpStatus.OK).json(result);
+});
+
+/**
  * คอนโทรลเลอร์สำหรับดึงข้อมูลภารกิจของผู้ใช้โดยละเอียด (สำหรับ Admin)
  * @description รับ `userMissionId` จาก URL parameters
  * @param {object} req - อ็อบเจกต์ Express Request
@@ -189,6 +202,7 @@ export default {
   getWallets,
   getWalletDetails,
   updateWallet,
+  redeemProduct,
   getUserMissionDetails,
   getUserMisisonsByUserLineId,
   editUserMission,

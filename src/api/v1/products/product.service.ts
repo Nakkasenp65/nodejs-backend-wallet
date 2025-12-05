@@ -295,6 +295,12 @@ const editProduct = async (productId: string, file: Express.Multer.File | undefi
     // --- STAGE 2: DATA PREPARATION & SANITIZATION ---
     const dataToUpdate: any = { ...payload };
 
+    // [FIX] Parse numeric fields from string (multipart/form-data)
+    if (dataToUpdate.downPaymentAmount) dataToUpdate.downPaymentAmount = Number(dataToUpdate.downPaymentAmount);
+    if (dataToUpdate.price) dataToUpdate.price = Number(dataToUpdate.price);
+    if (dataToUpdate.installment6Months) dataToUpdate.installment6Months = Number(dataToUpdate.installment6Months);
+    if (dataToUpdate.installment10Months) dataToUpdate.installment10Months = Number(dataToUpdate.installment10Months);
+
     // [NEW] หน่วยปฏิบัติการอัปโหลดไฟล์
     // ทำงานก็ต่อเมื่อมีไฟล์ใหม่ส่งเข้ามาเท่านั้น
     if (file) {

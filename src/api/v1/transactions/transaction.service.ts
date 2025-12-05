@@ -1081,7 +1081,7 @@ const approveDeposit = async (transactionId: string, approvalData: ApproveDeposi
         `โบนัสเงินฝากครั้งแรก`,
         bonusAmount,
         TransactionStatus.SUCCESS,
-        "SYSTEM_BONUS",
+        "1Wallet",
         transaction.toWallet.user.line_display_name,
         `โบนัสเงินฝากครั้งแรก ${bonusAmount} บาท`,
         walletId,
@@ -1202,7 +1202,7 @@ const rejectDeposit = async (transactionId: string, rejectionData: RejectionData
     return prisma.transaction.findUnique({ where: { id: transactionId } });
   }
 
-  let description;
+  let description = "";
   switch (code) {
     case "403001":
       description = "รายการถูกปฏิเสธ: ไม่พบชื่อบัญชีผู้รับที่ตรงกับที่ระบุไว้";
@@ -1210,8 +1210,11 @@ const rejectDeposit = async (transactionId: string, rejectionData: RejectionData
     case "200001":
       description = "รายการถูกปฏิเสธ: สลิปนี้เคยถูกใช้งานในระบบแล้ว";
       break;
+    case "500004":
+      description = "ระบบเกิดข้อผิดพลาด กรุณาติดต่อเจ้าหน้าที่";
+      break;
     default:
-      description = `รายการถูกปฏิเสธ: ${reason} (Code: ${code})`;
+      description = `รายการถูกปฏิเสธ: ${reason} (Code: ${code}) กรุณาติดต่อเจ้าหน้าที่`;
       break;
   }
 

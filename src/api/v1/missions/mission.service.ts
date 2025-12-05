@@ -395,7 +395,7 @@ const deleteMission = async (missionId: string) => {
  * @throws {ApiError} หากไม่ได้ระบุ `id` หรือ `title` ใน payload
  */
 const editMission = async (payload: any) => {
-  if (!payload.id || !payload.title) throw new ApiError(httpStatus.BAD_REQUEST, "ID and Title are required");
+  if (!payload.id) throw new ApiError(httpStatus.BAD_REQUEST, "ID is required");
   const { id, title, description, type, rewardAmount, webExpiresAt, durationDays, completeProgress } = payload;
   return await prisma.mission.update({
     where: { id },

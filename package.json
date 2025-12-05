@@ -45,6 +45,7 @@
     "pdfkit": "^0.17.1",
     "pdfkit-table": "^0.1.99",
     "prettier": "^3.6.2",
+    "puppeteer": "^24.32.0",
     "qrcode": "^1.5.4",
     "resend": "^6.0.1",
     "serverless-http": "^3.2.0",

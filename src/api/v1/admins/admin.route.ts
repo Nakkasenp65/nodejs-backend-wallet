@@ -40,6 +40,14 @@ adminRoute.use(auth, adminAuth);
  */
 adminRoute.get("/", adminController.getDashboardData);
 
+/**
+ * 
+ * 
+ * MARK: USER PART  
+ * 
+ * 
+ */
+
 // ผู้ใช้
 
 /**
@@ -77,6 +85,14 @@ adminRoute.patch("/users/:userId", adminController.editUser);
  */
 adminRoute.delete("/users/:userId", userController.deleteUser);
 
+/**
+ * 
+ * 
+ * MARK: TRANSACTION PART  
+ * 
+ * 
+ */
+
 //รายการการเงิน
 
 /**
@@ -106,6 +122,14 @@ adminRoute.patch("/transactions/:transactionId", upload.single("slipImage"), adm
  * @param {string} transactionId - ID ของธุรกรรม
  */
 adminRoute.delete("/transactions/:transactionId", adminController.deleteTransaction);
+
+/**
+ * 
+ * 
+ * MARK: MISSION PART  
+ * 
+ * 
+ */
 
 //ภารกิจ
 
@@ -138,7 +162,7 @@ adminRoute.post("/missions", missionController.createMission);
  * @access Admin Only
  * @body {object} missionData - ข้อมูลสำหรับอัปเดตภารกิจ (ต้องมี `id`)
  */
-adminRoute.patch("/missions", missionController.editMission);
+adminRoute.patch("/missions/:missionId", missionController.editMission);
 
 /**
  * @route DELETE /v1/admin/missions/:missionId
@@ -147,6 +171,14 @@ adminRoute.patch("/missions", missionController.editMission);
  * @param {string} missionId - ID ของภารกิจหลัก
  */
 adminRoute.delete("/missions/:missionId", missionController.deleteMission);
+
+/**
+ * 
+ * 
+ * MARK: USER-MISSION PART  
+ * 
+ * 
+ */
 
 // ภารกิจของแต่ละ account
 
@@ -182,6 +214,14 @@ adminRoute.patch("/user-missions/:userMissionId", adminController.editUserMissio
  * @param {string} userMissionId - ID ของ UserMission
  */
 adminRoute.delete("/user-missions/:userMissionId", adminController.deleteUserMission);
+
+/**
+ * 
+ * 
+ * MARK: BROADCASTS PART  
+ * 
+ * 
+ */
 
 //การแจ้งเตือน เป็น broadcast แทน notification (notification คือส่วนตัวมี userId อยู่)
 
@@ -233,6 +273,14 @@ adminRoute.patch("/broadcasts/:broadcastId", broadcastController.updateBroadcast
  */
 adminRoute.delete("/broadcasts/:broadcastId", broadcastController.deleteBroadcast);
 
+/**
+ * 
+ * 
+ * MARK: PRODUCTS PART  
+ * 
+ * 
+ */
+
 //จัดการแก้ไข เพิ่มลบ รุ่นโทรศัพท์
 
 /**
@@ -281,6 +329,15 @@ adminRoute.delete("/products/:productId", productController.deleteProduct);
  */
 adminRoute.post("/line/test/:line_user_id", lineController.sendFlexMessage);
 
+
+/**
+ * 
+ * 
+ * MARK: WALLET PART  
+ * 
+ * 
+ */
+
 // จัดการแก้ไข เพิ่มลบ กระเป๋า
 
 /**
@@ -306,6 +363,24 @@ adminRoute.get("/wallets/:walletId", adminController.getWalletDetails);
  * @body {object} updateData - ข้อมูลที่ต้องการอัปเดต (เช่น `balance`)
  */
 adminRoute.patch("/wallets/:walletId", adminController.updateWallet); // Fixed bug: getWallets -> updateWallet
+
+/**
+ * 
+ * 
+ * MARK: REDEEM PART  
+ * 
+ * 
+ */
+
+/**
+ * @route POST /v1/admin/wallets/:walletId/redeem
+ * @description ตัดยอดเงินจาก Wallet (Bonus ก่อน แล้วค่อย Balance) สำหรับการแลกสินค้า
+ * @access Admin Only
+ * @param {string} walletId - ID ของ Wallet
+ * @body {number} productPrice - ราคาสินค้าที่ต้องการแลก
+ * @body {string} description - คำอธิบายรายการ
+ */
+adminRoute.post("/wallets/:walletId/redeem", adminController.redeemProduct);
 
 // จัดการ cron
 

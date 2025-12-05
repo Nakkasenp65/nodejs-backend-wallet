@@ -129,6 +129,80 @@ const getDashboardData = async () => {
     }
 };
 
+/**
+ * ตัดยอดเงินจาก Wallet เพื่อแลกสินค้า (Redeem)
+ * @description ตัดยอดเงินจาก Bonus Balance ก่อน ถ้าไม่พอจึงตัดจาก Balance
+ * และสร้าง Transaction บันทึกการใช้งาน
+ * @async
+ * @param {string} walletId - ID ของ Wallet
+ * @param {number} productPrice - ราคาสินค้า
+ * @param {string} description - คำอธิบาย
+ * @returns {Promise<object>} Transaction ที่เกิดขึ้น
+ */
+const redeemProduct = async (walletId: string, productPrice: number, description: string) => {
+    if (!walletId || !productPrice || productPrice <= 0) {
+        throw new Error("Invalid input data");
+    }
+
+    return await prisma.$transaction(async (tx) => {
+        // 1. ดึงข้อมูล Wallet ล่าสุด
+        const wallet = await tx.wallet.findUnique({
+            where: { id: walletId },
+            include: { user: true }
+        });
+
+        if (!wallet) {
+            throw new Error("Wallet not found");
+        }
+
+        const totalBalance = wallet.balance + wallet.bonusBalance;
+        if (totalBalance < productPrice) {
+            throw new Error("Insufficient funds");
+        }
+
+        // 2. คำนวณการตัดเงิน (Bonus ก่อน, แล้วค่อย Balance)
+        let deductBonus = 0;
+        let deductBalance = 0;
+
+        if (wallet.bonusBalance >= productPrice) {
+            // Bonus พอจ่ายทั้งหมด
+            deductBonus = productPrice;
+        } else {
+            // Bonus ไม่พอ, ใช้ Bonus หมดแล้วส่วนต่างตัดจาก Balance
+            deductBonus = wallet.bonusBalance;
+            deductBalance = productPrice - wallet.bonusBalance;
+        }
+
+        // 3. อัปเดต Wallet
+        await tx.wallet.update({
+            where: { id: walletId },
+            data: {
+                bonusBalance: { decrement: deductBonus },
+                balance: { decrement: deductBalance },
+            },
+        });
+
+        // 4. สร้าง Transaction
+        const transaction = await tx.transaction.create({
+            data: {
+                name: "แลกสินค้า/บริการ",
+                type: TransactionType.REDEEMED, // หรือใช้ประเภทอื่นที่เหมาะสม
+                status: TransactionStatus.SUCCESS,
+                amount: productPrice,
+                from: wallet.user.fullname || wallet.user.line_display_name || "Unknown User",
+                to: "1Wallet", // ตามที่วางแผนไว้
+                description: description,
+                fromWalletId: wallet.id,
+                verified: true,
+                verifiedAmount: productPrice,
+            },
+        });
+
+        return transaction;
+    });
+};
+
 export default {
     getDashboardData,
+    redeemProduct,
 };
