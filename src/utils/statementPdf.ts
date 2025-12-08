@@ -1,4 +1,5 @@
-import puppeteer from "puppeteer";
+// import puppeteer from "puppeteer"; // Removed top-level import
+
 import * as QRCode from "qrcode";
 import * as path from "path";
 import * as fs from "fs";
@@ -51,10 +52,33 @@ interface StatementData {
 const buildStatementPdf = async (data: StatementData): Promise<Buffer> => {
     let browser;
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        let chromium: any;
+        let puppeteerCore: any;
+        let launchOptions: any;
+
+        if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+             // Production (Vercel/AWS)
+            chromium = await import("@sparticuz/chromium");
+            puppeteerCore = await import("puppeteer-core");
+
+            launchOptions = {
+                args: chromium.default.args,
+                defaultViewport: chromium.default.defaultViewport,
+                executablePath: await chromium.default.executablePath(),
+                headless: chromium.default.headless,
+            };
+            browser = await puppeteerCore.default.launch(launchOptions);
+
+        } else {
+             // Local Development
+             const puppeteer = await import("puppeteer");
+             launchOptions = {
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+             };
+             browser = await puppeteer.default.launch(launchOptions);
+        }
+
         const page = await browser.newPage();
 
         const htmlContent = await buildStatementHtml(data);
