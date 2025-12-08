@@ -1,0 +1,11 @@
+import { Request, Response } from "express";
+import planService from "./plan.service.js";
+import catchAsync from "../../../utils/catchAsync.js";
+import httpStatus from "http-status";
+
+const getPlans = catchAsync(async (req: Request, res: Response) => {
+    const plans = await planService.getPlans();
+    res.status(httpStatus.OK).json(plans);
+});
+
+export default { getPlans };
