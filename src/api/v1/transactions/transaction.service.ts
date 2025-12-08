@@ -20,6 +20,8 @@ import userMissionService from "../user-missions/user-mission.service.js";
 import buildStatementPdf from "../../../utils/statementPdf.js";
 import slipService from "../slips/slip.service.js";
 import notificationService from "../notifications/notification.service.js";
+import logService from "../logs/log.service.js";
+
 import lineService from "../lines/line.service.js";
 import type {
   CreateSavingTransactionBody,
@@ -303,7 +305,7 @@ const updateTransaction = async (
 
     // --- CASE 1: UNAUTHORIZED ---
     case "403001": {
-      return await prisma.transaction.update({
+      const result = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: TransactionStatus.REJECTED,
@@ -313,11 +315,19 @@ const updateTransaction = async (
           verifiedAmount: 0,
         },
       });
+
+      await logService.logWarn('TransactionService', `Deposit verification failed: UNAUTHORIZED`, {
+        transactionId,
+        code,
+        reason: "Recipient name mismatch",
+      });
+
+      return result;
     }
 
     // --- CASE 2: DUPLICATE ---
     case "200001": {
-      return await prisma.transaction.update({
+      const result = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: TransactionStatus.REJECTED,
@@ -330,16 +340,23 @@ const updateTransaction = async (
           toWallet: true,
         },
       });
+
+      await logService.logWarn('TransactionService', `Deposit verification failed: DUPLICATE_SLIP`, {
+        transactionId,
+        code,
+        reason: "Slip already used",
+      });
+
+      return result;
     }
 
-    // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
-    default: {
-      console.error(`Unknown transaction verification code: ${code}`);
-      return await prisma.transaction.update({
+    // --- CASE 3: SYSTEM ERROR ---
+    case "500004": {
+      const result = await prisma.transaction.update({
         where: { id: transactionId },
         data: {
           status: TransactionStatus.REJECTED,
-          description: `รายการถูกปฏิเสธ: สลิปไม่ถูกต้องกรุณาลองใหม่อีกครั้ง ERROR:${code}`,
+          description: "ระบบเกิดข้อผิดพลาด กรุณาติดต่อเจ้าหน้าที่",
           amount: 0,
           verified: true,
           verifiedAmount: 0,
@@ -348,6 +365,40 @@ const updateTransaction = async (
           toWallet: true,
         },
       });
+
+      await logService.logWarn('TransactionService', `Deposit verification failed: SYSTEM_ERROR`, {
+        transactionId,
+        code,
+        reason: "Slip verification system error",
+      });
+
+      return result;
+    }
+
+    // --- DEFAULT: กรณีที่ Code ไม่ตรงกับที่คาดไว้ ---
+    default: {
+      console.error(`Unknown transaction verification code: ${code}`);
+      const updatedTransaction = await prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: TransactionStatus.REJECTED,
+          description: `ระบบเกิดข้อผิดพลาด: (Code: ${code}) กรุณาติดต่อเจ้าหน้าที่`,
+          amount: 0,
+          verified: true,
+          verifiedAmount: 0,
+        },
+        include: {
+          toWallet: true,
+        },
+      });
+
+      await logService.logError('TransactionService', `Deposit verification failed: UNKNOWN_CODE`, {
+        transactionId,
+        code,
+        sys_message: `Unknown verification code: ${code}`,
+      });
+
+      return updatedTransaction;
     }
   }
 };
@@ -1214,11 +1265,11 @@ const rejectDeposit = async (transactionId: string, rejectionData: RejectionData
       description = "ระบบเกิดข้อผิดพลาด กรุณาติดต่อเจ้าหน้าที่";
       break;
     default:
-      description = `รายการถูกปฏิเสธ: ${reason} (Code: ${code}) กรุณาติดต่อเจ้าหน้าที่`;
+      description = `ระบบเกิดข้อผิดพลาด: ${reason} (Code: ${code}) กรุณาติดต่อเจ้าหน้าที่`;
       break;
   }
 
-  return await prisma.transaction.update({
+  const result = await prisma.transaction.update({
     where: { id: transactionId },
     data: {
       status: "REJECTED",
@@ -1227,6 +1278,17 @@ const rejectDeposit = async (transactionId: string, rejectionData: RejectionData
       verifiedAmount: 0,
     },
   });
+
+  // Log the rejection
+  await logService.logWarn('TransactionService', `Deposit rejected: ${reason}`, {
+    transactionId,
+    code,
+    reason,
+    description,
+  });
+
+  return result;
+
 };
 
 export default {

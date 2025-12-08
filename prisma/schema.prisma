@@ -348,3 +348,12 @@ model Log {
   userAgent       String?
   createdAt       DateTime @default(now())
 }
+
+model SystemLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  level     String   @default("INFO") // INFO, WARN, ERROR
+  module    String
+  message   String
+  metadata  String?
+  createdAt DateTime @default(now())
+}

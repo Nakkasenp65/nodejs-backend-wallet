@@ -84,7 +84,6 @@ const formatRecipientDisplay = (fullname: string, toString: string) => {
 
   return `${fullname} ${maskedPart}`;
 };
-// const devId = process.env.DEV_LINE_USER_ID;
 
 /**
  * ส่ง Flex Message ต้อนรับผู้ใช้ใหม่หลังลงทะเบียนสำเร็จ

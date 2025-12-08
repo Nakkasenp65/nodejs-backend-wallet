@@ -22,6 +22,8 @@ import axios from "axios";
  */
 export const pushMessage = async (flexMessage: any): Promise<any | undefined> => {
   try {
+
+    // Channel Access Token จาก LINE
     const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
 
     if (!channelAccessToken) {
