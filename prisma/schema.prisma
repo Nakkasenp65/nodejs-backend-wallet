@@ -142,10 +142,10 @@ model Transaction {
   status TransactionStatus @default(PENDING)
   from   String?
 
-  fromWallet   Wallet? @relation("SentTransactions", fields: [fromWalletId], references: [id])
+  fromWallet   Wallet? @relation("SentTransactions", fields: [fromWalletId], references: [id], onDelete: SetNull)
   fromWalletId String? @db.ObjectId
 
-  toWallet   Wallet? @relation("ReceiveTransaction", fields: [toWalletId], references: [id])
+  toWallet   Wallet? @relation("ReceiveTransaction", fields: [toWalletId], references: [id], onDelete: SetNull)
   toWalletId String? @db.ObjectId
 
   to             String?
