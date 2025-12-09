@@ -23,7 +23,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     // Types
-    "types": ["node"],
+    "types": ["node", "jest"],
     // Emit
     "declaration": false,
     "declarationMap": false,
